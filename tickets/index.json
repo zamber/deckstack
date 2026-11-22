@@ -1354,7 +1354,7 @@
   {
     "id": "DS-042",
     "title": "Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation",
-    "state": "doing",
+    "state": "review",
     "phase": 4,
     "lane": "router",
     "size": "L",

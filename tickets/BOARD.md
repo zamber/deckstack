@@ -39,7 +39,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-035 | backlog | 3 | vdev | M | - | DS-017, DS-032 | vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn |
 | DS-040 | done | 4 | router | L | vibe/DS-040 | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
 | DS-041 | done | 4 | router | M | vibe/DS-041 | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
-| DS-042 | doing | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
+| DS-042 | review | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
 | DS-043 | backlog | 4 | security | L | - | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | ready | 4 | router | M | - | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
 | DS-045 | backlog | 4 | test | L | - | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
