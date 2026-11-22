@@ -459,7 +459,8 @@
       "DS-020",
       "DS-031",
       "DS-040",
-      "DS-041"
+      "DS-041",
+      "DS-095"
     ]
   },
   {
@@ -540,7 +541,8 @@
     "blocks": [
       "DS-020",
       "DS-035",
-      "DS-040"
+      "DS-040",
+      "DS-095"
     ]
   },
   {
@@ -2357,6 +2359,41 @@
     "verification": [
       "python3 -c 'import csv;rows=list(csv.reader(open(\"docs/run-log.tsv\"),delimiter=\"\\t\"));print(len(rows))'",
       "sh tools/check.sh"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-095",
+    "title": "ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports",
+    "state": "ready",
+    "phase": 1,
+    "lane": "daemon",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-015",
+      "DS-017"
+    ],
+    "touches": [
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-daemon/tests/daemon.rs",
+      "docs/components/daemon.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "with ds-vdev and ds-daemon running, `ds set /controls/keys/0/image --file examples/key.png` makes `ds-vdevctl frames key:0` print sha256 equal to sha256(examples/key.png)",
+      "a colour image (`{\"kind\":\"color\",...}`) also produces a reassembled frame for its target",
+      "cargo test -p ds-daemon and python tests/e2e/run.py pass"
+    ],
+    "verification": [
+      "python tests/e2e/run.py",
+      "cargo test -p ds-daemon",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
     ],
     "blocks": []
   }
