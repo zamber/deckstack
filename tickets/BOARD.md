@@ -32,7 +32,7 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-028 | backlog | 2 | verify | M | - | DS-026 | Camera golden checks for key:0, panel, LED + calibration procedure |
 | DS-029 | done | 2 | test | L | vibe/DS-029 | DS-022 | Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape |
 | DS-030 | done | 3 | frames | M | vibe/DS-030 | DS-013, DS-020 | JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests |
-| DS-031 | ready | 3 | frames | L | - | DS-013, DS-015, DS-020 | Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap |
+| DS-031 | doing | 3 | frames | L | vibe/DS-031 | DS-013, DS-015, DS-020 | Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap |
 | DS-032 | ready | 3 | cli | M | - | DS-013, DS-016, DS-020 | ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits |
 | DS-033 | backlog | 3 | bench | M | - | DS-031, DS-032 | Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak |
 | DS-034 | backlog | 3 | frames | M | - | DS-030, DS-032 | Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits |
