@@ -2337,7 +2337,7 @@
   {
     "id": "DS-094",
     "title": "run-log evidence backfill for the rows flagged by the independent review",
-    "state": "doing",
+    "state": "review",
     "phase": 0,
     "lane": "docs",
     "size": "S",
