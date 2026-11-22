@@ -13,14 +13,16 @@
     {"id": 8, "op": "unsubscribe", "path": "/controls/keys/*"},
     {"id": 9, "op": "emit", "topic": "app/demo/hello", "payload": {"n": 1}},
     {"id": 10, "op": "bind", "binding": {"id": "b0001", "topic": "deck/control/keys.0/down", "allow_exec": false, "when": {"payload": "control", "op": "exists"}, "steps": [{"do": "plugin", "id": "demo", "action": "bump", "args": {"by": 1}}]}},
-    {"id": 11, "op": "unbind", "id": "b0001"},
+    {"id": 11, "op": "unbind", "binding": "b0001"},
+    {"id": 11, "op": "unbind", "topic": "deck/control/keys.0/down"},
     {"id": 12, "op": "plugin", "action": "list"},
-    {"id": 13, "op": "plugin", "action": "invoke", "id": "demo", "args": {"action": "bump", "by": 2}},
+    {"id": 13, "op": "plugin", "action": "invoke", "plugin": "demo", "args": {"action": "bump", "by": 2}},
     {"id": 14, "op": "stream-open", "target": "keys", "credits": 8},
     {"id": 15, "op": "stream-stats", "target": "keys"},
     {"id": 16, "op": "stream-stop", "target": "keys"},
     {"id": 17, "op": "daemon", "action": "status"},
     {"id": 18, "op": "token", "action": "issue", "scope": "read"},
+    {"id": 20, "op": "token", "action": "revoke", "token_id": "t0001"},
     {"id": 19, "op": "schema", "name": "stream-frame"},
     {"id": 0, "ok": true, "result": {"op": "welcome", "protocol": 1, "rev": 1, "server": "ds-daemon/0.1.0"}},
     {"id": 1, "ok": true, "result": {"scope": "admin"}},
@@ -33,6 +35,13 @@
     {"op": "dropped", "path": "/controls/keys/*", "count": 17},
     {"op": "stream-credit", "target": "keys", "credits": 8},
     {"op": "stream-ack", "target": "keys", "seq": 7},
-    {"op": "stream-nack", "target": "keys", "seq": 8, "count": 1}
+    {"op": "stream-nack", "target": "keys", "seq": 8, "count": 1},
+    {"id": 2, "ok": true, "result": {"pong": true}},
+    {"id": 17, "ok": true, "result": {"running": true, "rev": 42, "pid": 1234, "server": "ds-daemon/0.1.0"}},
+    {"id": 18, "ok": true, "result": {"id": "t0001", "scope": "read"}},
+    {"id": 0, "ok": false, "error": {"code": "E_VERSION", "message": "protocol 2 not supported; this server speaks protocol 1"}},
+    {"ok": false, "error": {"code": "E_SCHEMA", "message": "line is not one JSON object"}},
+    {"ok": false, "error": {"code": "E_LIMIT", "message": "request line exceeds the 1 MiB NDJSON limit"}},
+    {"ok": false, "error": {"code": "E_UNREACHABLE", "message": "daemon not running at $XDG_RUNTIME_DIR/deckstack/daemon.sock — start it with: ds daemon start"}}
   ]
 }

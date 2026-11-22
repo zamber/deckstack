@@ -6,6 +6,13 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 description = "Client library shared by the ds CLI, ds-focus, ds-mcp and agents (ADR-002)."
 
+[dependencies]
+ds-ipc = { path = "../ds-ipc", version = "0.1.0" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
 workspace = true

@@ -37,7 +37,12 @@ broad ACEs). Test: a second local user's connect attempt fails with access denie
 
 - **Control:** newline-delimited JSON, one request line (`id` + `op`) → one response line
   with the same `id`. Reusable connection; CLI one-shot by default, `ds watch` persistent.
-  Max line 1 MiB.
+  Max line 1 MiB. A line that exceeds the cap is answered with an id-less
+  `{"ok":false,"error":{"code":"E_LIMIT",…}}` and the connection is closed (the framing
+  can no longer be trusted); a line that is not exactly one schema-valid request object is
+  answered with an id-less (or id-carrying, if recoverable) `E_SCHEMA` envelope and the
+  connection stays open. The server also caps responses at 4 MiB (a larger handler reply
+  is replaced by `E_LIMIT`).
 - **DSF1 binary frame** (B2, schema `stream-frame.json`): `"DSF1" | u32 LE meta_len |
   UTF-8 JSON meta | u64 LE payload_len | payload`. Meta: `{target, seq, ts_ms, format:
   png|jpeg|gif, w, h, frames, fps, loop, crc32, max_payload_bytes: 16777216}`.
@@ -45,7 +50,9 @@ broad ACEs). Test: a second local user's connect attempt fails with access denie
   control lines are prefixed `DSctl\n` so the two framings never mix.
 - **Versioning:** first message `{"op":"hello","protocol":1,…}` →
   `{"op":"welcome","protocol":1,"rev":N,…}`; mismatch → `E_VERSION`. Additive-only
-  changes; breaking changes bump `protocol`; schemas carry `/vN` `$id`s.
+  changes; breaking changes bump `protocol`; schemas carry `/vN` `$id`s. The schema types
+  `hello.protocol` as a plain integer (not `const 1`) so a mismatched hello can be parsed
+  and answered with `E_VERSION` rather than a schema error.
 
 ## 3. Auth and scopes
 
@@ -56,6 +63,19 @@ broad ACEs). Test: a second local user's connect attempt fails with access denie
   mints scoped tokens in `tokens.json` (0600).
 - `E_AUTH` = bad/missing token (exit 4). `E_SCOPE` (m4) = token valid but scope below the
   request's requirement (exit 4). `E_CAP` = capability grant missing (plugins/exec/net/fs).
+- **Per-op scope requirement** (enforced by the server before dispatch; `hello`/`auth`
+  themselves need none):
+
+  | Scope | Ops |
+  |---|---|
+  | `read` | `ping`, `get`, `subscribe`, `unsubscribe`, `stream-stats`, `schema`, `plugin list`, `daemon status`, `token list` |
+  | `mutate` | `set`, `emit`, `bind`, `unbind`, `stream-open`, `stream-stop`, `plugin invoke|install|remove` |
+  | `admin` | `daemon stop|reload`, `token issue|revoke` (and any op unknown to the scope table — fail closed) |
+
+- **Field names:** the envelope's `id` is always the integer correlation id, so ops that
+  reference another object by id use their own field: `unbind` takes `binding` (or
+  `topic`), `plugin` takes `plugin`, `token revoke` takes `token_id`
+  (`schemas/ipc-message.json`).
 - **Rotation (S12/M4):** `ds token revoke <id>` / rotate is **instant for new connections**:
   the auth check reads the current token set per connection. A short grace (≤ 5 s) applies
   only to requests already in flight on an established connection, tracked by a connection
@@ -84,7 +104,10 @@ stream-open, stream-stats, stream-stop, daemon, token, schema`. Response envelop
 | `E_INTERNAL` | bug | 8 |
 
 The request/response split is schema-enforced: requests never carry `ok`, responses always
-do (m3 discriminator in `ipc-message.json`).
+do (m3 discriminator in `ipc-message.json`). Every line in both directions is validated
+against `schemas/ipc-message.json` before dispatch/return; an unknown op therefore fails
+validation and is answered with `E_SCHEMA` — the usage error (exit 1); the CLI exit-code
+mapping lands with DS-016.
 
 ## 5. Backpressure and limits
 
