@@ -69,7 +69,7 @@ graph TD
   DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::done
   DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::done
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::doing
-  DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::ready
+  DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -193,7 +193,7 @@ Critical path length: 10 tickets.
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(backlog)
-- **daemon** (3): DS-015(done), DS-024(backlog), DS-095(ready)
+- **daemon** (3): DS-015(done), DS-024(backlog), DS-095(doing)
 - **device** (4): DS-014(done), DS-021(backlog), DS-022(backlog), DS-023(backlog)
 - **docs** (2): DS-064(backlog), DS-094(doing)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
@@ -218,4 +218,3 @@ Critical path length: 10 tickets.
 
 - DS-040 - Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering (lane router)
 - DS-041 - Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation (lane router)
-- DS-095 - ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports (lane daemon)
