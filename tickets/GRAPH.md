@@ -22,7 +22,7 @@ graph TD
   DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::done
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::done
   DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::done
-  DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::doing
+  DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::done
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::doing
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::backlog
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::backlog
@@ -196,7 +196,7 @@ Critical path length: 10 tickets.
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
-- **packaging** (3): DS-019(doing), DS-025(backlog), DS-083(backlog)
+- **packaging** (3): DS-019(done), DS-025(backlog), DS-083(backlog)
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
