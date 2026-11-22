@@ -377,8 +377,57 @@ def cmd_show(args):
         print(f"error: no ticket {args.id}", file=sys.stderr)
         return 1
     t = tickets[args.id]
+    if getattr(args, "json", False):
+        print(json.dumps(t["meta"], indent=2))
+        return 0
     print(f"```json\n{json.dumps(t['meta'], indent=2)}\n```\n")
     print(t["body"])
+    return 0
+
+
+def cmd_field(args):
+    with Lock(exclusive=False):
+        tickets, errs = load_tickets()
+    if args.id not in tickets:
+        print(f"error: no ticket {args.id}", file=sys.stderr)
+        return 1
+    m = tickets[args.id]["meta"]
+    if args.key not in m:
+        print(f"error: ticket {args.id} has no field {args.key!r}", file=sys.stderr)
+        return 1
+    v = m[args.key]
+    if v is None:
+        print("null")
+    elif isinstance(v, str):
+        print(v)
+    else:
+        print(json.dumps(v))
+    return 0
+
+
+def cmd_assign(args):
+    with Lock(exclusive=True):
+        tickets, errs = load_tickets()
+        tid = args.id
+        if tid not in tickets:
+            print(f"error: no ticket {tid}", file=sys.stderr)
+            return 1
+        m = tickets[tid]["meta"]
+        if args.clear:
+            m["branch"] = None
+            m["worktree"] = None
+            m["pr"] = None
+        for key, val in (("branch", args.branch), ("worktree", args.worktree),
+                         ("pr", args.pr)):
+            if val is not None:
+                m[key] = None if val == "-" else val
+        if args.owner:
+            m["owner"] = args.owner
+        m["updated"] = today()
+        write_ticket(tickets[tid])
+        sync_outputs(tickets)
+    fields = {k: m.get(k) for k in ("owner", "branch", "worktree", "pr")}
+    print(f"{tid}: assigned " + json.dumps(fields))
     return 0
 
 
@@ -421,6 +470,15 @@ def cmd_claim(args):
         for dep in m["depends_on"]:
             if states.get(dep) != "done":
                 print(f"error: dep {dep} is {states.get(dep)}, not done", file=sys.stderr)
+                return 1
+        for other, ot in sorted(tickets.items()):
+            if other == tid or ot["meta"].get("state") != "doing":
+                continue
+            hit = [x for x in m.get("touches", []) for y in ot["meta"].get("touches", [])
+                   if touches_overlap(x, y)]
+            if hit:
+                print(f"error: file collision with doing ticket {other} on {hit}; "
+                      f"sequence or split the tickets first", file=sys.stderr)
                 return 1
         m["state"] = "doing"
         m["owner"] = args.owner
@@ -621,8 +679,15 @@ def main():
     p.add_argument("--state"); p.add_argument("--lane"); p.add_argument("--owner")
     p.add_argument("--phase", type=int); p.add_argument("--json")
     p.set_defaults(func=cmd_list)
-    p = sub.add_parser("show", help="show one ticket (metadata + body)")
-    p.add_argument("id"); p.set_defaults(func=cmd_show)
+    p = sub.add_parser("show", help="show one ticket (metadata + body); --json for metadata only")
+    p.add_argument("id"); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_show)
+    p = sub.add_parser("field", help="print one metadata field of a ticket (machine-readable)")
+    p.add_argument("id"); p.add_argument("key"); p.set_defaults(func=cmd_field)
+    p = sub.add_parser("assign", help="set linkage fields; value '-' clears, --clear clears all")
+    p.add_argument("id")
+    p.add_argument("--branch"); p.add_argument("--worktree"); p.add_argument("--pr")
+    p.add_argument("--owner"); p.add_argument("--clear", action="store_true")
+    p.set_defaults(func=cmd_assign)
     p = sub.add_parser("ready", help="show the ready set and next-up tickets")
     p.set_defaults(func=cmd_ready)
     p = sub.add_parser("claim", help="claim a ready ticket (ready -> doing)")
