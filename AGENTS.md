@@ -32,10 +32,10 @@ python3 tools/tickets.py ready            # ready set + next-up
 python3 tools/tickets.py validate         # board gate (DAG + generated files in sync) — must print OK
 sh tools/setup-review-remote.sh           # once per clone: local bare remote .review.git as `review`, pushes main
 sh tools/wt.sh new DS-XXX --owner <name>  # claim ticket + create .worktrees/DS-XXX on branch ticket/DS-XXX from main
-sh tools/pr.sh submit DS-XXX              # in the ticket worktree: checks + prs/DS-XXX.md + push to review
-sh tools/pr.sh review DS-XXX --approve    # steward, on main: verdict -> prs/DS-XXX.review.md
-sh tools/pr.sh merge DS-XXX               # steward, on main: requires approved review; lands on main, ticket done
-sh tools/steward.sh "triage the ready set"  # run the steward agent (agents/deckstack-steward.md) via vibe
+sh tools/pr.sh submit DS-XXX              # in the ticket worktree (pwd must be .worktrees/DS-XXX, branch ticket/DS-XXX): checks + prs/DS-XXX.md + push to review
+sh tools/pr.sh review DS-XXX --approve    # steward only, on main: needs DS_STEWARD=1 (exported by tools/steward.sh); refuses self-approval -> prs/DS-XXX.review.md
+sh tools/pr.sh merge DS-XXX               # steward only, on main: same DS_STEWARD=1 gate; requires approved review; lands on main, pushes+verifies review remote
+sh tools/steward.sh "triage the ready set"  # run the steward agent (agents/deckstack-steward.md) via vibe, with DS_STEWARD=1 exported
 # land with later tickets (not yet in this tree):
 #   cargo test --workspace                -> DS-004 (Cargo workspace)
 #   python tests/conformance/run.py       -> DS-018 (conformance suite)
