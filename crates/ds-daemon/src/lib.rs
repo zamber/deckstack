@@ -13,9 +13,15 @@
 //!   (`ping`, `get`, `set`, `subscribe`/`unsubscribe`, `daemon status`, `schema`).
 //! - [`device`] — the device task: owns the `ds-device` [`Transport`] opened from the
 //!   device URI and applies state image/color pushes to the hardware.
-//! - [`frames`] — the frame plane (DS-030): re-encode wire images to the device wire
+//! - [`frames`] — the frame plane: DS-030 re-encode wire images to the device wire
 //!   format (baseline JPEG, standard Huffman, 4:4:4) and chunk them into 320 B image
-//!   reports; the device push path runs it off the state lock.
+//!   reports; the DS-031 **frame service** ([`frames::service`]) queues accepted frames
+//!   per target (latest-frame-wins: 1 in flight + 1 waiting, 256 MiB global budget),
+//!   [`frames::writer`] sends them whole from one writer thread per module (no lock held
+//!   across device I/O), and [`frames::telemetry`] samples non-durable
+//!   `/telemetry/streams/<target>` stats ≤ 1 Hz — frames never touch durable state or
+//!   `rev` (S1). The device push path (DS-095) and the DSF1 stream socket both feed the
+//!   same queues.
 //! - [`router`] — the event bus + router (DS-040): device input reports become
 //!   `deck/control/*` events, committed state changes become state events, the `emit`
 //!   op publishes `app/*`/`deck/*` topics; IPC `subscribe`/`unsubscribe` register on it.

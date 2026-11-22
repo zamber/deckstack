@@ -39,6 +39,14 @@ structural, not a timeout: the writer threads (`keys pictures`/`dial pictures`,
 so a slow or stuck frame transfer cannot starve queries or bindings (the Python engine's
 synchronous paint, `hubdeck/.../engine.py:1325-1341`, is the anti-pattern).
 
+Daemon-side spelling (DS-031, `crates/ds-daemon/src/frames/`): the per-target queue slot
+lives in the frame service; the writer thread moves the waiting frame into the in-flight
+slot and owns it until every chunk is sent. Because `keys` and every `key:N` are the same
+M4315 module (one HID handle), **one writer thread per module** serializes their chunked
+transfers (two writers interleaving chunks on one module would tear the image the same
+way); the dial (M131E) has its own writer. Accepting a frame only takes the queue lock and
+pushes a wake signal — bounded, never blocking on device I/O.
+
 ## 4. Per-frame state churn: none (S1)
 
 A frame push updates **no durable state, no rev, no `/controls` subscription events**. It
@@ -51,7 +59,13 @@ Bench assertion (docs/30-testing.md §5): 32 fps × 60 s ⇒ `rev` delta == 0 an
 ## 5. Limits
 
 - Per-target queue depth ≤ 2; wire frame ≤ 16 MB; total frame-queue memory ≤ 256 MiB
-  (oldest waiting dropped beyond, counted).
+  (oldest waiting dropped beyond, counted). Enforcement (DS-031): the 256 MiB budget
+  counts every queued frame byte (waiting **and** in-flight) across all targets; while a
+  new frame would exceed it, the oldest **waiting** frame of any target is dropped and
+  counted in that target's `dropped`; in-flight frames are never evicted, so when only
+  in-flight frames remain and the budget would still be exceeded, the new frame is
+  refused with `stream-nack` + `E_LIMIT` (the control plane is never killed by frame
+  traffic).
 - Animation ≤ 300 frames @ ≤ 30 fps, `loop` in meta.
 - LED writes (same discipline): ≤ `/policy/led_rate_per_s` (default 30/s, interim pending
   soak OPEN O2, `upstream/PROTOCOL.md:118-121`), always `save=0`.
@@ -61,6 +75,15 @@ Bench assertion (docs/30-testing.md §5): 32 fps × 60 s ⇒ `rev` delta == 0 an
 `ds stream stats keys --json` → control op `stream-stats` → reads
 `/telemetry/streams/keys` (no rev):
 `{"sent":960,"dropped":12,"fps":32.0,"bytes":6700000,"queue":1,"in_flight":true,"last_sha256":"…","last_seq":959,"writer_ms_p99":4.1,"sampled_at":"…"}`.
+
+Daemon-side spelling (DS-031): the daemon's frame service samples these fields ≤ 1 Hz
+into the non-durable `/telemetry/streams/<target>` plane (`Store::set_telemetry` — never
+persisted, never bumps `rev`, reads carry no `rev`). `queue` is the waiting depth (0/1),
+`in_flight` whether a frame is currently being sent whole, `fps` the send rate over the
+sampling window, `writer_ms_p99` the p99 whole-frame send duration, `last_sha256`/
+`last_seq` the last completed frame. `stream-stop` drains the target's queue (queued
+frames are sent) and refuses new frames (`stream-nack` + `E_SCOPE` once the session is
+gone; the service-side stop is a typed `E_SCOPE` refusal).
 
 ## 7. Producer end-to-end
 
