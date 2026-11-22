@@ -16,11 +16,11 @@ Generated: 2026-11-22 - 60 tickets.
 | DS-012 | done | 1 | ipc | L | vibe/DS-012 | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
 | DS-013 | done | 1 | ipc | L | vibe/DS-013 | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
 | DS-014 | done | 1 | device | M | vibe/DS-014 | DS-004 | ds-device: virtual transport and report codec (device-agnostic driver core) |
-| DS-015 | review | 1 | daemon | L | vibe/DS-015 | DS-011, DS-012, DS-014 | ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs |
+| DS-015 | done | 1 | daemon | L | vibe/DS-015 | DS-011, DS-012, DS-014 | ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs |
 | DS-016 | ready | 1 | cli | L | - | DS-012 | ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes |
 | DS-017 | done | 1 | vdev | L | vibe/DS-017 | DS-014 | ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl |
 | DS-018 | ready | 1 | test | L | - | DS-003, DS-012 | Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants |
-| DS-019 | backlog | 1 | packaging | M | - | DS-015 | systemd user unit + daemon lifecycle runbook |
+| DS-019 | ready | 1 | packaging | M | - | DS-015 | systemd user unit + daemon lifecycle runbook |
 | DS-020 | backlog | 1 | test | L | - | DS-015, DS-016, DS-017, DS-018 | End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton |
 | DS-021 | backlog | 2 | device | L | - | DS-020 | Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads |
 | DS-022 | backlog | 2 | device | M | - | DS-021 | Software-mode handshake, module init, safe builders on real hardware |

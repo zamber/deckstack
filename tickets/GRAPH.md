@@ -18,11 +18,11 @@ graph TD
   DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::done
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::done
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::done
-  DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::review
+  DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::done
   DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::ready
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::done
   DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::ready
-  DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::backlog
+  DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::ready
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::backlog
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::backlog
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::backlog
@@ -187,13 +187,13 @@ Critical path length: 10 tickets.
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(ready), DS-032(backlog)
-- **daemon** (2): DS-015(review), DS-024(backlog)
+- **daemon** (2): DS-015(done), DS-024(backlog)
 - **device** (4): DS-014(done), DS-021(backlog), DS-022(backlog), DS-023(backlog)
 - **docs** (1): DS-064(backlog)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
-- **packaging** (3): DS-019(backlog), DS-025(backlog), DS-083(backlog)
+- **packaging** (3): DS-019(ready), DS-025(backlog), DS-083(backlog)
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
@@ -212,3 +212,4 @@ Critical path length: 10 tickets.
 
 - DS-016 - ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes (lane cli)
 - DS-018 - Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants (lane test)
+- DS-019 - systemd user unit + daemon lifecycle runbook (lane packaging)

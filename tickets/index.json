@@ -424,7 +424,7 @@
   {
     "id": "DS-015",
     "title": "ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "daemon",
     "size": "L",
@@ -438,9 +438,9 @@
       "new:crates/ds-daemon/",
       "new:crates/ds-client/"
     ],
-    "branch": "ticket/DS-015",
-    "worktree": ".worktrees/DS-015",
-    "pr": "prs/DS-015.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -583,7 +583,7 @@
   {
     "id": "DS-019",
     "title": "systemd user unit + daemon lifecycle runbook",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "packaging",
     "size": "M",
