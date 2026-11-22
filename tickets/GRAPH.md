@@ -39,7 +39,7 @@ graph TD
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
-  DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::doing
+  DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::review
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::ready
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::backlog
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(doing), DS-041(ready), DS-042(backlog), DS-044(backlog)
+- **router** (4): DS-040(review), DS-041(ready), DS-042(backlog), DS-044(backlog)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (2): DS-011(done), DS-096(ready)

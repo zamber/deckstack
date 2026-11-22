@@ -13,6 +13,9 @@ ds-state = { path = "../ds-state", version = "0.1.0" }
 ds-ipc = { path = "../ds-ipc", version = "0.1.0" }
 ds-device = { path = "../ds-device", version = "0.1.0" }
 ds-protocol = { path = "../ds-protocol", version = "0.1.0" }
+# mh-device (same pinned rev as ds-device/ds-protocol) names ModuleId in the Transport
+# trait and the Input reports the router (DS-040) decodes into deck/control/* events.
+mh-device = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # SIGTERM/SIGINT -> shutdown flag. std has no signal API and the workspace lints deny
@@ -24,9 +27,6 @@ tempfile = "3"
 # The merged ds-vdev library serves the virtual device socket the integration test runs
 # the daemon against (DS-017).
 ds-vdev = { path = "../ds-vdev", version = "0.1.0" }
-# mh-device (same pinned rev as ds-device) names ModuleId in the Transport trait, which
-# the device module's unit tests implement on a mock.
-mh-device = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
 
 [[bin]]
 name = "ds-daemon"

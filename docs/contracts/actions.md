@@ -6,13 +6,40 @@ R3/R4/R8. Design: ADR-007, D07. Binding schema: `schemas/binding.json`. Fixes S3
 
 ```
 deck/control/<control>/<gesture>     control: keys.0 | dial | knobs.0 | faders.2 | rollers.1
-                                     gesture: down | up | long | double | rotate | slide
-deck/device/<serial>/<event>         connected | disconnected | faders | orientation
+                                     gesture: down | up | long | double | rotate | slide | value
+deck/device/<serial>/<event>         connected | disconnected | orientation | faders
 deck/system/<event>                  start | stop | rev | binding-error | exec | crash-recovered
+daemon/<event>                       start | stop | reload        (daemon lifecycle namespace)
 app/<sender>/<topic>                 any external program (ds emit app/focus/changed …)
+plugin/<id>/<event>                  reserved for the plugin host (phase 5)
 ```
 
-Events: `{topic, ts_ms, payload, rev}`.
+Events: `{topic, ts_ms, payload, rev}`. `rev` is present **only on state events** (a
+committed revision of the state document); device/app/daemon events carry `rev: null`.
+State changes are themselves bus events whose topic is the state path
+(`/controls/keys/0/image`), delivered to path subscribers in the historical
+`{"op":"event","path":…,"rev":…,"value":…,"prev":…}` wire shape — one event per changed
+path per committed revision. Frames and `/telemetry/*` never enter the bus (S1).
+
+Device input reports are decoded into `deck/control/*` events by the daemon's device
+task (`ds-vdevctl inject` on the virtual device, real HID in phase 2):
+
+| input report | topic | payload |
+|---|---|---|
+| key state diff | `deck/control/keys.<i>/down\|up` | `{"control","key","pressed"}` |
+| dial detent / press | `deck/control/dial/rotate` · `down\|up` | `{"control":"dial","delta"\|"pressed"}` |
+| knob detent / press | `deck/control/knobs.<i>/rotate` · `down\|up` | `{"control","index","delta"\|"pressed"}` |
+| roller notch | `deck/control/rollers.<i>/rotate` | `{"control","index","delta"}` |
+| fader value diff | `deck/control/faders.<i>/slide` | `{"control","index","value"}` |
+| base orientation | `deck/device/<serial>/orientation` | `{"orientation"}` |
+
+`long`/`double` need hold/double timing and are synthesized later (DS-042).
+
+On the wire, a **topic subscription** is spelled with a leading `/` in the `subscribe`
+op's `path` (`{"op":"subscribe","path":"/deck/control/keys/*"}`); topic events arrive as
+`{"op":"event","topic":"deck/control/keys.0/down","path":"/deck/control/keys.0/down","ts_ms":…,"payload":{…}}`.
+A `path` that does not start with a topic root (`deck`/`app`/`daemon`/`plugin`) remains a
+state-path subscription with the `{"op":"event","path":…,"rev":…}` shape above.
 
 ## 2. Binding / routing model (S2)
 
@@ -28,6 +55,23 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
 
 - Lookup: exact topic → `<prefix>/*` wildcard bindings. All matching bindings run in
   array order.
+- **Wildcard grammar:** in topics, `/` **and** `.` both separate segments for matching
+  (`keys.0` is the two segments `keys` + `0`). A pattern matches a topic when the pattern
+  is a segment-wise **prefix** of the topic and each non-`*` pattern segment equals the
+  corresponding topic segment; `*` matches exactly one segment. So
+  `deck/control/keys/*` matches `deck/control/keys.0/down` (`*` eats the `0`), `deck/*`
+  matches every `deck/…` topic, and `*` alone matches everything. State-path patterns
+  (`/controls/keys/*`) use the same prefix rule with `/`-only segments.
+- **Dispatch order:** on every published event, matching subscribers/bindings are served
+  **exact patterns first, then wildcard patterns**, each group in subscription (array)
+  order; each subscriber receives its events strictly FIFO in publish order.
+- **Backpressure:** every subscriber has a bounded queue (cap **1000** queued events,
+  ipc.md §5). A slow or blocked subscriber never blocks the publisher (state task,
+  device reader, IPC thread): on overflow the **oldest** queued event is dropped and
+  counted, the daemon logs a clear `warn` line (`subscriber #N (…) queue full (1000
+  queued): dropped oldest event … — total dropped M`), and the client is told with
+  `{"op":"dropped","path":"<pattern>","count":n}` (state.md §5). A dead connection is
+  detected on the next send and its subscription removed.
 - `when` evaluates against **state** (`path`) **or the event payload** (`payload` field
   name) — S7. For `app/focus/changed` the router first mirrors the payload into `/focus`
   **in the same transaction** that dispatches bindings, so `/focus`-based conditions are
@@ -68,6 +112,11 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
 Event → dispatch p99 ≤ 5 ms; `set`/`emit` p99 ≤ 10 ms; plugin invoke ≤ 2 s timeout
 (`ASK_SECONDS` precedent `hubdeck/.../engine.py:336-344`), typical ≤ 50 ms; exec spawn
 ≤ 10 ms (fire-and-forget). Frame pushes never move these budgets (S1).
+The in-daemon bus (DS-040) keeps the publish path inside this budget by design:
+`publish` takes one short lock, matches patterns and try-enqueues into bounded
+per-subscriber queues (never a socket write), so event → queue is O(subscribers) with no
+I/O; delivery happens on per-subscriber drainer threads. Measured by the DS-045 bench
+(`cargo bench -p ds-bench -- event-latency`), asserted there, not here.
 
 ## 6. Worked chains
 

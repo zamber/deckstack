@@ -3,21 +3,28 @@
 //! enforcement. This handler only sees authenticated, scope-checked requests.
 //!
 //! Phase-1 ops served here (the state ops of `docs/contracts/ipc.md` §4):
-//! `ping`, `get`, `set`, `subscribe`/`unsubscribe`, `daemon status|stop`, `schema`.
-//! Router/binding/plugin/stream/token ops answer a clear "later ticket" error envelope.
+//! `ping`, `get`, `set`, `subscribe`/`unsubscribe`, `emit`, `daemon status|stop`, `schema`.
+//! Binding/plugin/stream/token ops answer a clear "later ticket" error envelope.
 //!
 //! All state access goes through the [`StateHandle`] (bounded channel to the state
-//! task) — the IPC thread never touches the state document directly.
+//! task) — the IPC thread never touches the state document directly. Subscriptions and
+//! emits go through the event bus ([`crate::router::Bus`], DS-040): a `subscribe` whose
+//! `path` starts with a topic root (`/deck/…`, `/app/…`, `/daemon/…`, `/plugin/…`) is a
+//! topic subscription; any other path is a state-path subscription delivered with the
+//! historical `{"op":"event","path":…,"rev":…}` shape. `/telemetry/*` subscriptions stay
+//! on the direct store subscription (S1: telemetry never enters the bus).
 //!
 //! [`Server`]: ds_ipc::Server
 
 use crate::lifecycle::Shutdown;
+use crate::router::{Bus, IpcSink, Pattern};
 use crate::state::StateHandle;
 use ds_ipc::error::ErrorCode;
 use ds_ipc::message::{Request, Response};
 use ds_ipc::server::{Connection, Handler};
 use ds_state::{Op, Transaction};
 use serde_json::{json, Value};
+use std::sync::Arc;
 
 /// Static daemon status fields reported by `daemon status`.
 #[derive(Debug, Clone)]
@@ -32,9 +39,11 @@ pub struct StatusInfo {
     pub device_status: crate::device::DeviceStatus,
 }
 
-/// The daemon's op handler. Cloneable state: a [`StateHandle`] plus the shutdown flag.
+/// The daemon's op handler. Cloneable state: a [`StateHandle`], the event bus, plus the
+/// shutdown flag.
 pub struct DaemonHandler {
     state: StateHandle,
+    bus: Bus,
     shutdown: Shutdown,
     status: StatusInfo,
     server_name: String,
@@ -44,12 +53,14 @@ impl DaemonHandler {
     /// Build the handler.
     pub fn new(
         state: StateHandle,
+        bus: Bus,
         shutdown: Shutdown,
         status: StatusInfo,
         server_name: String,
     ) -> Self {
         Self {
             state,
+            bus,
             shutdown,
             status,
             server_name,
@@ -63,13 +74,14 @@ impl DaemonHandler {
             "ping" => Response::ok(id, json!({"pong": true})),
             "get" => self.op_get(req, id),
             "set" => self.op_set(req, id),
+            "emit" => self.op_emit(req, id),
             "daemon" => self.op_daemon(req, id),
             "schema" => self.op_schema(req, id),
             other => Response::error_code(
                 id,
                 ErrorCode::EInternal,
                 format!(
-                    "op '{other}' is not served by this phase-1 daemon (router/bindings/plugins/streams/token land in later tickets)"
+                    "op '{other}' is not served by this phase-1 daemon (bindings/plugins/streams/token land in later tickets)"
                 ),
             ),
         }
@@ -143,6 +155,23 @@ impl DaemonHandler {
             },
             Err(e) => Response::error(id, e),
         }
+    }
+
+    /// `emit <topic> [payload]` (ipc-message.json): publish the topic on the event bus
+    /// (DS-040). The schema already restricts `topic` to `^(deck|app)/`; the full topic
+    /// grammar (actions.md §1) is validated here.
+    fn op_emit(&self, req: &Request, id: Option<i64>) -> Response {
+        let Some(topic) = req.get("topic").and_then(Value::as_str) else {
+            return Response::error_code(id, ErrorCode::ESchema, "emit needs a topic");
+        };
+        let payload = req.get("payload").cloned().unwrap_or(Value::Null);
+        if let Err(msg) = crate::router::topics::validate_topic(topic) {
+            return Response::error_code(id, ErrorCode::ESchema, msg);
+        }
+        let n = self
+            .bus
+            .publish(crate::router::Event::topic(topic, payload));
+        Response::ok(id, json!({"emitted": topic, "subscribers": n}))
     }
 
     fn op_daemon(&self, req: &Request, id: Option<i64>) -> Response {
@@ -226,20 +255,48 @@ impl Handler for DaemonHandler {
                 };
                 // Subscriptions are exempt from the idle timeout (ipc.md §5).
                 conn.set_idle_exempt(true);
-                match self.state.subscribe(pattern, conn.clone()) {
-                    Ok(sub_id) => Response::ok(id, json!({"subscribed": pattern, "id": sub_id})),
-                    Err(e) => Response::error(id, e),
+                if pattern == "/telemetry" || pattern.starts_with("/telemetry/") {
+                    // S1: telemetry never enters the bus; /telemetry/* subscriptions are
+                    // served directly by the state store, exactly as before.
+                    match self.state.subscribe(pattern, conn.clone()) {
+                        Ok(sub_id) => {
+                            Response::ok(id, json!({"subscribed": pattern, "id": sub_id}))
+                        }
+                        Err(e) => Response::error(id, e),
+                    }
+                } else {
+                    match Pattern::parse_wire(pattern) {
+                        Ok(pat) => {
+                            let wire = pat.as_wire();
+                            let sub_id = self.bus.subscribe(
+                                pat,
+                                Some(conn.id()),
+                                wire.clone(),
+                                Arc::new(IpcSink {
+                                    conn: conn.clone(),
+                                    wire_pattern: wire,
+                                }),
+                            );
+                            Response::ok(id, json!({"subscribed": pattern, "id": sub_id}))
+                        }
+                        Err(e) => Response::error(id, e),
+                    }
                 }
             }
             "unsubscribe" => {
                 let Some(pattern) = req.get("path").and_then(Value::as_str) else {
                     return Response::error_code(id, ErrorCode::EPath, "unsubscribe needs a path");
                 };
-                match self.state.unsubscribe(pattern) {
-                    Ok(removed) => {
-                        Response::ok(id, json!({"unsubscribed": pattern, "removed": removed}))
+                if pattern == "/telemetry" || pattern.starts_with("/telemetry/") {
+                    match self.state.unsubscribe(pattern) {
+                        Ok(removed) => {
+                            Response::ok(id, json!({"unsubscribed": pattern, "removed": removed}))
+                        }
+                        Err(e) => Response::error(id, e),
                     }
-                    Err(e) => Response::error(id, e),
+                } else {
+                    let removed = self.bus.unsubscribe_wire(conn.id(), pattern);
+                    Response::ok(id, json!({"unsubscribed": pattern, "removed": removed}))
                 }
             }
             _ => self.dispatch(req),
@@ -258,9 +315,11 @@ mod tests {
     fn handler() -> (
         DaemonHandler,
         crate::state::StateHandle,
+        crate::router::Bus,
         std::thread::JoinHandle<()>,
     ) {
-        let (state, t) = crate::state::StateTask::spawn(Store::fresh(), None);
+        let (state, t) = crate::state::StateTask::spawn(Store::fresh(), None, Bus::new());
+        let bus = Bus::new();
         let status = StatusInfo {
             pid: std::process::id(),
             device: "none".into(),
@@ -269,11 +328,12 @@ mod tests {
         };
         let h = DaemonHandler::new(
             state.clone(),
+            bus.clone(),
             Shutdown::manual(),
             status,
             crate::server_name(),
         );
-        (h, state, t)
+        (h, state, bus, t)
     }
 
     fn req(v: Value) -> Request {
@@ -282,7 +342,7 @@ mod tests {
 
     #[test]
     fn ping_and_schema() {
-        let (h, state, t) = handler();
+        let (h, state, _bus, t) = handler();
         let r = h.dispatch(&req(json!({"id": 1, "op": "ping"})));
         assert!(r.ok);
         assert_eq!(r.result.as_ref().unwrap()["pong"], json!(true));
@@ -303,7 +363,7 @@ mod tests {
 
     #[test]
     fn get_set_round_trip_and_conflict() {
-        let (h, state, t) = handler();
+        let (h, state, _bus, t) = handler();
         // empty state at start
         let r = h.dispatch(&req(json!({"id": 1, "op": "get", "path": "/meta"})));
         assert!(r.ok);
@@ -371,7 +431,7 @@ mod tests {
 
     #[test]
     fn daemon_status_and_stop_and_unimplemented_ops() {
-        let (h, state, t) = handler();
+        let (h, state, _bus, t) = handler();
         let r = h.dispatch(&req(json!({"id": 1, "op": "daemon", "action": "status"})));
         assert!(r.ok);
         let result = r.result.as_ref().unwrap();
@@ -400,7 +460,8 @@ mod tests {
         let dir = tmp.path().join("data");
         lifecycle::prepare_data_dir(&dir).unwrap();
         let token = lifecycle::ensure_token(&dir).unwrap();
-        let (state, st) = crate::state::StateTask::spawn(Store::fresh(), None);
+        let bus = Bus::new();
+        let (state, st) = crate::state::StateTask::spawn(Store::fresh(), None, bus.clone());
         let status = StatusInfo {
             pid: std::process::id(),
             device: "none".into(),
@@ -409,6 +470,7 @@ mod tests {
         };
         let handler = Arc::new(DaemonHandler::new(
             state.clone(),
+            bus,
             Shutdown::manual(),
             status,
             crate::server_name(),
@@ -490,5 +552,291 @@ mod tests {
         use crate::state::StateResponse;
         let r = StateResponse::Rev(7);
         assert!(matches!(r, StateResponse::Rev(7)));
+    }
+
+    #[test]
+    fn emit_op_validates_topic_and_publishes_on_the_bus() {
+        let (h, state, bus, t) = handler();
+        let (sink, rx) = std::sync::mpsc::channel();
+        let sink = Arc::new(crate::router::FnSink(Arc::new(move |msg: &Value| {
+            let _ = sink.send(msg.clone());
+        })));
+        bus.subscribe(
+            crate::router::Pattern::parse_wire("/app/*").unwrap(),
+            None,
+            "/app/*".to_string(),
+            sink,
+        );
+        // valid emit
+        let r = h.dispatch(&req(
+            json!({"id": 1, "op": "emit", "topic": "app/demo/hi", "payload": {"n": 1}}),
+        ));
+        assert!(r.ok, "{:?}", r.error);
+        assert_eq!(r.result.as_ref().unwrap()["emitted"], "app/demo/hi");
+        assert_eq!(r.result.as_ref().unwrap()["subscribers"], 1);
+        r.validate().unwrap();
+        let msg = rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("emit reaches bus subscribers");
+        assert_eq!(msg["op"], "event");
+        assert_eq!(msg["topic"], "app/demo/hi");
+        assert_eq!(msg["path"], "/app/demo/hi");
+        assert_eq!(msg["payload"]["n"], 1);
+        ds_ipc::message::validate_server_message(&msg).unwrap();
+        // invalid grammar -> E_SCHEMA, nothing published
+        let r = h.dispatch(&req(
+            json!({"id": 2, "op": "emit", "topic": "app/onlysender"}),
+        ));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
+        let r = h.dispatch(&req(
+            json!({"id": 3, "op": "emit", "topic": "deck/control/keys.99/down"}),
+        ));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
+        // missing topic -> E_SCHEMA
+        let r = h.dispatch(&req(json!({"id": 4, "op": "emit"})));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
+        state.stop();
+        t.join().unwrap();
+    }
+
+    /// Boot an in-process server and return (dir, token, state handle, state thread).
+    fn boot_server() -> (
+        tempfile::TempDir,
+        String,
+        crate::state::StateHandle,
+        std::thread::JoinHandle<()>,
+        crate::router::Bus,
+    ) {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("data");
+        lifecycle::prepare_data_dir(&dir).unwrap();
+        let token = lifecycle::ensure_token(&dir).unwrap();
+        let bus = Bus::new();
+        let (state, st) = crate::state::StateTask::spawn(Store::fresh(), None, bus.clone());
+        let status = StatusInfo {
+            pid: std::process::id(),
+            device: "none".into(),
+            started_ms: lifecycle::now_ms(),
+            device_status: Arc::new(std::sync::Mutex::new(Some("none".into()))),
+        };
+        let handler = Arc::new(DaemonHandler::new(
+            state.clone(),
+            bus.clone(),
+            Shutdown::manual(),
+            status,
+            crate::server_name(),
+        ));
+        let config = ds_ipc::ServerConfig {
+            server_name: crate::server_name(),
+            idle_timeout: Some(std::time::Duration::from_secs(30)),
+            ..ds_ipc::ServerConfig::default()
+        };
+        let server = ds_ipc::Server::bind(&dir.join("daemon.sock"), &dir, config).unwrap();
+        let _accept = server.start(handler).unwrap();
+        (tmp, token, state, st, bus)
+    }
+
+    /// One authenticated control connection with line helpers.
+    struct TestConn {
+        reader: std::io::BufReader<std::os::unix::net::UnixStream>,
+        w: std::os::unix::net::UnixStream,
+    }
+
+    impl TestConn {
+        fn connect(sock: &std::path::Path, token: &str) -> Self {
+            use std::io::{BufRead, Write};
+            let stream = std::os::unix::net::UnixStream::connect(sock).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+                .unwrap();
+            let mut c = Self {
+                reader: std::io::BufReader::new(stream.try_clone().unwrap()),
+                w: stream,
+            };
+            c.rpc(json!({"id": 0, "op": "hello", "protocol": 1, "client": "test/1"}));
+            c.rpc(json!({"id": 1, "op": "auth", "token": token, "scope": "admin"}));
+            c
+        }
+
+        fn send(&mut self, v: Value) {
+            use std::io::Write;
+            let mut line = serde_json::to_vec(&v).unwrap();
+            line.push(b'\n');
+            self.w.write_all(&line).unwrap();
+            self.w.flush().unwrap();
+        }
+
+        fn recv(&mut self) -> Value {
+            use std::io::BufRead;
+            let mut line = String::new();
+            self.reader.read_line(&mut line).unwrap();
+            serde_json::from_str(line.trim()).unwrap()
+        }
+
+        fn rpc(&mut self, v: Value) -> Value {
+            self.send(v);
+            self.recv()
+        }
+    }
+
+    #[test]
+    fn bus_subscriptions_over_the_real_socket_state_and_topic_events() {
+        let (tmp, token, state, st, _bus) = boot_server();
+        let sock = tmp.path().join("data").join("daemon.sock");
+        let mut sub = TestConn::connect(&sock, &token); // the subscriber connection
+        let mut ctl = TestConn::connect(&sock, &token); // the acting connection
+
+        // state-path subscription via the bus
+        let r = sub.rpc(json!({"id": 2, "op": "subscribe", "path": "/controls/keys/*"}));
+        assert!(r["ok"] == json!(true), "{r}");
+        assert_eq!(r["result"]["subscribed"], "/controls/keys/*");
+        let sub_id = r["result"]["id"].as_u64().unwrap();
+        assert!(sub_id >= 1);
+
+        // a topic subscription on the same connection
+        let r = sub.rpc(json!({"id": 3, "op": "subscribe", "path": "/app/*"}));
+        assert!(r["ok"] == json!(true), "{r}");
+
+        // set on the control connection -> one state event with the new rev on sub
+        let r = ctl.rpc(json!({"id": 10, "op": "set", "ops": [{"op": "set", "path": "/controls/keys/3/label", "value": "watched"}]}));
+        assert!(r["ok"] == json!(true));
+        let rev = r["rev"].as_u64().unwrap();
+        // read lines on sub until the event arrives (the set response goes to ctl, not sub)
+        let mut got = None;
+        for _ in 0..10 {
+            let line = sub.recv();
+            if line["op"] == "event" {
+                got = Some(line);
+                break;
+            }
+        }
+        let ev = got.expect("state event delivered on the bus subscription");
+        assert_eq!(ev["path"], "/controls/keys/3/label");
+        assert_eq!(ev["rev"], rev);
+        assert_eq!(ev["value"], "watched");
+        assert!(ev.get("topic").is_none(), "state events keep the old shape");
+
+        // emit on ctl -> topic event on the /app/* subscription
+        let r =
+            ctl.rpc(json!({"id": 11, "op": "emit", "topic": "app/demo/hi", "payload": {"n": 7}}));
+        assert!(r["ok"] == json!(true));
+        let mut got = None;
+        for _ in 0..10 {
+            let line = sub.recv();
+            if line["op"] == "event" && line["topic"] == "app/demo/hi" {
+                got = Some(line);
+                break;
+            }
+        }
+        let ev = got.expect("emit reaches the /app/* topic subscription");
+        assert_eq!(ev["topic"], "app/demo/hi");
+        assert_eq!(ev["path"], "/app/demo/hi");
+        assert_eq!(ev["payload"]["n"], 7);
+        assert!(ev.get("rev").is_none());
+
+        // unsubscribe stops delivery of both kinds
+        let r = sub.rpc(json!({"id": 4, "op": "unsubscribe", "path": "/controls/keys/*"}));
+        assert!(r["ok"] == json!(true));
+        assert_eq!(r["result"]["removed"], true);
+        let r = sub.rpc(json!({"id": 5, "op": "unsubscribe", "path": "/app/*"}));
+        assert!(r["ok"] == json!(true));
+        assert_eq!(r["result"]["removed"], true);
+        let r = ctl.rpc(json!({"id": 12, "op": "set", "ops": [{"op": "set", "path": "/controls/keys/4/label", "value": "no"}]}));
+        assert!(r["ok"] == json!(true));
+        let r = ctl.rpc(json!({"id": 13, "op": "emit", "topic": "app/demo/again"}));
+        assert!(r["ok"] == json!(true));
+        // nothing more may arrive on sub (give the daemon a moment)
+        sub.w
+            .set_read_timeout(Some(std::time::Duration::from_millis(400)))
+            .unwrap();
+        use std::io::BufRead;
+        let mut line = String::new();
+        match sub.reader.read_line(&mut line) {
+            Ok(0) => {}
+            Ok(_) => panic!("event after unsubscribe: {line}"),
+            Err(_) => {} // timeout: correct
+        }
+
+        state.stop();
+        st.join().unwrap();
+    }
+
+    #[test]
+    fn slow_subscriber_does_not_stall_sets_over_the_real_socket() {
+        let (tmp, token, state, st, bus) = boot_server();
+        let sock = tmp.path().join("data").join("daemon.sock");
+        let mut slow = TestConn::connect(&sock, &token);
+        let mut ctl = TestConn::connect(&sock, &token);
+        // the slow subscriber registers and then never reads again
+        let r = slow.rpc(json!({"id": 2, "op": "subscribe", "path": "/controls/*"}));
+        assert!(r["ok"] == json!(true));
+
+        // flood the bus from the control connection; every publish must be fast and every
+        // set must succeed even though `slow` never reads
+        let n = 4000;
+        let start = std::time::Instant::now();
+        for i in 0..n {
+            let r = ctl.rpc(json!({
+                "id": 100 + i,
+                "op": "set",
+                "ops": [{"op": "set", "path": "/controls/keys/0/label", "value": format!("v{i}")}]
+            }));
+            assert!(r["ok"] == json!(true), "set {i} failed: {r}");
+        }
+        let flood = start.elapsed();
+        // one more set must still be answered promptly (the state task is not blocked)
+        let t0 = std::time::Instant::now();
+        let r = ctl.rpc(json!({"id": 9999, "op": "set", "ops": [{"op": "set", "path": "/controls/keys/1/label", "value": "final"}]}));
+        assert!(r["ok"] == json!(true));
+        let last = t0.elapsed();
+        assert!(
+            last < std::time::Duration::from_secs(2),
+            "final set took {last:?} — the state task must not block on a slow subscriber"
+        );
+        // the slow subscriber's queue overflowed: drop-oldest with a counted drop
+        let dropped = bus.total_dropped();
+        assert!(
+            dropped > 0,
+            "expected counted drops on the slow subscriber (flood {n} events in {flood:?}), got {dropped}"
+        );
+        // drain the slow connection: it must contain at least one `dropped` message
+        slow.w
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut dropped_msgs = 0u64;
+        let mut counted = 0u64;
+        loop {
+            use std::io::BufRead;
+            let mut line = String::new();
+            match slow.reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if let Ok(v) = serde_json::from_str::<Value>(line.trim()) {
+                        if v["op"] == "dropped" {
+                            dropped_msgs += 1;
+                            counted += v["count"].as_u64().unwrap_or(0);
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+            if line.is_empty() {
+                break;
+            }
+        }
+        assert!(
+            dropped_msgs >= 1,
+            "no dropped message on the slow connection"
+        );
+        assert_eq!(
+            counted, dropped,
+            "wire dropped counts must match the bus counter"
+        );
+
+        state.stop();
+        st.join().unwrap();
     }
 }
