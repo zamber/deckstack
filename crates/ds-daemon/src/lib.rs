@@ -34,6 +34,7 @@
 
 pub mod daemon;
 pub mod device;
+pub mod device_task;
 pub mod frames;
 pub mod ipc;
 pub mod lifecycle;
