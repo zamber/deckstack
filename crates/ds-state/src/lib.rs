@@ -36,6 +36,7 @@
 //! store.unsubscribe(id);
 //! ```
 
+pub mod bindings;
 pub mod document;
 pub mod error;
 pub mod path;
@@ -46,6 +47,12 @@ pub use error::{Result, StateError};
 pub use path::Path;
 pub use schema::validate_document;
 pub use store::{empty_document, Commit, Event, GetReply, Op, Store, SubscriptionId, Transaction};
+
+pub use bindings::{
+    add as add_binding, allocate_id, binding_validator, is_binding_id,
+    remove_by_id as unbind_by_id, remove_by_topic as unbind_by_topic, validate_binding,
+    validate_binding_topic, validate_when, BINDING_ID_PLACEHOLDER,
+};
 
 /// Crate name, for logs and `--version` output.
 pub const CRATE_NAME: &str = "ds-state";

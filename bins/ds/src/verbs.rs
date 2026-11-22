@@ -1,5 +1,6 @@
 //! The phase-1 verbs of `ds` (`docs/contracts/cli.md` §1): get, set, watch, schema,
-//! describe, daemon start|stop|status, status. Every daemon-backed verb is one-shot:
+//! describe, daemon start|stop|status, status, and the binding verbs bind/unbind
+//! (DS-041, in `bind.rs`/`unbind.rs`). Every daemon-backed verb is one-shot:
 //! connect, hello, token auth, one op, print, exit (`docs/components/cli.md`).
 
 use crate::cli::{Command, Global, OutputMode, SetValue};
@@ -49,6 +50,12 @@ pub fn run(cmd: Command, g: &Global) -> Result<i32, Failure> {
         Command::DaemonStop => verb_daemon_stop(g),
         Command::DaemonStatus => verb_daemon_status(g),
         Command::Status => verb_status(g),
+        Command::Bind { topic, dos, when } => {
+            crate::bind::verb_bind(g, &topic, &dos, when.as_deref())
+        }
+        Command::Unbind { id, topic } => {
+            crate::unbind::verb_unbind(g, id.as_deref(), topic.as_deref())
+        }
         Command::Help(_) | Command::Version => Ok(0), // handled in main
     }
 }

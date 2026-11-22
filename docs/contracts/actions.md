@@ -61,7 +61,25 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
   corresponding topic segment; `*` matches exactly one segment. So
   `deck/control/keys/*` matches `deck/control/keys.0/down` (`*` eats the `0`), `deck/*`
   matches every `deck/…` topic, and `*` alone matches everything. State-path patterns
-  (`/controls/keys/*`) use the same prefix rule with `/`-only segments.
+  (`/controls/keys/*`) use the same prefix rule with `/`-only segments. In a binding
+  `topic`, `*` is allowed only as a **whole segment** (the coarse pattern in
+  `schemas/binding.json` is refined by the code-level grammar in
+  `ds-state::bindings::validate_binding_topic`, enforced on every `bind`).
+- **Creating / deleting bindings (DS-041):** `ds bind <topic> --do '<step>' [--do …]
+  [--when '<cond>']` sends `{"op":"bind","binding":{…}}` and appends ONE element to
+  `/bindings` in ONE transaction (rev +1, one `/bindings` subscription event). The
+  request's `binding.id` is a **placeholder** (the IPC schema requires the field shape;
+  `ds` sends `b0000`) — the daemon always allocates the real id and returns it:
+  `{"ok":true,"rev":N,"result":{"id":"b0001"}}` (state.md §8). Ids are `b%04d` of a
+  monotonic high-water counter that starts at the maximum id in the loaded document and
+  is never lowered by an unbind: allocated on add, **never reused** within a daemon
+  run, so a duplicate id is impossible. `ds unbind <id>` sends
+  `{"op":"unbind","binding":"b0001"}` (unknown id → `E_PATH`, CLI exit 2);
+  `ds unbind --topic <topic>` sends `{"op":"unbind","topic":…}` and removes ALL bindings
+  with exactly that topic (no match → `E_PATH`). Both are one transaction (rev +1) and
+  answer `{"ok":true,"rev":N,"result":{"removed":["b0001"]}}`. `ds get /bindings` lists
+  all, `ds get /bindings/<id>` reads one, `ds watch /bindings --ndjson` streams the
+  changes (topics stay inside the `topic` field, never path segments — S2).
 - **Dispatch order:** on every published event, matching subscribers/bindings are served
   **exact patterns first, then wildcard patterns**, each group in subscription (array)
   order; each subscriber receives its events strictly FIFO in publish order.
@@ -76,8 +94,15 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
   name) — S7. For `app/focus/changed` the router first mirrors the payload into `/focus`
   **in the same transaction** that dispatches bindings, so `/focus`-based conditions are
   never stale (atomic ordering; conformance test in docs/30-testing.md).
+- **`when` shape (normative in `schemas/binding.json`):** exactly one of `path` /
+  `payload`; `op` ∈ `exists | eq | neq | gt | lt`; `value` required for every op except
+  `exists` (and forbidden for `exists`). DS-041 stores and validates the shape verbatim;
+  **evaluation is DS-042** — a stored `when` that does not match simply does not fire.
 - Steps run sequentially; `emit` steps can trigger other bindings (recursion cap 10 —
-  precedent `hubdeck/.../engine.py:1088-1112`).
+  precedent `hubdeck/.../engine.py:1088-1112). **Step execution itself is DS-042**: DS-041
+  accepts and schema-validates the step shapes (`set`/`emit`/`plugin`/`exec`/`sleep`,
+  non-empty `steps`, no code fields — `{"do":"eval",…}` fails validation) but runs
+  nothing yet.
 
 ## 3. Core vocabulary (closed)
 

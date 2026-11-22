@@ -2,15 +2,18 @@
 //! (`docs/contracts/cli.md`, `docs/components/cli.md`, ADR-002, DS-016).
 //!
 //! Phase-1 verbs: `get`, `set`, `watch`, `schema`, `describe`, `daemon
-//! start|stop|status`, `status`. Global `--json`/`--ndjson`, `--socket`/
-//! `--token-file`/`--data-dir`, `--compact`, `--help` at every level, `--version`.
+//! start|stop|status`, `status`, plus the binding verbs `bind`/`unbind` (DS-041).
+//! Global `--json`/`--ndjson`, `--socket`/`--token-file`/`--data-dir`, `--compact`,
+//! `--help` at every level, `--version`.
 //! Exit codes 0–8 per the contract, mapped from the ds-client error codes.
 //! There is deliberately no `migrate` verb: `ds migrate …` exits 1.
 
+mod bind;
 mod cli;
 mod connect;
 mod help;
 mod output;
+mod unbind;
 mod verbs;
 
 use cli::{Command, OutputMode};
