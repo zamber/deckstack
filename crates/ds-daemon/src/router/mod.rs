@@ -24,12 +24,26 @@
 //! two docs; in one line: exact patterns before wildcard patterns, subscription order
 //! within each group, FIFO per subscriber, bounded queue with drop-oldest + counted
 //! `dropped` messages so publishers never block.
+//!
+//! ## Binding dispatch (DS-042)
+//!
+//! [`steps::Engine`] subscribes to the bus on the catch-all topic pattern `*`, so every
+//! producer above reaches the binding engine through the one bus. On each topic event
+//! it runs the matching `/bindings` (exact topic first, then `*` wildcards, array order),
+//! evaluates their `when` ([`when::eval_when`]) and executes the closed step vocabulary
+//! (`set`/`emit`/`plugin`/`exec`/`sleep`, [`steps`]) sequentially. Step failures publish
+//! `deck/system/binding-error` and the remaining steps still run; `emit` re-enters the
+//! router with a recursion cap of [`steps::MAX_EMIT_DEPTH`].
 
 pub mod bus;
+pub mod steps;
 pub mod topics;
+pub mod when;
 
 pub use bus::{Bus, Event, FnSink, IpcSink, Sink, SUBSCRIBER_QUEUE_CAP};
+pub use steps::{step_metrics, Engine, BINDING_ERROR_TOPIC, MAX_EMIT_DEPTH, STEP_BUDGET};
 pub use topics::TopicPattern;
+pub use when::eval_when;
 
 use ds_ipc::error::{ErrorCode, IpcError};
 use ds_state::Path;

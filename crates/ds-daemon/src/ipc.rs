@@ -40,18 +40,23 @@ pub struct StatusInfo {
     pub device_status: crate::device::DeviceStatus,
 }
 
-/// The daemon's op handler. Cloneable state: a [`StateHandle`], the event bus, plus the
-/// shutdown flag.
+/// The daemon's op handler. Cloneable state: a [`StateHandle`], the event bus, the binding
+/// engine (DS-042, subscribed to the bus), plus the shutdown flag.
 pub struct DaemonHandler {
     state: StateHandle,
     bus: Bus,
+    /// The binding engine (DS-042): executes matching `/bindings` on every bus topic
+    /// event (device input, `emit`, lifecycle, `emit` steps).
+    engine: Arc<crate::router::Engine>,
     shutdown: Shutdown,
     status: StatusInfo,
     server_name: String,
 }
 
 impl DaemonHandler {
-    /// Build the handler.
+    /// Build the handler. The binding engine is created here and subscribes to `bus`, so
+    /// every producer publishing on that bus is routed (device task, `emit` op,
+    /// lifecycle) without any producer knowing about bindings.
     pub fn new(
         state: StateHandle,
         bus: Bus,
@@ -59,13 +64,20 @@ impl DaemonHandler {
         status: StatusInfo,
         server_name: String,
     ) -> Self {
+        let engine = crate::router::Engine::new(bus.clone(), state.clone());
         Self {
             state,
             bus,
+            engine,
             shutdown,
             status,
             server_name,
         }
+    }
+
+    /// The binding engine (DS-042) wired to the event bus.
+    pub fn engine(&self) -> &Arc<crate::router::Engine> {
+        &self.engine
     }
 
     /// Dispatch a request that needs no connection (unit-testable core of `handle`).
@@ -646,7 +658,8 @@ mod tests {
         ));
         assert!(r.ok, "{:?}", r.error);
         assert_eq!(r.result.as_ref().unwrap()["emitted"], "app/demo/hi");
-        assert_eq!(r.result.as_ref().unwrap()["subscribers"], 1);
+        // two matching subscriptions: the test's /app/* plus the binding engine's `*`
+        assert_eq!(r.result.as_ref().unwrap()["subscribers"], 2);
         r.validate().unwrap();
         let msg = rx
             .recv_timeout(std::time::Duration::from_secs(2))
@@ -671,6 +684,69 @@ mod tests {
         let r = h.dispatch(&req(json!({"id": 4, "op": "emit"})));
         assert!(!r.ok);
         assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
+        state.stop();
+        t.join().unwrap();
+    }
+
+    /// DS-042: the handler's binding engine runs a bound `set` step when the bound topic
+    /// is emitted through the `emit` op (dispatch happens on the engine's bus drainer,
+    /// so poll the state with a timeout).
+    #[test]
+    fn bind_then_emit_executes_the_bound_set_step() {
+        let (h, state, bus, t) = handler();
+        let r = h.dispatch(&req(json!({
+            "id": 1, "op": "bind",
+            "binding": {"id": "b0000", "topic": "app/demo/go",
+                        "steps": [{"do": "set", "path": "/controls/keys/0/label", "value": "ran"}]}
+        })));
+        assert!(r.ok, "{:?}", r.error);
+        assert_eq!(r.result.as_ref().unwrap()["id"], "b0001");
+        let r = h.dispatch(&req(
+            json!({"id": 2, "op": "emit", "topic": "app/demo/go", "payload": {}}),
+        ));
+        assert!(r.ok, "{:?}", r.error);
+        // the engine dispatches asynchronously on its drainer thread: poll
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        loop {
+            if let Ok(reply) = state.get("/controls/keys/0/label", None) {
+                assert_eq!(reply.value, json!("ran"));
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the set step never ran"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        // a failing step (plugin stub) publishes deck/system/binding-error on the bus
+        let (sink, rx) = std::sync::mpsc::channel();
+        let sink = Arc::new(crate::router::FnSink(Arc::new(move |msg: &Value| {
+            let _ = sink.send(msg.clone());
+        })));
+        bus.subscribe(
+            crate::router::Pattern::parse_wire("/deck/system/*").unwrap(),
+            None,
+            "/deck/system/*".to_string(),
+            sink,
+        );
+        let r = h.dispatch(&req(json!({
+            "id": 3, "op": "bind",
+            "binding": {"id": "b0000", "topic": "app/demo/plug",
+                        "steps": [{"do": "plugin", "id": "demo", "action": "bump"}]}
+        })));
+        assert!(r.ok, "{:?}", r.error);
+        let r = h.dispatch(&req(
+            json!({"id": 4, "op": "emit", "topic": "app/demo/plug"}),
+        ));
+        assert!(r.ok, "{:?}", r.error);
+        let msg = rx
+            .recv_timeout(std::time::Duration::from_secs(3))
+            .expect("binding-error event on the bus");
+        assert_eq!(msg["topic"], "deck/system/binding-error");
+        assert_eq!(msg["payload"]["binding"], "b0002");
+        assert_eq!(msg["payload"]["step"], 0);
+        assert_eq!(msg["payload"]["error"]["code"], "E_CAP");
+        ds_ipc::message::validate_server_message(&msg).unwrap();
         state.stop();
         t.join().unwrap();
     }
