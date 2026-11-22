@@ -666,7 +666,7 @@
   {
     "id": "DS-021",
     "title": "Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "device",
     "size": "L",
@@ -680,9 +680,9 @@
       "crates/ds-device/src/lib.rs",
       "crates/ds-device/Cargo.toml"
     ],
-    "branch": "ticket/DS-021",
-    "worktree": ".worktrees/DS-021",
-    "pr": "prs/DS-021.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -703,7 +703,7 @@
   {
     "id": "DS-022",
     "title": "Software-mode handshake, module init, safe builders on real hardware",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "device",
     "size": "M",
