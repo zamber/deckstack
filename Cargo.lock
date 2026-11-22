@@ -199,6 +199,7 @@ name = "ds-device"
 version = "0.1.0"
 dependencies = [
  "ds-protocol",
+ "hidapi",
  "mh-device",
  "sha2",
  "thiserror",

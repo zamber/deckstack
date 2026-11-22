@@ -8,14 +8,29 @@ description = "Device-agnostic driver core for MasterHub decks: transport trait,
 
 # ADR-010: reuse the upstream crates as pinned git dependencies — no fork, no vendor.
 # mh-device (pinned rev, same as ds-protocol's mh-protocol pin) provides the module identity
-# type the transport trait is keyed on; the real HID transport lands on top of it in DS-021.
-# ds-protocol (DS-010, merged) provides the safe report builders, the input parser and the
-# forbidden-command guard.
+# type the transport trait is keyed on; ds-protocol (DS-010, merged) provides the safe report
+# builders, the input parser and the forbidden-command guard.
+#
+# DS-021 (real HID transport) uses hidapi directly for enumeration/open/read/write: the same
+# crate and backend mh-device already pins (hidapi 2.6's build script requires exactly one
+# Linux backend, so this must stay linux-static-libusb like mh-device — it links the system
+# libusb-1.0 through pkg-config, no libusb crates are added).
 [dependencies]
 ds-protocol = { path = "../ds-protocol" }
 mh-device = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
+hidapi = { version = "2.6", default-features = false }
 sha2 = "0.10"
 thiserror = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+hidapi = { version = "2.6", default-features = false, features = ["linux-static-libusb"] }
+
+# Hardware smoke for the real HID transport (DS-021): repo-level test target like
+# ds-protocol's tests/protocol/ wiring, gated by DS_HARDWARE=1 (skips cleanly otherwise,
+# so `cargo test --workspace` in CI stays hardware-free).
+[[test]]
+name = "hid"
+path = "../../tests/hw/hid.rs"
 
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
