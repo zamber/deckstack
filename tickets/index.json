@@ -359,6 +359,7 @@
     ],
     "touches": [
       "new:crates/ds-ipc/src/frames/",
+      "crates/ds-ipc/src/lib.rs",
       "docs/contracts/streaming.md",
       "schemas/stream-frame.json"
     ],
@@ -474,6 +475,7 @@
     ],
     "touches": [
       "new:bins/ds/",
+      "Cargo.toml",
       "docs/contracts/cli.md",
       "docs/components/cli.md"
     ],
@@ -514,8 +516,9 @@
     ],
     "touches": [
       "new:crates/ds-vdev/",
-      "new:bins/ds-vdev",
-      "new:bins/ds-vdevctl",
+      "new:bins/ds-vdev/",
+      "new:bins/ds-vdevctl/",
+      "Cargo.toml",
       "docs/components/virtual-device.md"
     ],
     "branch": "ticket/DS-017",
