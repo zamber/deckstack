@@ -1,0 +1,30 @@
+[package]
+name = "ds"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "The deckstack CLI: a stateless one-shot client of ds-daemon over the control socket (docs/contracts/cli.md, DS-016)."
+
+# Thin binary over ds-client (ADR-002); arg parsing is hand-rolled like the other
+# deckstack binaries so the dependency set stays small. Schemas are embedded from
+# schemas/ at compile time for `ds schema`.
+[dependencies]
+ds-client = { path = "../../crates/ds-client", version = "0.1.0" }
+ds-ipc = { path = "../../crates/ds-ipc", version = "0.1.0" }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
+# The integration test runs the daemon in-process (ds-daemon library) against a
+# ds-vdev virtual device socket, then drives the compiled `ds` binary (CARGO_BIN_EXE_ds).
+ds-daemon = { path = "../../crates/ds-daemon", version = "0.1.0" }
+ds-vdev = { path = "../../crates/ds-vdev", version = "0.1.0" }
+
+[[bin]]
+name = "ds"
+path = "src/main.rs"
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true
