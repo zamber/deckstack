@@ -25,7 +25,7 @@ graph TD
   DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::done
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::done
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::done
-  DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::ready
+  DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::doing
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::backlog
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::backlog
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::ready
@@ -195,7 +195,7 @@ Critical path length: 10 tickets.
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(ready)
 - **daemon** (3): DS-015(done), DS-024(backlog), DS-095(done)
-- **device** (4): DS-014(done), DS-021(done), DS-022(ready), DS-023(backlog)
+- **device** (4): DS-014(done), DS-021(done), DS-022(doing), DS-023(backlog)
 - **docs** (2): DS-064(backlog), DS-094(done)
 - **frames** (3): DS-030(ready), DS-031(ready), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
@@ -217,7 +217,6 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-022 - Software-mode handshake, module init, safe builders on real hardware (lane device)
 - DS-025 - udev rules, device permissions, install docs (Linux) (lane packaging)
 - DS-030 - JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests (lane frames)
 - DS-031 - Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap (lane frames)
