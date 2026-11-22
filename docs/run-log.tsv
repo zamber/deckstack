@@ -4,3 +4,4 @@ ts	phase	decision	why	evidence	result
 2026-11-22T16:23:03Z	policy	temporary yolo for Vibe workers via agent=auto-approve	worker log and permission rough edges blocked smart-approve; user authorized yolo	user instruction 2026-11-22; agent=auto-approve	applied to new runs
 2026-11-22T16:23:03Z	gate	verified main after the DS-011 merge	do not build on an unverified base	sh tools/check.sh; python3 tools/tickets.py validate	CHECK ALL GREEN; 59 tickets done:10 ready:3
 2026-11-22T16:23:03Z	merge	DS-011 merged after manual Cargo.lock and generated-ticket conflict resolution	parallel branches update generated files; resolver not automated yet	commit d718037; main 44b87bd	done; automation open
+2026-11-22T16:23:23Z	claim	claimed DS-012 and DS-014; DS-013 deferred	DS-012 owns crates/ds-ipc/ and DS-013 owns crates/ds-ipc/src/frames/, so they share a seam	commits 32acf6c, 6e24f0c; worktrees .worktrees/DS-012, .worktrees/DS-014	doing:2 ready:1
