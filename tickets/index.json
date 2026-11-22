@@ -619,7 +619,7 @@
   {
     "id": "DS-020",
     "title": "End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "test",
     "size": "L",
@@ -634,9 +634,9 @@
       "new:tests/e2e/",
       "new:examples/"
     ],
-    "branch": "ticket/DS-020",
-    "worktree": ".worktrees/DS-020",
-    "pr": "prs/DS-020.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -666,7 +666,7 @@
   {
     "id": "DS-021",
     "title": "Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "device",
     "size": "L",
@@ -808,7 +808,7 @@
   {
     "id": "DS-025",
     "title": "udev rules, device permissions, install docs (Linux)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "packaging",
     "size": "S",
@@ -982,7 +982,7 @@
   {
     "id": "DS-030",
     "title": "JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "frames",
     "size": "M",
@@ -1023,7 +1023,7 @@
   {
     "id": "DS-031",
     "title": "Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "frames",
     "size": "L",
@@ -1068,7 +1068,7 @@
   {
     "id": "DS-032",
     "title": "ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "cli",
     "size": "M",
