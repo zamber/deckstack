@@ -2241,7 +2241,7 @@
   {
     "id": "DS-091",
     "title": "pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock",
-    "state": "review",
+    "state": "done",
     "phase": 0,
     "lane": "workflow",
     "size": "M",
@@ -2253,9 +2253,9 @@
       "new:tests/tools/test-resolve-rebase.sh",
       "docs/AGENT-WORKFLOW.md"
     ],
-    "branch": "ticket/DS-091",
-    "worktree": ".worktrees/DS-091",
-    "pr": "prs/DS-091.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [

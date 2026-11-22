@@ -63,4 +63,4 @@ Generated: 2026-11-22 - 60 tickets.
 | DS-082 | backlog | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | backlog | 6 | packaging | M | - | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
 | DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
-| DS-091 | review | 0 | workflow | M | vibe/DS-091 | - | pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock |
+| DS-091 | done | 0 | workflow | M | vibe/DS-091 | - | pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock |
