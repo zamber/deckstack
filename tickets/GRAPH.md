@@ -68,7 +68,7 @@ graph TD
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
   DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::done
   DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::done
-  DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::ready
+  DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -192,7 +192,7 @@ Critical path length: 10 tickets.
 - **cli** (2): DS-016(done), DS-032(backlog)
 - **daemon** (2): DS-015(done), DS-024(backlog)
 - **device** (4): DS-014(done), DS-021(backlog), DS-022(backlog), DS-023(backlog)
-- **docs** (2): DS-064(backlog), DS-094(ready)
+- **docs** (2): DS-064(backlog), DS-094(doing)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
@@ -215,4 +215,3 @@ Critical path length: 10 tickets.
 
 - DS-040 - Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering (lane router)
 - DS-041 - Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation (lane router)
-- DS-094 - run-log evidence backfill for the rows flagged by the independent review (lane docs)
