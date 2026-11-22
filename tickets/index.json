@@ -1368,13 +1368,14 @@
       "schemas/binding.json",
       "crates/ds-daemon/src/router/mod.rs",
       "bins/ds/src/bind.rs",
-      "crates/ds-daemon/src/ipc.rs"
+      "crates/ds-daemon/src/ipc.rs",
+      "tests/conformance/bindings/run.py"
     ],
     "branch": "ticket/DS-042",
     "worktree": ".worktrees/DS-042",
     "pr": "prs/DS-042.md",
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "steps run sequentially in binding order: set (schema-validated against schemas/state.json), emit (re-enters the router), plugin (invoke by id.action \u2014 stubbed E_CAP/E_PATH until DS-050 lands), exec (delegates to DS-043 policy), sleep (ms)",
       "when evaluates against state (path) or the event payload (payload field, S7); missing path -> exists:false; ops eq/ne/gt/lt/geq/leq/exists at minimum per binding.json",
