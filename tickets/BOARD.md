@@ -67,4 +67,4 @@ Generated: 2026-11-22 - 64 tickets.
 | DS-092 | done | 0 | workflow | S | vibe/DS-092 | - | tickets.py add-touch: extend a ticket's touches without hand-editing metadata |
 | DS-093 | done | 0 | test | S | vibe/DS-093 | - | fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass |
 | DS-094 | done | 0 | docs | S | vibe/DS-094 | - | run-log evidence backfill for the rows flagged by the independent review |
-| DS-095 | doing | 1 | daemon | M | vibe/DS-095 | DS-015, DS-017 | ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports |
+| DS-095 | done | 1 | daemon | M | vibe/DS-095 | DS-015, DS-017 | ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports |
