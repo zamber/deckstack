@@ -26,7 +26,7 @@ graph TD
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::done
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::done
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::done
-  DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::ready
+  DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::doing
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::ready
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::backlog
@@ -195,7 +195,7 @@ Critical path length: 10 tickets.
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(doing)
 - **daemon** (3): DS-015(done), DS-024(ready), DS-095(done)
-- **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(ready)
+- **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(doing)
 - **docs** (2): DS-064(backlog), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
@@ -217,7 +217,6 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-023 - Hot-plug rescan, reconnect, re-push, unresponsive-device handling (lane device)
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
