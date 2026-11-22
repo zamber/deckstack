@@ -1,0 +1,22 @@
+# 99-deckstack.rules — let the active seat user open Cooler Master MasterHub
+# modules (VID 0x2516) without root. Ticket DS-025.
+#
+# Install (either location works; /etc/udev/rules.d overrides /usr/lib):
+#   sudo install -Dm644 99-deckstack.rules /etc/udev/rules.d/99-deckstack.rules
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# Verify:
+#   ls -l /dev/hidraw*        # nodes tagged uaccess show an ACL for your user
+#   udevadm info /dev/hidraw<N>
+#
+# TAG+="uaccess" lets systemd-logind hand the locally logged-in user ACL access
+# to the node — no group membership needed. On systems without logind/uaccess,
+# use the group fallback instead (never MODE="0666"):
+#   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2516", ATTRS{idProduct}=="01f6|01fe|0202|0204|0206", GROUP="deckstack", MODE="0660"
+#   sudo groupadd -r deckstack && sudo usermod -aG deckstack "$USER"   # then re-login
+#
+# PIDs: 01f6 base · 01fe keys · 0202 knobs · 0204 rollers · 0206 dial
+# (crates/ds-device/src/hid/enumerate.rs). The usb rule covers the /dev/bus/usb
+# node used by the libusb transport; the hidraw rule covers the hidraw node.
+
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2516", ATTRS{idProduct}=="01f6|01fe|0202|0204|0206", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2516", ATTRS{idProduct}=="01f6|01fe|0202|0204|0206", TAG+="uaccess"
