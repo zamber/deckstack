@@ -46,6 +46,7 @@
 
 pub mod auth;
 pub mod error;
+pub mod frames;
 pub mod framing;
 pub mod limits;
 pub mod message;
