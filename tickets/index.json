@@ -506,7 +506,7 @@
   {
     "id": "DS-017",
     "title": "ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "vdev",
     "size": "L",
