@@ -154,6 +154,189 @@ fn mode_of(path: &Path) -> u32 {
     fs::metadata(path).unwrap().permissions().mode() & 0o777
 }
 
+/// Poll `frames <target>` on the vdev control socket until a frame exists; returns the
+/// `target <sha256> <n>B seq=<k>` line, or `None` on timeout.
+fn wait_for_frame(vdev_sock: &Path, target: &str, timeout: Duration) -> Option<String> {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if let Ok(lines) = ds_vdev::ctl::request(vdev_sock, &format!("frames {target}")) {
+            if let Some(line) = lines.first() {
+                return Some(line.clone());
+            }
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    None
+}
+
+/// Boot a vdev + daemon pair on a temp dir and return everything a test needs.
+struct Stack {
+    _tmp: tempfile::TempDir,
+    vdev_sock: PathBuf,
+    _vdev: ds_vdev::VdevServer,
+    daemon: DaemonChild,
+}
+
+impl Stack {
+    fn start() -> (Self, ControlConn, String) {
+        let tmp = tempfile::tempdir().unwrap();
+        let vdev_sock = tmp.path().join("vdev.sock");
+        let vdev = VdevServer::start(&vdev_sock, HubConfig::default()).unwrap();
+        let data_dir = tmp.path().join("data");
+        let mut daemon = DaemonChild::start(&data_dir, &format!("virtual:{}", vdev_sock.display()));
+        daemon.wait_ready(Duration::from_secs(10));
+        let token = fs::read_to_string(data_dir.join("token"))
+            .unwrap()
+            .trim()
+            .to_string();
+        let mut conn = ControlConn::connect(&daemon.socket());
+        conn.hello_auth(&token);
+        let stack = Stack {
+            _tmp: tmp,
+            vdev_sock,
+            _vdev: vdev,
+            daemon,
+        };
+        (stack, conn, token)
+    }
+
+    fn set(&mut self, conn: &mut ControlConn, id: u64, path: &str, value: Value) -> Value {
+        let r = conn.round(json!({
+            "id": id, "op": "set",
+            "ops": [{"op": "set", "path": path, "value": value}]
+        }));
+        assert_eq!(r["ok"], json!(true), "set {path}: {r}");
+        r
+    }
+}
+
+#[test]
+fn file_image_push_reassembles_on_vdev_with_the_files_sha256() {
+    let (mut stack, mut conn, _token) = Stack::start();
+    // allow a dedicated dir as an fs root, then set a key image from a file inside it
+    let allowed = stack._tmp.path().join("allowed");
+    fs::create_dir_all(&allowed).unwrap();
+    let img = allowed.join("key-image.bin");
+    let bytes: Vec<u8> = (0..1000u32).map(|i| (i * 31 % 251) as u8).collect();
+    fs::write(&img, &bytes).unwrap();
+    let img_path = img.display().to_string();
+    stack.set(
+        &mut conn,
+        1,
+        "/policy/fs/roots",
+        json!([allowed.display().to_string()]),
+    );
+    stack.set(
+        &mut conn,
+        2,
+        "/controls/keys/0/image",
+        json!({"kind": "file", "path": img_path}),
+    );
+    // the state round-trips the visual
+    let r = conn.round(json!({"id": 3, "op": "get", "path": "/controls/keys/0/image"}));
+    assert_eq!(
+        r["result"]["value"],
+        json!({"kind": "file", "path": img_path})
+    );
+    // and the device task pushed the file bytes: the vdev frame for key:0 has the file's sha
+    let line = wait_for_frame(&stack.vdev_sock, "key:0", Duration::from_secs(10))
+        .expect("a reassembled frame for key:0 after the file set");
+    let want = ds_vdev::sha256_hex(&bytes);
+    assert!(
+        line.contains(&want),
+        "frame line {line:?} must contain sha256(file) {want}"
+    );
+    assert!(
+        line.contains(&format!("{}B", bytes.len())),
+        "frame line {line:?} must report the file's byte count"
+    );
+    let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
+    assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
+}
+
+#[test]
+fn colour_image_push_yields_a_frame_for_key_and_dial() {
+    let (mut stack, mut conn, _token) = Stack::start();
+    stack.set(
+        &mut conn,
+        1,
+        "/controls/keys/2/image",
+        json!({"kind": "color", "value": "#3cc86e"}),
+    );
+    stack.set(
+        &mut conn,
+        2,
+        "/controls/dial/image",
+        json!({"kind": "color", "value": "#0a0b0c"}),
+    );
+    let key_line = wait_for_frame(&stack.vdev_sock, "key:2", Duration::from_secs(10))
+        .expect("a frame for key:2 after the colour set");
+    let want_key = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+        [0x3c, 0xc8, 0x6e],
+        ds_daemon::device::COLOR_IMAGE_WIDTH,
+        ds_daemon::device::COLOR_IMAGE_HEIGHT,
+    ));
+    assert!(
+        key_line.contains(&want_key),
+        "frame {key_line:?} must be the solid-colour PNG the daemon encodes ({want_key})"
+    );
+    let dial_line = wait_for_frame(&stack.vdev_sock, "dial", Duration::from_secs(10))
+        .expect("a frame for the dial after the colour set");
+    let want_dial = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+        [0x0a, 0x0b, 0x0c],
+        ds_daemon::device::COLOR_IMAGE_WIDTH,
+        ds_daemon::device::COLOR_IMAGE_HEIGHT,
+    ));
+    assert!(
+        dial_line.contains(&want_dial),
+        "frame {dial_line:?} vs {want_dial}"
+    );
+    let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
+    assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
+}
+
+#[test]
+fn file_image_outside_fs_roots_is_refused_with_a_logged_error_and_no_frame() {
+    let (mut stack, mut conn, _token) = Stack::start();
+    // roots point at an empty dir; /etc/hostname is outside every root
+    let empty = stack._tmp.path().join("empty");
+    fs::create_dir_all(&empty).unwrap();
+    stack.set(
+        &mut conn,
+        1,
+        "/policy/fs/roots",
+        json!([empty.display().to_string()]),
+    );
+    // the set itself is accepted (schema-valid path) — the device push is what refuses
+    stack.set(
+        &mut conn,
+        2,
+        "/controls/keys/1/image",
+        json!({"kind": "file", "path": "/etc/hostname"}),
+    );
+    // give the device task time to process the push (channel FIFO after the set reply)
+    std::thread::sleep(Duration::from_millis(700));
+    assert!(
+        ds_vdev::ctl::request(&stack.vdev_sock, "frames key:1").is_err(),
+        "no frame may be stored for a file outside /policy/fs/roots"
+    );
+    // the refusal was logged, and the daemon is still healthy (IPC + state unaffected)
+    let log = stack.daemon.stderr_text();
+    assert!(
+        log.contains("outside /policy/fs/roots"),
+        "the refusal must be logged; stderr:\n{log}"
+    );
+    let r = conn.round(json!({"id": 3, "op": "ping"}));
+    assert_eq!(r["result"], json!({"pong": true}));
+    let r = conn.round(json!({"id": 4, "op": "get", "path": "/controls/keys/1/image"}));
+    assert_eq!(
+        r["result"]["value"],
+        json!({"kind": "file", "path": "/etc/hostname"})
+    );
+    let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
+    assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
+}
+
 #[test]
 fn daemon_end_to_end_on_virtual_device() {
     let tmp = tempfile::tempdir().unwrap();
@@ -240,26 +423,26 @@ fn daemon_end_to_end_on_virtual_device() {
         .starts_with("connected"));
 
     // --- the color push reached the virtual device ------------------------------
-    // The device task sends the software-mode handshake on connect and the fill_key
-    // feature report (03 37 00 3c c8 6e) after the set — both are FEATURE_SET (kind=0x02)
-    // writes to the keys pid 0x01fe, so wait for a second write to that pid.
-    let mut key_writes = 0;
+    // The device task sends the software-mode handshake on connect (FEATURE_SET, kind=0x02
+    // to the keys pid 0x01fe) and pushes the colour image as a 0x36 chunked WRITE, which
+    // ds-vdev reassembles into the key:0 frame.
+    let mut handshake_writes = 0;
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(5) {
         if let Ok(lines) = ds_vdev::ctl::request(&vdev_sock, "writes 50") {
-            key_writes = lines
+            handshake_writes = lines
                 .iter()
                 .filter(|l| l.contains("pid=0x01fe") && l.contains("kind=0x02"))
                 .count();
-            if key_writes >= 2 {
+            if handshake_writes >= 1 {
                 break;
             }
         }
         std::thread::sleep(Duration::from_millis(50));
     }
     assert!(
-        key_writes >= 2,
-        "expected the handshake + fill_key writes on pid 0x01fe; writes: {:?}",
+        handshake_writes >= 1,
+        "expected the software-mode handshake write on pid 0x01fe; writes: {:?}",
         ds_vdev::ctl::request(&vdev_sock, "writes 50")
     );
     // the handshake put the keys module into software mode
@@ -269,6 +452,18 @@ fn daemon_end_to_end_on_virtual_device() {
             .iter()
             .any(|r| r.contains("pid=0x01fe") && r.contains("software_mode=true")),
         "keys module should be in software mode: {reports:?}"
+    );
+    // the colour image was pushed as chunks and reassembled into the key:0 frame
+    let frame = wait_for_frame(&vdev_sock, "key:0", Duration::from_secs(5))
+        .expect("a reassembled frame for key:0 after the colour set");
+    let want = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+        [0x3c, 0xc8, 0x6e],
+        ds_daemon::device::COLOR_IMAGE_WIDTH,
+        ds_daemon::device::COLOR_IMAGE_HEIGHT,
+    ));
+    assert!(
+        frame.contains(&want),
+        "frame {frame:?} must carry the sha256 of the encoded colour image {want}"
     );
 
     // --- SIGTERM exits 0 and cleans up ------------------------------------------

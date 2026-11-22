@@ -39,6 +39,44 @@ host, the event router, the frame plane. Details: `docs/10-architecture.md`,
   `ds-state`, `ds-ipc`, `ds-platform`.
 - **Test command:** `cargo test -p ds-daemon` (unit, with ds-vdev transport injected);
   `python tests/conformance/run.py --virtual` (black-box via the real socket).
+- **Device task — image visual pushes (DS-095, phase 1):**
+
+  | State path | Target | HID image cmd |
+  |---|---|---|
+  | `/controls/keys/image` | keys panel (480×272) | output `02 35`, index 0 |
+  | `/controls/keys/<0-14>/image` | key N (72×72) | output `02 36`, index N |
+  | `/controls/dial/image` | dial screen (240×240) | output `02 45` |
+
+  A committed change of one of those paths with a displayable visual pushes **image bytes**
+  to the device as chunked image reports (`02 <cmd> <chunk u16 LE> <len u16 LE> <index>
+  <last> <≤312 B>` inside 320 B output reports — `docs/contracts/streaming.md` §2), built
+  with the existing ds-protocol chunkers (`panel_image`/`key_image`/`dial_image`); there is
+  no second chunker. Writes are paced by the per-device rate limit (LED writes at
+  `/policy/led_rate_per_s`, image chunks at the device's ~2.1 MB/s cap).
+
+  - `{"kind":"file","path":…}` — the file's bytes are read on the device task and pushed
+    **unchanged** (phase-1 liberty, see caveat below). The read is confined to
+    `/policy/fs/roots` (read from the persisted state document; the state task forwards
+    only `/controls/*` pushes, and ds-state persists synchronously on every commit) plus
+    the system temp dir; paths are canonicalized and a file outside the roots is refused
+    with a logged error — never a panic. Size cap: 16 MiB (`MAX_IMAGE_FILE_BYTES`, the
+    documented wire cap for image payloads, streaming.md §2/§5); larger files are refused
+    the same way.
+  - `{"kind":"color","value":"#rrggbb"}` — a minimal solid-colour PNG (8×8 RGB, std-only
+    encoder in `crates/ds-daemon/src/device.rs`) is pushed. Phase-1 placeholder: the real
+    per-target wire format is baseline JPEG 4:4:4 (DS-030).
+
+  **Phase-1 caveat:** file bytes are pushed unchanged and colours as the placeholder PNG —
+  the device wire format is baseline JPEG only (streaming.md §2). JPEG baseline 4:4:4
+  re-encode is DS-030 (phase 3) and animation is DS-034; from phase 3 on, the golden sha
+  observed by `ds-vdevctl frames <target>` is the sha of the *encoded* frame, not of the
+  source file.
+
+  **Non-blocking:** pushes travel over a bounded channel (overflow drops and is counted);
+  the file read and all chunk writes happen on the device task's thread — the state lock is
+  never held across them, and a failed push is logged and dropped, so it never stalls the
+  state task or IPC. LED colours on knobs/faders/rollers stay feature reports (`led_color`).
+  Icons, text and `kind:frame` references remain out of scope (logged only).
 - **Minimum working example (phase 1):**
   ```sh
   ds-vdev --socket /tmp/vdev.sock &                 # virtual MasterHub
