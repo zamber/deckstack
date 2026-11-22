@@ -666,7 +666,7 @@
   {
     "id": "DS-021",
     "title": "Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "device",
     "size": "L",
