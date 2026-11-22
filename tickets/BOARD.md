@@ -32,7 +32,7 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-028 | backlog | 2 | verify | M | - | DS-026 | Camera golden checks for key:0, panel, LED + calibration procedure |
 | DS-029 | done | 2 | test | L | vibe/DS-029 | DS-022 | Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape |
 | DS-030 | done | 3 | frames | M | vibe/DS-030 | DS-013, DS-020 | JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests |
-| DS-031 | review | 3 | frames | L | vibe/DS-031 | DS-013, DS-015, DS-020 | Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap |
+| DS-031 | done | 3 | frames | L | vibe/DS-031 | DS-013, DS-015, DS-020 | Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap |
 | DS-032 | ready | 3 | cli | M | - | DS-013, DS-016, DS-020 | ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits |
 | DS-033 | backlog | 3 | bench | M | - | DS-031, DS-032 | Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak |
 | DS-034 | backlog | 3 | frames | M | - | DS-030, DS-032 | Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits |
@@ -58,7 +58,7 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-072 | backlog | 7 | platforms | M | - | DS-020, DS-026 | Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan |
 | DS-073 | backlog | 7 | platforms | M | - | DS-020, DS-026 | macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan |
 | DS-074 | backlog | 7 | web | M | - | DS-013, DS-032 | Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI |
-| DS-080 | backlog | 6 | test | L | - | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
+| DS-080 | ready | 6 | test | L | - | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
 | DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
 | DS-082 | backlog | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | backlog | 6 | packaging | M | - | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |

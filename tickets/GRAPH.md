@@ -34,7 +34,7 @@ graph TD
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
-  DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::review
+  DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::ready
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
@@ -60,7 +60,7 @@ graph TD
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::backlog
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::backlog
-  DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::backlog
+  DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::ready
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::backlog
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 - **daemon** (3): DS-015(done), DS-024(ready), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(ready)
 - **docs** (2): DS-064(backlog), DS-094(done)
-- **frames** (3): DS-030(done), DS-031(review), DS-034(backlog)
+- **frames** (3): DS-030(done), DS-031(done), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(ready), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
@@ -224,3 +224,4 @@ Critical path length: 10 tickets.
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
 - DS-062 - CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors (lane test)
+- DS-080 - Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion (lane test)

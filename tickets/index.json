@@ -1033,7 +1033,7 @@
   {
     "id": "DS-031",
     "title": "Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap",
-    "state": "review",
+    "state": "done",
     "phase": 3,
     "lane": "frames",
     "size": "L",
@@ -1053,9 +1053,9 @@
       "crates/ds-daemon/Cargo.toml",
       "crates/ds-daemon/src/frames/mod.rs"
     ],
-    "branch": "ticket/DS-031",
-    "worktree": ".worktrees/DS-031",
-    "pr": "prs/DS-031.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -2087,7 +2087,7 @@
   {
     "id": "DS-080",
     "title": "Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "test",
     "size": "L",
