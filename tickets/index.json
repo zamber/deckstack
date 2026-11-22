@@ -138,6 +138,7 @@
     "depends_on": [],
     "touches": [
       "new:Cargo.toml",
+      "new:Cargo.lock",
       "new:crates/",
       "new:rustfmt.toml",
       "new:clippy.toml",
