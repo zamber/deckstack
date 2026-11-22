@@ -1,6 +1,6 @@
 # Contract: actions — input event → behaviour, no hardcoded catalog
 
-R3/R4/R8. Design: ADR-007, D07. Binding schema: `schemas/binding.json`.
+R3/R4/R8. Design: ADR-007, D07. Binding schema: `schemas/binding.json`. Fixes S3/S7/S11.
 
 ## 1. Event topics
 
@@ -8,91 +8,85 @@ R3/R4/R8. Design: ADR-007, D07. Binding schema: `schemas/binding.json`.
 deck/control/<control>/<gesture>     control: keys.0 | dial | knobs.0 | faders.2 | rollers.1
                                      gesture: down | up | long | double | rotate | slide
 deck/device/<serial>/<event>         connected | disconnected | faders | orientation
-deck/system/<event>                  start | stop | rev | binding-error | crash-recovered
+deck/system/<event>                  start | stop | rev | binding-error | exec | crash-recovered
 app/<sender>/<topic>                 any external program (ds emit app/focus/changed …)
 ```
 
-Events carry `{topic, ts_ms, payload, rev}`. Example payloads: key down
-`{"control":"keys.0","gesture":"down"}`; focus `{"app":"code","title":"PLAN.md","pid":123}`.
+Events: `{topic, ts_ms, payload, rev}`.
 
-## 2. Binding / routing model
+## 2. Binding / routing model (S2)
 
-Bindings are **data in state** at `/bindings/<topic-with-*>`:
+Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), addressed by
+`id` (`b0001`). Example:
 
 ```json
-{"topic": "deck/control/keys.0/down",
- "when": {"path": "/focus/app", "op": "exists"},
- "steps": [{"do": "plugin", "id": "demo", "action": "bump", "args": {"by": 1}},
-           {"do": "set", "path": "/controls/keys/0/label", "value": "2"},
-           {"do": "emit", "topic": "app/demo/bumped", "payload": {}}]}
+{"id": "b0002", "topic": "app/focus/changed",
+ "when": {"payload": "app", "op": "eq", "value": "code"},
+ "allow_exec": false,
+ "steps": [{"do": "set", "path": "/controls/keys/3/image", "value": {"kind":"color","value":"#00ff00"}}]}
 ```
 
-- Lookup order: exact topic → `…/<control>/*` → `deck/control/*` → `deck/#`-style global.
-  Multiple bindings on one topic all run, in list order.
-- `when`: `{path, op: exists|eq|neq|gt|lt, value?}` evaluated against state at event time;
-  missing path ⇒ `exists:false`, others false.
-- Composition: steps run sequentially; a step may `emit`, which can trigger other
-  bindings (recursion depth cap 10 — precedent `hubdeck/.../engine.py:1088-1112`).
+- Lookup: exact topic → `<prefix>/*` wildcard bindings. All matching bindings run in
+  array order.
+- `when` evaluates against **state** (`path`) **or the event payload** (`payload` field
+  name) — S7. For `app/focus/changed` the router first mirrors the payload into `/focus`
+  **in the same transaction** that dispatches bindings, so `/focus`-based conditions are
+  never stale (atomic ordering; conformance test in docs/30-testing.md).
+- Steps run sequentially; `emit` steps can trigger other bindings (recursion cap 10 —
+  precedent `hubdeck/.../engine.py:1088-1112`).
 
-## 3. Core vocabulary (closed — this list is the whole engine-side action set)
+## 3. Core vocabulary (closed)
 
-| Step `do` | Args | Capability needed |
+| Step `do` | Args | Capability |
 |---|---|---|
 | `set` | path, value (schema-validated) | mutate |
 | `emit` | topic, payload | mutate |
-| `plugin` | id, action, args | mutate (plugin must declare the action) |
-| `exec` | argv (array, **no shell**), cwd, env, timeout_ms | **admin scope + binding flag `allow_exec: true`** |
+| `plugin` | id, action, args (validated against manifest params) | mutate |
+| `exec` | argv, cwd — **fire-and-forget** (S11) | admin scope + `allow_exec:true` + `/policy/exec/allow` ∋ argv[0] + `/policy/exec/deny` ∌ argv[0] |
 | `sleep` | ms | — |
 
-`exec` runs the binary with argv directly (no `/bin/sh` — the `shell=True` at
-`hubdeck/.../platforms/posix.py:70` is the rejected injection vector), with rlimits
-(cpu 10 s, nproc 64, nofile 64, as 1 GiB), cwd confined to the media root or `/tmp`,
-env scrubbed (no token in env). Plugin invocation: daemon sends `invoke` to the plugin
-process, awaits effects ≤ 2 s (`ASK_SECONDS` precedent, `hubdeck/.../engine.py:336-344`),
-applies each effect as a state write (`setImage` → `/controls/<c>/image`, `setTitle` →
-`label`, `setState`, `setLed` → `/controls/<c>/led`; upstream event names
-`upstream/.../plugins.rs:14-20`).
+## 4. Exec policy — enforced, not asserted (S3, reconciles review M1/M2)
 
-Why no catalog: both current engines hardcode theirs (`upstream/.../engine/actions.rs:105`,
-`hubdeck/.../plugins/__init__.py:22-28` + `ALIASES` `config/schema.py:55-67`). Here any
-program can `ds watch deck/control --ndjson` and react — the vocabulary is the ecosystem.
-
-## 4. Exec policy (R8)
-
-Default-deny. An `exec` step requires ALL of: token scope `admin`, binding field
-`"allow_exec": true`, argv[0] an absolute path or resolved via a declared
-`/settings/exec_path` (default `["/usr/bin","/bin","/usr/local/bin"]`, no `.`), and the
-exec capability in `/policy`. Audit: every exec is logged to `daemon.log` and emitted as
-`deck/system/exec {argv, pid, at_rev}`. Config can never contain code (no eval — the
-`{python: …}` exec at `hubdeck/.../plugins/python.py:58` is rejected by R8 and by
-`schemas/binding.json`, which has no code field).
+- Schema level (M1): `argv[0]` must match `^/` (absolute) — `prefixItems` pattern in
+  `binding.json`; relative paths fail validation. `cwd` may be any absolute path (M2);
+  runtime confines it to `/policy/fs/roots` + `/tmp`.
+- Runtime level (S3): the daemon checks `argv[0]` against **`/policy/exec/allow`** (an
+  admin-managed allowlist of absolute binary paths) and **`/policy/exec/deny`**, which by
+  default contains the shells/interpreters/wrappers — `/bin/sh`, `/bin/bash`, `/bin/dash`,
+  `/bin/zsh`, `/usr/bin/env`, `/usr/bin/python3`, … — so `["/bin/sh","-c","…"]` is refused
+  even though `/bin/sh` is absolute. "No shell" is a deny list, not an assertion.
+  `/settings/exec_path` is gone; PATH lookup is gone (absolute paths only).
+- Semantics (S11/m5): exec steps are **fire-and-forget** — the daemon spawns via execve
+  (never a shell), applies rlimits (cpu 10 s → SIGKILL, nproc 64, nofile 64, as 1 GiB),
+  scrubs env (no token), tracks the pid, and emits `deck/system/exec {argv, pid, rev}`.
+  There is **no `timeout_ms`** in the schema; runaway processes die by RLIMIT_CPU.
+- Audit: every exec logged + emitted. Config can never contain code: `binding.json` has
+  no code field; `eval`-like steps fail schema validation (fixture negative test).
 
 ## 5. Latency budget (R11)
 
-Event → router dispatch: p99 ≤ 5 ms. `set`/`emit` step: p99 ≤ 10 ms. Plugin round-trip:
-≤ 2 s timeout, typical ≤ 50 ms. Frame push under load must not move the query p99
-budget (state.md §5). Measured by `cargo bench -p ds-bench`.
+Event → dispatch p99 ≤ 5 ms; `set`/`emit` p99 ≤ 10 ms; plugin invoke ≤ 2 s timeout
+(`ASK_SECONDS` precedent `hubdeck/.../engine.py:336-344`), typical ≤ 50 ms; exec spawn
+≤ 10 ms (fire-and-forget). Frame pushes never move these budgets (S1).
 
 ## 6. Worked chains
 
 **Chain A — key press → plugin → visual update:**
 
 ```sh
-ds bind /controls/keys/0/down --do 'plugin demo.bump {}' --json
-# plugin demo (Python, via ds-plugin-py) on invoke demo.bump returns effects:
-#   [{"effect":"set","path":"/controls/keys/0/label","value":"3"},
-#    {"effect":"set","path":"/controls/keys/0/image","value":{"kind":"color","value":"#ff8800"}}]
-# daemon applies effects → rev++ → ds watch sees:
-#   {"op":"event","path":"/controls/keys/0/label","rev":44,"value":"3"}
-# conformance: inject key-down on ds-vdev, assert label+colour changed within 2 s.
+ds bind deck/control/keys.0/down --do 'plugin demo.bump {"by":1}' --json   # → {"id":"b0001"}
+# plugin demo returns effects on invoke:
+#   [{"effect":"set","path":"/controls/keys.0/label","value":"3"},
+#    {"effect":"set","path":"/controls/keys.0/image","value":{"kind":"color","value":"#ff8800"}}]
+# conformance: inject key-down on ds-vdev → assert label+colour changed within 2 s, rev bumped twice.
 ```
 
-**Chain B — window focus → CLI → recolor (R4):**
+**Chain B — window focus → CLI → recolor (R4, S7):**
 
 ```sh
-ds-focus &                                   # emits app/focus/changed {app,title,pid}
-ds bind app/focus/changed --when '{"path":"/focus/app","op":"eq","value":"code"}' \
-     --do 'set /controls/keys/3/image {"kind":"color","value":"#00ff00"}' \
-     --do 'emit app/focus/applied {"key":3}'
-# conformance: ds-focus --inject focus-code.ndjson → assert /controls/keys/3/image changed.
+ds-focus &                                        # emits app/focus/changed {app,title,pid}
+ds bind app/focus/changed --when '{"payload":"app","op":"eq","value":"code"}' \
+     --do 'set /controls/keys/3/image {"kind":"color","value":"#00ff00"}'
+# conformance: ds-focus --inject focus-code.ndjson → assert /controls/keys/3/image changed
+# AND that a when-condition on /focus/app (not payload) saw the new value in the same dispatch.
 ```

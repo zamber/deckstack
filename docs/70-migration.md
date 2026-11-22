@@ -30,7 +30,12 @@ Reads `~/.config/hubdeck` (and/or an upstream data dir) and writes deckstack sta
 | upstream `profiles/*.json` / `.mhz` | same mapping via a second importer |
 
 `--dry-run` prints the mapping as JSON without writing. Unknown constructs → warning
-list, never silent.
+list, never silent. **The importer is validating (m8):** it runs the parsed hubdeck config
+against a code-field denylist (`python`, `exec`, `eval`, `shell`, `!secret` values are
+never imported as code) and against the target `schemas/state.json`; anything that would
+land as a code-bearing field is dropped and emitted as a **porting TODO entry (data, not
+executable)** in `/settings/migration/todos`. A malicious hubdeck config can therefore
+never inject executable content into deckstack state.
 
 ## 3. Coexistence and reversible cutover
 

@@ -59,18 +59,24 @@ Design tensions 1–8 from the task resolve as: (1) Rust one-shot CLI ≈1–3 m
 
 ## First walking skeleton (phase 1 — a coder starts here)
 
-1. `git clone` this repo; `cargo build --workspace` (crates: ds-protocol, ds-device over
-   mh-protocol/mh-device git deps, ds-state, ds-ipc, ds-daemon, ds, ds-vdev).
-2. `ds-vdev --socket /tmp/vdev.sock &` — report-level virtual MasterHub (keys+dial+M0).
-3. `ds daemon start --device virtual:/tmp/vdev.sock` — binds
+1. `git clone` this repo; `sh packaging/bootstrap.sh` (venv + cargo build --workspace;
+   crates: ds-protocol, ds-device over mh-protocol/mh-device git deps, ds-state, ds-ipc,
+   ds-daemon, ds, ds-vdev).
+2. `sh tests/fixtures/validate.sh` → must print ALL CHECKS PASSED (schemas parse, $refs
+   resolve, IPC example corpus + regex regressions validate).
+3. `ds-vdev --socket /tmp/vdev.sock &` — report-level virtual MasterHub (all module kinds).
+4. `ds daemon start --device virtual:/tmp/vdev.sock` — binds
    `$XDG_RUNTIME_DIR/deckstack/daemon.sock`, writes 0600 token.
-4. `ds set /controls/keys/0/color '#3cc86e'` → `ds get /controls/keys/0 --json` round-trips.
-5. `ds set /controls/keys/0/image --file examples/key.png` → ds-vdev reassembles the
-   chunked `02 36` reports; `ds test frame-sha /controls/keys/0` prints sha256; the
-   conformance suite asserts it.
-6. Test command: `cargo test --workspace` + `python tests/conformance/run.py` (black-box,
-   drives the `ds` binary only).
+5. `ds set /controls/keys/0/color '#3cc86e'` → `ds get /controls/keys/0 --json` round-trips.
+6. `ds set /controls/keys/0/image --file examples/key.png` → ds-vdev reassembles the
+   chunked `02 36` reports; `ds-vdevctl --socket /tmp/vdev.sock frames key:0` prints the
+   sha256; the conformance suite asserts it against the golden value.
+7. Test command: `cargo test --workspace` + `python tests/conformance/run.py` (black-box,
+   drives the `ds` binary only) + `sh tests/fixtures/validate.sh`.
 
-Exact message shapes, paths, exit codes and limits: `docs/contracts/*` + `schemas/*`.
+Exact message shapes, paths, exit codes and limits: `docs/contracts/*` + `schemas/*`
+(NDJSON control in `ipc-message.json`, binary DSF1 frames in `stream-frame.json`, example
+corpus in `tests/fixtures/ipc-examples.json`).
 Component specs: `docs/components/*`. Threat model: `docs/20-security.md`.
-Unverified items: `docs/open-questions.md`.
+Unverified items: `docs/open-questions.md`. Adversarial review and its disposition:
+`docs/reviews/2026-11-22-response.md`.

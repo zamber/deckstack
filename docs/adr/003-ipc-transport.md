@@ -21,7 +21,11 @@ use ephemeral loopback TCP + port/token files (`hubdeck/.../control.py:81-90`;
 - Versioning: `hello {"protocol":1}` handshake; additive-only changes, breaking changes
   bump `protocol`; schemas carry `/v1` `$id`s.
 - Auth: per-install token file 0600 with scopes read/mutate/admin (D14); constant-time
-  compare (`hubdeck/.../control.py:67` precedent).
+  compare (`hubdeck/.../control.py:67` precedent). `E_SCOPE` distinguishes valid-token-
+  insufficient-scope from `E_AUTH`. Rotation (S12/M4): instant for new connections; ≤ 5 s
+  grace only for in-flight requests on an existing connection (connection-generation
+  counter). Windows pipe ACL (S5/T12): SDDL `D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>)`, token
+  files user+SYSTEM only.
 
 ## Alternatives
 

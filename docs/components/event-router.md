@@ -6,17 +6,22 @@ Turns input events and external emits into binding steps. Contract:
 - **Language:** Rust, inside ds-daemon.
 - **Topics:** `deck/control/<control>/<gesture>` (gestures: `down|up|long|double|rotate|slide|value`),
   `deck/device/<serial>/<event>` (`connected|disconnected|orientation|faders`),
-  `deck/system/<event>` (`start|stop|rev-changed|crash-recovered`),
+  `deck/system/<event>` (`start|stop|rev|binding-error|exec|crash-recovered`),
   `app/<sender>/<topic>` (any external program via `ds emit app/focus …`).
-- **Routing model:** bindings live in state at `/bindings/<control>/<gesture>` = list of
-  steps (see `schemas/binding.json`). On an event the router looks up bindings for the
-  topic (exact, then wildcard `deck/control/*`), evaluates each step's optional `when`
-  (`{path, op: eq|neq|exists|gt|lt, value}`), and executes steps sequentially.
+- **Routing model (S2):** bindings are elements of the `/bindings` **array**
+  (`schemas/binding.json`, each with `id` `bNNNN`). On an event the router looks up
+  bindings by topic (exact, then `*` wildcards), evaluates each binding's optional `when`
+  against **state** (`path`) **or the event payload** (`payload` field, S7), and executes
+  steps sequentially.
+- **Atomic event ingest (S7):** receiving `app/focus/changed` mirrors the payload into
+  `/focus` and dispatches bindings in ONE transaction — `/focus`-based `when` conditions
+  always see the value that triggered them.
 - **Core vocabulary (closed, small, boring):** `set`, `emit`, `plugin`, `exec`, `sleep`,
-  plus `when` composition. `exec` is argv-only and requires the `admin` token scope AND
-  `capabilities: ["exec"]` on the binding — no shell anywhere (the old `shell=True` at
-  `hubdeck/src/hubdeck/platforms/posix.py:70` and `{python: …}` exec at
-  `hubdeck/src/hubdeck/plugins/python.py:58` are the rejected patterns, R8).
+  plus `when` composition. `exec` is fire-and-forget (S11), argv-only, argv[0] absolute
+  (schema) AND in `/policy/exec/allow` AND not in `/policy/exec/deny` (pre-seeded with
+  shells/interpreters — S3: no-shell is enforced, not asserted), plus admin scope +
+  `allow_exec: true`. The old `shell=True` (`hubdeck/.../platforms/posix.py:70`) and
+  `{python: …}` exec (`hubdeck/.../plugins/python.py:58`) remain the rejected patterns (R8).
 - **Why the core stays a router:** both current implementations hardcode the vocabulary
   (`upstream/.../engine/actions.rs:105` catalog; `hubdeck/.../plugins/__init__.py:22-28`
   + `ALIASES` at `config/schema.py:55-67`). deckstack instead lets ANY program subscribe
@@ -35,8 +40,9 @@ Turns input events and external emits into binding steps. Contract:
   `tests/conformance/bindings/` (the two chains in docs/contracts/actions.md §6).
 - **Minimum working example:**
   ```sh
-  ds bind /controls/keys/0/down --do 'plugin demo.bump {}' --json
-  ds bind /controls/keys/1/down --do 'set /controls/keys/1/color #ff0000' --do 'emit demo.red'
+  ds bind deck/control/keys.0/down --do 'plugin demo.bump {"by":1}' --json     # → {"id":"b0001"}
+  ds bind deck/control/keys.1/down --do 'set /controls/keys/1/image {"kind":"color","value":"#ff0000"}' --do 'emit app/demo/red {}'
+  ds bind app/focus/changed --when '{"payload":"app","op":"eq","value":"code"}' --do 'set /controls/keys/3/image {"kind":"color","value":"#00ff00"}'
   ds emit app/demo/hello '{"n":1}' --json
-  ds watch deck/control --ndjson
+  ds watch deck/control --ndjson        # --json here is an error (exit 1, S9)
   ```

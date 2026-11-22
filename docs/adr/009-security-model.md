@@ -13,14 +13,21 @@ plugins (`upstream/.../plugins.rs:56-58`), image caps per-app (10/16/20 MB), GUI
 ## Decision
 
 Local-only by default. Per-install token (0600 file, 0700 dir) with scopes
-read/mutate/admin, constant-time compare; scoped tokens via `ds token issue`. No `eval` of
-config anywhere; `exec` only via admin scope + `allow_exec` binding + argv-only + policy
-allowlist + rlimits + audit event. Plugins: capability grants enforced per request
-(ADR-006). Images: 16 MB wire, ≤ 4096² decode, ≤ 300 frames, bounded queues. HTTP/WS
-adapter: 127.0.0.1 only, Host allowlist + bearer (DNS rebinding, T7). Device safety:
-forbidden commands unrepresentable (ADR-010), backlight-0 refused, hardware-mode reads
-refused. Path policy: canonicalize + root confinement (media root, plugin fs_roots, /tmp).
-Non-goals: root/user self-protection, remote exposure, multi-user (docs/20-security.md §5).
+read/mutate/admin, constant-time compare; scoped tokens via `ds token issue`; **rotation
+is instant for new connections** with ≤ 5 s in-flight grace via connection generation
+(S12/M4). No `eval` of config anywhere; `exec` only via admin scope + `allow_exec` +
+argv[0] absolute (schema) + `/policy/exec/allow` − `/policy/exec/deny` (shells
+pre-denied — S3) + rlimits + audit; fire-and-forget (S11). Plugins: capability grants
+enforced per request (ADR-006); **network is host-mediated** — plugins never open sockets,
+`sdk.http` → daemon checks the anchored host glob (`*` = one DNS label, M5) against the
+plugin grant and `/policy/net/allow_hosts`; Landlock net-deny where ABI ≥ 4, documented gap
+otherwise (S4/T11). Images: 16 MB wire, ≤ 4096² decode, ≤ 300 frames, bounded queues;
+file paths reject `..` at schema level + canonicalized root confinement (M3/T6). HTTP/WS
+adapter: 127.0.0.1 only, Host allowlist + bearer (T7). Windows: pipe SDDL + file ACLs
+user/SYSTEM only (S5/T12). `/policy` is fully schema'd (S13). Device safety: forbidden
+commands unrepresentable (ADR-010), backlight-0 refused, hardware-mode reads refused.
+Non-goals: root/user self-protection, remote exposure, multi-user beyond ACLs
+(docs/20-security.md §6).
 
 ## Alternatives
 

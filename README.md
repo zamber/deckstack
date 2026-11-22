@@ -13,7 +13,7 @@ working software. Nothing here edits the two hub repos.
 
 | You are… | Start at |
 |---|---|
-| A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton → [docs/60-roadmap.md](docs/60-roadmap.md) |
+| A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton (`sh packaging/bootstrap.sh`, `sh tests/fixtures/validate.sh`) → [docs/60-roadmap.md](docs/60-roadmap.md) |
 | Reviewing a load-bearing choice | [PLAN.md](PLAN.md) decision table → the ADR it names in [docs/adr/](docs/adr/) → [docs/decision-log.tsv](docs/decision-log.tsv) |
 | Implementing a component | [docs/components/](docs/components/) (one file per component) |
 | Implementing a wire format | [docs/contracts/](docs/contracts/) + [schemas/](schemas/) (the schemas are the contract) |
@@ -32,6 +32,7 @@ Reading order for full context: `BRIEF.md` → `docs/discovery/10..50` → `PLAN
 ├── PLAN.md                   one-page entry point
 ├── docs/
 │   ├── discovery/            cited facts about hubdeck + hubdeck-upstream — do not edit
+│   ├── reviews/              adversarial review + response (fixed/rebutted/deferred per id)
 │   ├── decision-log.tsv      one row per material decision (id, decision, alternatives, why, evidence)
 │   ├── open-questions.md     OPEN items + contradictions, each with a resolving experiment
 │   ├── 10-architecture.md    process model, planes, ownership, recovery
@@ -40,7 +41,9 @@ Reading order for full context: `BRIEF.md` → `docs/discovery/10..50` → `PLAN
 │   ├── 20-security.md  30-testing.md  40-platforms.md
 │   ├── 50-repo-topology.md  60-roadmap.md  70-migration.md
 │   └── adr/NNN-*.md          architecture decision records (referenced from PLAN.md)
-└── schemas/                  JSON Schemas: state.json, ipc-message.json, plugin-manifest.json, binding.json
+├── schemas/                  JSON Schemas: state, ipc-message, stream-frame (DSF1 binary), plugin-manifest, binding
+├── tests/fixtures/           validate.sh/validate.js (node, no network) + validate.py (jsonschema) + ipc-examples.json + regex-checks.js
+└── packaging/                bootstrap.sh, release.sh, systemd unit, udev rules, NOTICE.md
 ```
 
 Planned runtime layout (phase 1 onward, not present yet): crates `ds-protocol`,

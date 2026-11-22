@@ -15,15 +15,21 @@ host, the event router, the frame plane. Details: `docs/10-architecture.md`,
   binary stream endpoint + optional WS/HTTP adapter; plugin host endpoints (internal);
   state schema (`schemas/state.json`).
 - **Invariants:**
-  1. One writer to the state document (the daemon's state task); all mutations bump `rev`.
+  1. One writer to the durable state document (the daemon's state task); all durable
+     mutations bump `rev`. Frame pushes and `/telemetry` sampling never do (S1).
   2. The state lock is never held across HID I/O or process spawns.
-  3. No code path can `eval` config or spawn a shell; `exec` steps are argv-only and
-     require the `admin` scope (ADR-007/009).
+  3. No code path can `eval` config or spawn a shell; `exec` steps are argv-only,
+     argv[0] absolute + in `/policy/exec/allow` − `/policy/exec/deny` (shells pre-denied),
+     admin scope, fire-and-forget with rlimits (S3/S11, ADR-007/009).
   4. No raw HID report leaves without passing `mh_protocol::safety::is_forbidden`
      (`upstream/crates/mh-protocol/src/safety.rs:34-36`) and the `/policy` check.
   5. Never send backlight 0 to the dial — screens-off = black JPEG
      (`upstream/PROTOCOL.md:61`).
-  6. Frame queues are bounded (1 in flight + 1 waiting per module); overflow drops, never blocks.
+  6. Frame queues are bounded (1 in flight + 1 waiting per module); overflow drops, never
+     blocks; the in-flight frame is never dropped mid-send (S16/M8). Telemetry is sampled
+     ≤ 1 Hz into non-durable `/telemetry/*`.
+  7. Token revocation is instant for new connections; ≤ 5 s grace only for in-flight
+     requests on an established connection (connection-generation counter, S12).
   7. Plugin effects are schema-validated before touching state.
 - **Failure modes:** socket missing → CLI exits 6 (`E_UNREACHABLE`); state file corrupt →
   start with empty state + `last-known-good` kept as `state.json.corrupt-<ts>`, log loudly;

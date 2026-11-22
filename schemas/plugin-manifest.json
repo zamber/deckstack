@@ -38,7 +38,7 @@
         "type": "string",
         "pattern": "^(state\\.read|state\\.write|device\\.write|exec|emit|net:[A-Za-z0-9.*-]{1,200}|fs:/[A-Za-z0-9_./-]{0,200})$"
       },
-      "description": "Explicit grants enforced per request/effect by the daemon (ADR-006/009). Default grant when omitted is state.read only."
+      "description": "Explicit grants enforced per request/effect by the daemon (ADR-006/009). Default grant when omitted is state.read only. net:<host-glob>: glob where '*' matches exactly one DNS label, matched anchored against the full host ('lights.lan' = only lights.lan; '*.lan' = lights.lan but not a.b.lan or lights.lan.evil.com — M5). Enforcement is HOST-MEDIATED (S4): plugins never open sockets; they call sdk.http/request kind:\"net\" and the daemon checks the glob, so Landlock's port-only network rules are a second layer where ABI>=4 is available, not the primary control."
     },
     "events": {
       "type": "array",

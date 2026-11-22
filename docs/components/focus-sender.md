@@ -12,10 +12,13 @@ watcher (D17).
   NSWorkspace + AX (`hubdeck/src/hubdeck/platforms/macos/focus.py`).
 - **Behaviour:** poll/hook → settle 300 ms (precedent `FOCUS_SETTLE = 0.3`,
   `hubdeck/src/hubdeck/engine.py:41,810-815`) → `ds emit app/focus/changed
-  {"app":"…","title":"…","pid":…}` → exit. Nothing else. Recoloring, page switching,
-  binding changes are bindings/subscribers on `app/focus/changed`, e.g.:
+  {"app":"…","title":"…","pid":…}` → exit. Nothing else — it never writes `/focus`
+  directly; the daemon's router mirrors the payload into `/focus` in the same transaction
+  that dispatches bindings (S7), so both `when: {path:"/focus/app",…}` and
+  `when: {payload:"app",…}` see the new value atomically. Recoloring etc. is bindings:
   ```sh
-  ds bind app/focus/changed --when /focus/app eq code --do 'set /controls/keys/3/color #00ff00'
+  ds bind app/focus/changed --when '{"payload":"app","op":"eq","value":"code"}' \
+       --do 'set /controls/keys/3/image {"kind":"color","value":"#00ff00"}'
   ```
 - **Why external:** neither existing watcher has a native Wayland path (discovery 30,
   O1); keeping it swappable per DE is the only way R9 (Linux-first) works.

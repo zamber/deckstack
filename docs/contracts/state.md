@@ -2,114 +2,132 @@
 
 Normative schema: `schemas/state.json`. Design: ADR-004, D05. R2.
 
+## 0. The two planes (S1 — read first)
+
+The state document has a **durable** part and a **non-durable telemetry** part, and the
+frame plane touches neither per frame:
+
+- Pushing a frame onto the frame plane (streaming.md) updates **no durable state and no
+  `rev`** — at 24–32 fps a rev bump and full-document serialization per frame would violate
+  R2/R5. Frame pushes are acknowledged on the stream socket (`stream-ack`/`stream-nack`)
+  and counted in telemetry only.
+- `/telemetry/*` is sampled by the daemon at **≤ 1 Hz**, is **never persisted**, never
+  bumps `rev`, and `get /telemetry/...` returns the current sample with no rev in the
+  response. Subscription events on `/telemetry/*` carry `"telemetry": true` and no `rev`.
+- An `image: {kind:"frame", target, seq, sha256}` descriptor changes **only when the source
+  changes** (a `set` op), never per pushed frame. `seq`/`sha256` there describe the frame
+  that is the current source, not a per-frame counter.
+
 ## 1. Addressing
 
-One JSON document. Paths are `/`-separated, segments are literal or `<id>`; `*` in queries
-matches one segment. Real top-level paths:
+One JSON document. Paths are `/`-separated; `*` in queries matches one segment. Real
+top-level paths:
 
 ```
-/meta            {version: 1, rev: <int>, daemon_pid, started_at, protocol: 1}
-/devices/<serial>            {kind: keys|dial|m0-base|faders|knobs|rollers, model, pid,
-                              slot: "usb-path", connection: connected|disconnected,
-                              capabilities: [...], last_seen_rev}
-/controls/keys/<0-14>        {image, label, color, bg, icon, binding-independent visual}
-/controls/dial               {image, label, ...}
-/controls/knobs/<0-2>        {led: {mode, color, brightness}, value, on: {...}}
+/meta            {version: 1, rev, daemon_pid, started_at, protocol: 1}
+/devices/<serial>            {kind, model, pid, slot, connection, last_seen_rev}
+/controls/keys/<0-14>        {image, label, brightness}
+/controls/dial               {image, label, brightness}
+/controls/knobs/<0-2>        {led: {mode, color, brightness}, value}
 /controls/faders/<0-4>       {led, value}
-/controls/rollers/<0-1>      {led, on: {...}}
-/bindings/<control>/<gesture>  [binding, ...]            (gesture: down|up|long|double|rotate|slide)
-/bindings/app/<sender>/<topic> [binding, ...]
-/bindings/deck/device/<serial>/<event> [binding, ...]
-/plugins/<id>                {manifest, status: running|degraded|stopped, stats, state}
-/streams/<target>            {queue_depth, stats: {sent, dropped, fps, bytes, last_sha256}}
-/settings/...                {sender backends, log level, led_rate_cap, ...}
-/policy/...                  e.g. /policy/allow/net/hosts: ["lights.lan"]   (D18)
-/focus                           {app, title, pid, at_rev}   (written by ds-focus via emit+set)
+/controls/rollers/<0-1>      {led, value}
+/bindings                    ARRAY of binding objects {id: "b0001", topic, when, allow_exec, steps}
+/bindings/<id>               one binding (S2: topics contain '/', so they are fields, not path segments)
+/plugins/<id>                {manifest, status, state, stats}
+/streams/<target>            durable per-target CONFIG only: {queue_depth: 1|2}
+/telemetry/streams/<target> {sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, ...}  (non-durable, ≤1 Hz)
+/settings/...                {sender backends, log level, exec_path removed — see /policy/exec, ...}
+/policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s  (S13 — no policy exists only in prose)
+/focus                       {app, title, pid, at_rev}  (mirrored atomically from app/focus/changed, S7)
 ```
+
+Targets everywhere are the unified vocabulary `keys | key:<0-14> | dial` (S6) — no
+`panel`/`screen` synonyms.
 
 **Identity across hot-plug:** `/devices/<serial>` — serial read at connect
 (`upstream/crates/mh-device/src/hub.rs:241-245`). Control paths hang off the *kind slot*
 (`keys`, `dial`, `knobs.0`), not the serial; when a module with a known serial
-reconnects, the daemon re-links its slot and re-pushes the last state, so visuals survive
-replug. Two same-kind modules: `keys` mirrors, a second knob/fader/roller set addresses by
-serial suffix (`upstream/PROTOCOL.md:130-139`).
+reconnects, the daemon re-links its slot and re-pushes the last state. Two same-kind
+modules: `keys` mirrors; a second knob/fader/roller set addresses by serial suffix
+(`upstream/PROTOCOL.md:130-139`).
 
-## 2. Types
+## 2. Bindings representation (S2)
 
-Control visual (`/controls/keys/0` etc.):
+`/bindings` is an **array**; each element is a `schemas/binding.json` object with a
+daemon-assigned unique `id` (`b0001`, …). `ds get /bindings` lists all;
+`ds get /bindings/b0001` reads one; `ds bind <topic> --do …` appends and returns the id;
+`ds unbind b0001` (or `--topic` to remove all matching) deletes. Topics keep their `/`
+inside the `topic` field — they are never split into path segments.
+
+## 3. Types
+
+Control visual (`image`):
 
 ```json
-{
-  "image":  {"kind": "color", "value": "#3cc86e"}
-}
+{"kind": "color", "value": "#3cc86e"}
 ```
-`image` is one of: `{"kind":"color","value":"#rrggbb"}`, `{"kind":"frame","target":"keys|dial","seq":N,"sha256":"…"}`,
-`{"kind":"file","path":"/abs/or/relative-to-media-root.png"}`, `{"kind":"icon","name":"tabler:bolt"}`,
-`{"kind":"text","value":"OK","fg":"#fff","bg":"#000"}`. `label`: string. All validated by
+One of: `color` (`#rrggbb` only), `frame` (`{target, seq, sha256}` — a reference, never
+bytes; changes only on `set`), `file` (absolute path; schema pattern rejects any `..`
+segment — M3; daemon additionally canonicalizes and confines to `/policy/fs/roots`),
+`icon` (`tabler:<name>`), `text` (`{value ≤ 32 chars, fg, bg}`). All validated by
 `schemas/state.json`.
 
-## 3. Durability, transactions, revisions
+## 4. Durability, transactions, revisions
 
-- Every mutation is a **transaction**: `{"ops": [{"op":"set","path":…,"value":…}, …],
-  "if_rev": N}` — applied atomically; if the current rev ≠ `if_rev`, the whole transaction
-  fails with `E_CONFLICT` (exit 3) and returns the current rev. Omitting `if_rev` is
-  last-write-wins (allowed for single-key sets).
-- Each committed transaction increments `/meta/rev` by 1 and is persisted: the daemon
-  serializes the document to `state.json.tmp` and `rename()`s it (atomic;
-  `upstream/.../engine/profile.rs:882-909`), debounced 250 ms, fsync on daemon stop.
-- **Durable:** everything except `/streams/*/stats` queue internals and `/focus` (ephemeral,
-  kept in memory only). Frame bytes are never durable (ADR-005).
-- **Crash recovery:** on start, load `state.json`; if unparsable, move to
-  `state.json.corrupt-<ts>` and start empty with a loud log line (`deck/system` event).
+- Every mutation of the **durable** document is a transaction: `{"ops": […], "if_rev": N}`
+  applied atomically; on mismatch the whole transaction fails with `E_CONFLICT` (exit 3)
+  and returns `current_rev`. Omitting `if_rev` is last-write-wins.
+- Each committed transaction increments `/meta/rev` by 1 and is persisted atomically
+  (temp+rename, debounced 250 ms, fsync on stop).
+- **Durable:** everything except `/telemetry/*` and `/focus` (ephemeral, in-memory).
+  Frame bytes are never durable (ADR-005). Frame pushes never touch this document (S1).
+- **Crash recovery:** load `state.json` at start; if unparsable, move to
+  `state.json.corrupt-<ts>`, start empty, emit a loud `deck/system` event.
 
-## 4. Subscriptions
+## 5. Subscriptions
 
 `{"op":"subscribe","path":"/controls/*","from_rev":N}` → stream of
-`{"op":"event","path":"/controls/keys/0","rev":123,"value":{…},"prev":…}`. Wildcard `*`
-matches one segment; prefix subscription (`/controls`) delivers every change below.
-Slow subscribers: daemon drops events and sends `{"op":"dropped","count":n}` (never
-blocks the state task — R2/R5).
+`{"op":"event","path":…,"rev":123,"value":…,"prev":…}`. `/telemetry/*` subscriptions get
+≤ 1 Hz `{"op":"event","telemetry":true,"value":…}` with **no rev**. Slow subscribers:
+events dropped, `{"op":"dropped","count":n}` — the state task never blocks (R2/R5).
 
-## 5. Query / filter semantics
+## 6. Query / filter semantics
 
-`{"op":"get","path":"/controls/keys/0"}` → `{"op":"result","rev":N,"value":{…}}`.
-`get /controls` → subtree. `get /controls/keys/*` → object keyed by index.
-Filters are client-side: `ds get /controls --json | jq '…'`. Server-side only:
-`{"op":"get","path":…,"fields":["image","label"]}` projection. No jq-in-the-daemon.
+`get <path>` → exact / subtree / one-segment `*` / `/telemetry/...` (no rev).
+`{"op":"get","path":…,"fields":[… ]}` projection. Filtering is client-side
+(`ds get /controls --json | jq …`) — no jq in the daemon.
 
 **Latency budget (D13, R2/R11):** under a 32 fps frame load on the virtual device,
-`get` p50 ≤ 2 ms, p99 ≤ 10 ms (measured by `cargo bench -p ds-bench -- query-under-load`).
-The state lock is an `RwLock` never held across I/O; frame plane shares no lock with it.
+`get` p50 ≤ 2 ms, p99 ≤ 10 ms; **frame pushes at 32 fps cause zero rev increments and
+zero `/controls` subscription events** (S1 bench assertion, docs/30-testing.md §5).
+The state lock is an `RwLock` never held across I/O; the frame plane shares no lock with it.
 
-## 6. Conflict rules
+## 7. Conflict rules
 
 - Same-path concurrent transactions: serialized by rev; loser gets `E_CONFLICT`.
-- Plugin effect vs user set on the same path within one rev: plugin effect loses unless
-  the binding step order says otherwise — effects apply in arrival order, each its own rev.
-- Device-driven changes (fader value) write `/controls/faders/N/value` directly and emit
-  an event; they never overwrite `image`/`label`.
+- Plugin effect vs user `set` on the same path: effects apply in arrival order, each its
+  own rev.
+- Device-driven changes (fader value) write `/controls/faders/N/value` + emit an event;
+  they never overwrite `image`/`label`.
+- Event ingest is transactional (S7): when the router receives `app/focus/changed`, it
+  mirrors the payload into `/focus` **and** dispatches bindings in one transaction, so
+  `when` on `/focus/app` sees the new value; `when` may also read the event payload
+  directly (`{"payload":"app","op":"eq","value":"code"}`).
 
-## 7. Worked examples
+## 8. Worked examples
 
-Deck query (CLI): `ds get /controls/keys/0 --json` →
+Deck query: `ds get /controls/keys/0 --json` →
+`{"ok":true,"rev":41,"value":{"image":{"kind":"color","value":"#3cc86e"},"label":"Salon"}}`
 
-```json
-{"ok":true,"rev":41,"value":{"image":{"kind":"color","value":"#3cc86e"},"label":"Salon"}}
-```
+Telemetry query (no rev): `ds get /telemetry/streams/keys --json` →
+`{"ok":true,"value":{"sent":960,"dropped":12,"fps":32.0,"in_flight":true,…}}`
 
-Deck set (transactional, CLI): `ds set /controls/keys/0/image --json '{"kind":"color","value":"#ff8800"}' --if-rev 41`
-→ `{"ok":true,"rev":42}`; with a stale `--if-rev 40` → exit 3,
+Deck set (transactional): `ds set /controls/keys/0/image --json '{"kind":"color","value":"#ff8800"}' --if-rev 41`
+→ `{"ok":true,"rev":42}`; stale `--if-rev 40` → exit 3,
 `{"ok":false,"error":{"code":"E_CONFLICT","message":"rev is 42","current_rev":42}}`.
 
-Subscription (API):
+Binding add: `ds bind deck/control/keys.0/down --do 'plugin demo.bump {"by":1}' --json` →
+`{"ok":true,"rev":43,"result":{"id":"b0001"}}`
 
-```json
-→ {"op":"hello","protocol":1}
-→ {"op":"auth","token":"…","scope":"mutate"}
-→ {"op":"subscribe","path":"/controls/keys/*"}
-← {"op":"event","path":"/controls/keys/0/color","rev":43,"value":"#ff8800"}
-```
-
-Policy example (D18 — Salon-only lights): `/policy/allow/net/hosts: ["lights.lan"]`; any
-plugin `request` with `net` to another host → `E_CAP`. The daemon's device-write choke
-point enforces it; core contains zero light-specific code.
+Policy (D18/S13 — Salon-only lights, admin scope): `ds set /policy/net/allow_hosts --json '["lights.lan"]'`.
+Enforced at the daemon's single request choke point; core contains zero light-specific code.

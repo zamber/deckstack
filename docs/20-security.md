@@ -1,54 +1,59 @@
 # 20 — Security model
 
-R8. Design: ADR-009, D14. Threat model first, then mitigations, then the test that proves
-each. Prefixes: `hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`.
+R8. Design: ADR-009, D14. Threat model first, mitigations, then the test that proves each.
+Prefixes: `hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`.
+Revised for review M1–M5 and supervisor S3/S4/S5/S12/S13.
 
 ## 1. Assets and trust boundaries
 
-Assets: the deck hardware (bricking it is the worst outcome), the host (local code
-execution = game over), the token file, user media. Trust boundaries: (a) anything that
-connects to the daemon socket, (b) plugin processes, (c) state/config content, (d)
-images/frames, (e) the optional HTTP/WS adapter vs the web.
+Assets: the deck hardware (bricking is the worst outcome), the host (local code execution =
+game over), the token file, user media. Boundaries: (a) anything connecting to the
+daemon socket/pipe, (b) plugin processes, (c) state/config content, (d) images/frames,
+(e) the optional HTTP/WS adapter vs the web.
 
 ## 2. Threat model
 
 | # | Threat | Evidence it's real | Mitigation | Test |
 |---|---|---|---|---|
-| T1 | Local attacker with no token reads/mutates via the socket | Both apps gate only on a token in a 0600 file; Python's random TCP port is reachable by any local process that reads `control.json` (`hubdeck/.../control.py:51,81-90,67`) | Socket dir 0700, socket 0600, per-install token, scopes read/mutate/admin, constant-time compare; `read` scope cannot `set` | C: connect without token → `E_AUTH`; read-token issues `set` → `E_AUTH` exit 4 |
-| T2 | Malicious config = RCE via code-in-config | `{python: …}` is `exec` in the engine process (`hubdeck/.../plugins/python.py:58`); analysis D5 kept it (`hubdeck/analysis/decision-log.md:45`) | Config/state is data only; `schemas/*.json` have no code field; no `eval` anywhere in core; behaviour = external programs (R4) | C: `set` a binding whose step is `{"do":"exec","argv":"sh -c …"}` without admin → `E_CAP`; config containing a string field that looks like code is inert data |
-| T3 | Malicious plugin corrupts daemon / fork-bombs / holds the deck | In-process plugins share the engine (`hubdeck/.../plugins/base.py`); upstream declares permissions but "does not sandbox" (`upstream/.../engine/plugins.rs:56-58`) | Process-per-plugin + plugin_token + per-cap grants + rlimits (nproc/nofile/AS/CPU) + Landlock fs on Linux ≥6.7 (OPEN O6) + watchdog kill/respawn ≤3/10 min + kill-on-exit | C: plugin spawning 1000 children → killed by nproc, daemon healthy; plugin writing outside `fs_roots` → `E_CAP`; plugin crash → respawn, `/plugins/<id>/status` shows it |
-| T4 | Image/frame bombs (decompression DoS, memory) | Caps exist but per-app: 10 MB download (`hubdeck/.../render/images.py:21`), 20 MB send (`control.py:36`), 16 MB body (`upstream/.../plugins.rs:266`) | Wire cap 16 MB; decode caps ≤4096×4096 px, ≤300 frames, ≤30 fps; frame queues bounded (2/target, 256 MiB total, latest-wins drop) | Fuzz: max-size/max-rate frames at the stream socket on ds-vdev; assert memory flat (RSS delta < 50 MB) and control p99 within budget |
-| T5 | Shell injection through shellouts | `launch.run` uses `shell=True` (`hubdeck/.../platforms/posix.py:70`); `hubdeck send action` can run any config action incl. launch (`control.py:101-123`) | Core never spawns a shell; `exec` step = argv array only, cwd confined to media root or /tmp, env scrubbed, requires admin scope + `allow_exec` + `/policy` exec allowlist | C: argv `["sh","-c","touch /tmp/pwn"]` with metachars in args → file NOT created (no shell interpretation); exec without admin → `E_CAP` |
-| T6 | Path traversal via plugin/fs paths | GUI confines edits to config dir (`hubdeck/.../gui/server.py:428-436`) but actions take arbitrary paths | fs access confined to declared roots: plugin `fs_roots`, media root for `file` images, `/tmp`; daemon resolves + canonicalizes and rejects `..` escaping the root | C: `set /controls/keys/0/image {"kind":"file","path":"../../../../etc/shadow"}` → `E_SCHEMA`/`E_PATH` |
-| T7 | DNS rebinding on the HTTP/WS adapter | Python GUI checks Host (`hubdeck/.../gui/server.py:601`); Rust relies on bearer only | Adapter binds 127.0.0.1 only; requires `Host: 127.0.0.1`/`localhost` AND bearer token on every request incl. WS upgrade | C: request with `Host: evil.example` → 421; WS upgrade without token → 401 |
-| T8 | Device bricking via firmware/serial/reset commands | FORBIDDEN list exists because firmware accepts them (`upstream/crates/mh-protocol/src/safety.rs:8-32`; `hubdeck/.../device/hid.py:52-62,85-104`) | Unrepresentable: builders only for safe commands + raw-path `is_forbidden` refusal (`report.rs:28-30`); backlight-0 refused on dial (`upstream/PROTOCOL.md:61`); hardware-mode reads refused (`module.rs:158-166`) | Unit: assert no builder output is forbidden (precedent `safety.rs:40-79`); vdev test: daemon path attempting raw forbidden report → `E_DEVICE`, nothing written |
-| T9 | Token file leakage / rotation races | per-run token written 0600 (`control.py:86-90`) | 0600 token file, dir 0700; `ds token rotate` keeps old token valid 60 s (OPEN O10) | C: old token rejected after grace; file perms asserted in CI |
-| T10 | Vendor app contention (two holders fight over HID) | `hubdeck/CLAUDE.md:66`; `upstream/PROTOCOL.md:217-221` | Startup check: busy → `ds daemon status` names the holder; guard child does handback on crash (`upstream/.../src/guard.rs`) | Smoke (hardware): start daemon with vendor app open → clear error, no writes sent |
+| T1 | Local attacker, no token, connects to socket/pipe | Both apps gate only on a token in a 0600 file over random TCP (`hubdeck/.../control.py:51,81-90,67`) | Socket dir 0700/socket 0600; per-install token; scopes read/mutate/admin; constant-time compare; `E_AUTH`/`E_SCOPE` split | C: no token → `E_AUTH`; read-token issues `set` → `E_SCOPE` (exit 4) |
+| T2 | Malicious config = RCE via code-in-config | `{python: …}` exec in-process (`hubdeck/.../plugins/python.py:58`); analysis D5 kept it | Config/state is data; schemas have no code field (`binding.json` negative fixture: `{"do":"eval"}` rejected); no `eval` in core; behaviour = external programs (R4) | C: code-ish binding fails schema; migration importer rejects code fields (m8) |
+| T3 | Malicious plugin corrupts daemon / fork-bombs | In-process plugins share the engine (`hubdeck/.../plugins/base.py`); upstream permissions displayed only (`upstream/.../plugins.rs:56-58`) | Process-per-plugin + plugin_token + per-cap grants + rlimits + Landlock fs (Linux ≥6.7, OPEN O6) + watchdog ≤3/10 min + kill-on-exit | C: fork-bomb killed by nproc, daemon healthy; fs outside `fs_roots` → `E_CAP`; crash → respawn, status visible |
+| T4 | Image/frame bombs | per-app caps 10/16/20 MB (`hubdeck/.../render/images.py:21`, `control.py:36`, `upstream/.../plugins.rs:266`) | wire 16 MB; decode ≤4096², ≤300 frames, ≤30 fps; bounded queues (2/target, 256 MiB, latest-wins) | fuzz at stream socket on ds-vdev; RSS delta < 50 MB; control p99 within budget |
+| T5 | Shell injection via exec | `shell=True` (`hubdeck/.../platforms/posix.py:70`); `launch.run` via control (`control.py:101-123`) | **Enforced, not asserted** (S3): no shell anywhere; exec argv-only; `argv[0]` absolute (schema `prefixItems ^/`) AND in `/policy/exec/allow` AND NOT in `/policy/exec/deny` (default deny = `/bin/sh /bin/bash /bin/dash /bin/zsh /usr/bin/env /usr/bin/python3 …`); cwd confined to `/policy/fs/roots`+`/tmp` at runtime (M2); rlimits; admin scope + `allow_exec`; audit event `deck/system/exec` | C: `["/bin/sh","-c","touch /tmp/pwn"]` → `E_CAP`, file absent; relative argv[0] → `E_SCHEMA`; `/usr/bin/env x` → `E_CAP` |
+| T6 | Path traversal via file paths | GUI confined edits to config dir (`hubdeck/.../gui/server.py:428-436`); actions took arbitrary paths | Schema: `kind:file` path pattern rejects any `..` segment (M3, negative fixture); daemon canonicalizes + confines to `/policy/fs/roots`; plugin fs via `fs_roots` + Landlock | C: `set … {"kind":"file","path":"../../etc/shadow"}` → `E_SCHEMA`; `/a/../b` rejected; canonicalized escape → `E_PATH` |
+| T7 | DNS rebinding on HTTP/WS adapter | Host check `hubdeck/.../gui/server.py:601` | 127.0.0.1 bind only; `Host: 127.0.0.1\|localhost` AND bearer on every request incl. WS upgrade | C: `Host: evil.example` → 421; WS without token → 401 |
+| T8 | Device bricking via firmware/serial/reset | FORBIDDEN bytes accepted by firmware (`upstream/crates/mh-protocol/src/safety.rs:8-32`; `hubdeck/.../device/hid.py:52-62,85-104`) | Unrepresentable (builders only for safe cmds + raw-path `is_forbidden`, `report.rs:28-30`); backlight-0 refused (`upstream/PROTOCOL.md:61`); hardware-mode reads refused (`module.rs:158-166`) | unit: no builder output forbidden (`safety.rs:40-79`); vdev: raw forbidden → `E_DEVICE`, zero bytes written |
+| T9 | Token rotation window | review M4 / S12: a 60 s grace for new requests is a real window | **Instant revocation for new connections** (auth reads the current token set per connection); ≤ 5 s grace only for requests already in flight on an established connection, via a connection-generation counter bumped on rotate. Rotation is explicit (`ds token revoke`), not automatic | C: rotate → new connection with old token → `E_AUTH` immediately; in-flight batch on old connection completes then closes |
+| T10 | Vendor app contention | `hubdeck/CLAUDE.md:66`; `upstream/PROTOCOL.md:217-221` | startup busy-check names the holder; guard child handback (`upstream/.../src/guard.rs`) | smoke: daemon with vendor app open → clear error, no writes |
+| T11 | Plugin network to non-granted hosts | Landlock can restrict ports, not hostnames (S4); a plugin can open any socket (M5 glob ambiguity) | Plugins never open sockets: `sdk.http` → daemon-mediated `request kind:"net"`; daemon matches host against plugin's `net:<glob>` (glob = `*` matches exactly one DNS label, anchored: `lights.lan` ≠ `lights.lan.evil.com`; `*.lan` matches `lights.lan` but not `a.b.lan`) AND `/policy/net/allow_hosts`; daemon resolves DNS and connects itself. Landlock net-deny (ABI≥4) as second layer where available; where unavailable the mediation is the only control — documented gap | C: plugin requests `http://evil.com` with `net:lights.lan` → `E_CAP`; `lights.lan.evil.com` → `E_CAP`; `a.b.lan` with `*.lan` → `E_CAP`; allowed host succeeds via fake server |
+| T12 | Another local user connects to the Windows pipe / reads token files | named pipes default to broad ACLs; review S5 | Pipe SDDL `D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>)`; token dir + token files ACL = user+SYSTEM only | Windows CI/hw test with a second local account: connect → access denied |
 
 ## 3. Scoped tokens and capability grants
 
-- Install token = `admin`. `ds token issue --scope mutate` → scoped token in
-  `tokens.json` (0600). Scope check: min(requested, granted); constant-time compare
-  (`hubdeck/.../control.py:67` precedent).
-- Plugin caps (`schemas/plugin-manifest.json`): `state.read|state.write|device.write|exec|net:<glob>|fs:<root>|emit`; enforced per request/effect; violations counted + logged.
-- Binding exec: admin scope + `allow_exec:true` + `/policy/exec/allow` argv-prefix list.
+Install token = admin. `ds token issue --scope …` → scoped tokens in `tokens.json` (0600).
+Scope = min(requested, granted); constant-time compare (`control.py:67` precedent).
+Plugin caps: `state.read|state.write|device.write|exec|net:<glob>|fs:<root>|emit`, enforced
+per request/effect. Binding exec: admin + `allow_exec` + `/policy/exec/allow` − `deny`.
 
 ## 4. Sandbox / rlimits
 
-Plugin spawn: `setrlimit` NPROC/NOFILE/AS/CPU (+ SIGXCPU), process group, stdin/stdout
-pipes, stderr→log, env = `{PATH, HOME, LANG, DS_PLUGIN_TOKEN}` only (no secrets).
-Landlock (Linux ≥ 6.7, OPEN O6): restrict fs to `fs_roots` + read-only `/usr`, no
-network unless `net:*`. Windows: job object `KILL_ON_JOB_CLOSE` (`upstream/.../plugins.rs:180-205`).
-No container runtime — deliberately boring.
+Plugin spawn: setrlimit NPROC/NOFILE/AS/CPU (+SIGXCPU), process group, pipes, stderr→log,
+env = `{PATH, HOME, LANG, DS_PLUGIN_TOKEN}`. Landlock (Linux ≥6.7, OPEN O6): fs restricted
+to `fs_roots` + read-only `/usr`; net connect denied where ABI ≥ 4 (OPEN O11). Windows:
+job object `KILL_ON_JOB_CLOSE` + pipe/file ACLs (T12). No container runtime — boring.
 
-## 5. Explicit non-goals
+## 5. `/policy` — the single policy surface (S13)
 
-- No protection against root or against the user themselves (the user can `ds token
-  issue --scope admin` — that is the point of a local tool).
-- No remote/network exposure: the socket is local; the HTTP adapter is loopback-only and
-  opt-in. No TLS needed on loopback.
-- No multi-user isolation beyond file permissions.
-- No guarantee against a plugin that legitimately uses its granted caps maliciously
-  (e.g. `net:lights.lan` used to attack that host) — policy lives in `/policy` (D18),
-  auditable in state.
-- Firmware updates remain out of scope entirely (official app only, `upstream/PROTOCOL.md:168-170`).
+Every enforcement point has a schema field in `schemas/state.json` → `/policy`: `net.allow_hosts[]`,
+`fs.roots[]`, `exec.allow[]`, `exec.deny[]` (pre-seeded with shells/interpreters), `led_rate_per_s`.
+Admin scope only. No policy exists only in prose.
+
+## 6. Explicit non-goals
+
+- No protection against root or the user themselves (`ds token issue --scope admin` is the
+  point of a local tool).
+- No remote exposure: socket local; HTTP adapter loopback + opt-in.
+- No multi-user isolation beyond file/pipe ACLs (T12).
+- A plugin using its *granted* caps maliciously (e.g. `net:lights.lan` attacking that host)
+  is a policy question — auditable in `/policy`, not preventable in core.
+- Firmware updates out of scope (official app only, `upstream/PROTOCOL.md:168-170`).

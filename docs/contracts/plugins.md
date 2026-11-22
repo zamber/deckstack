@@ -1,87 +1,82 @@
 # Contract: plugins
 
-R6/R8. Design: ADR-006, D08/D09. Manifest schema: `schemas/plugin-manifest.json`.
+R6/R8. Design: ADR-006, D08/D09. Manifest schema: `schemas/plugin-manifest.json`. Fixes
+S4/M5.
 
 ## 1. Process model
 
-One OS process per plugin, launched by the daemon from
-`~/.local/share/deckstack/plugins/<id>/` using the manifest's `command` (argv array —
-never a shell string). Transport: **newline-delimited JSON over the plugin's
-stdin/stdout** (stderr → daemon log). Handshake:
+One OS process per plugin from `~/.local/share/deckstack/plugins/<id>/`, `command` =
+argv array (never a shell). Transport: newline-JSON over stdin/stdout (stderr → daemon
+log). Handshake:
 
 ```json
-host→plugin  {"op":"hello","protocol":1,"plugin_token":"…","caps":["state.read","device.write"],"roots":{"fs":["/home/u/media"]},"limits":{"cpu_s":10,"nproc":64,"nofile":64,"as_mb":1024}}
+host→plugin  {"op":"hello","protocol":1,"plugin_token":"…","caps":["state.read","device.write","net:lights.lan"],"roots":{"fs":["/home/u/media"]},"limits":{"cpu_s":10,"nproc":64,"nofile":64,"as_mb":1024}}
 plugin→host  {"op":"register","id":"demo","manifest":{…}}
 host→plugin  {"op":"event","event":"keyDown","control":"keys.0","state":{…}}
 host→plugin  {"op":"invoke","id":"demo.bump","args":{"by":1},"request_id":7}
 plugin→host  {"op":"effects","request_id":7,"effects":[{"effect":"set","path":"/controls/keys.0/label","value":"1"}]}
-plugin→host  {"op":"request","request_id":8,"kind":"get","path":"/controls/keys.0"}   # cap-gated
-host→plugin  {"op":"reply","request_id":8,"ok":true,"value":{…}}
+plugin→host  {"op":"request","request_id":8,"kind":"get","path":"/controls/keys.0"}
+plugin→host  {"op":"request","request_id":9,"kind":"net","method":"GET","url":"http://lights.lan/api/…"}   ← S4
+host→plugin  {"op":"reply","request_id":9,"ok":true,"status":200,"body":"…"}
 ```
 
-## 2. Manifest (schemas/plugin-manifest.json)
+## 2. Network capability — host-mediated (S4/M5)
 
-```json
-{
-  "id": "demo", "name": "Demo counter", "version": "0.1.0",
-  "command": ["python3", "-m", "ds_plugin_py", "plugin.py"],
-  "actions": [{"id": "bump", "name": "Bump", "params": {"type":"object",
-              "properties": {"by": {"type":"integer","default":1}}}}],
-  "capabilities": ["state.read","state.write","device.write"],
-  "events": ["keyDown","keyUp","state"],
-  "resources": {"cpu_s": 10, "nproc": 64, "nofile": 64, "as_mb": 1024},
-  "fs_roots": ["/home/u/.local/share/deckstack/media"]
-}
-```
+Landlock network rules (ABI ≥ 4) can restrict **ports**, not hostnames, and a plugin can
+open any socket directly — so `net:<glob>` is **not** enforced by sandboxing the plugin's
+sockets. Instead:
 
-`id` restricted to `[A-Za-z0-9._-]{1,80}` (precedent `safe_id`,
-`upstream/.../plugins.rs:98-100`). Action `params` are JSON Schema; args are validated
-against them before invoke. `capabilities` are enforced, not displayed (contrast
-`upstream/.../plugins.rs:56-58`, where permissions are shown only).
+- Plugins **never open sockets**. The SDK exposes `sdk.http(method, url, …)` (Python:
+  `ds_plugin_py.http(...)`), which sends `request kind:"net"` to the daemon.
+- The daemon parses the URL, extracts the host, matches it against the plugin's granted
+  `net:<glob>` **and** `/policy/net/allow_hosts`, then performs the request itself and
+  returns status/body. Glob semantics (M5): `*` matches exactly one DNS label; matching
+  is anchored against the full host — `lights.lan` matches only `lights.lan`; `*.lan`
+  matches `lights.lan` but not `lan`, `a.b.lan`, or `lights.lan.evil.com`. Edge-case tests
+  in tests/fixtures.
+- Where Landlock ABI ≥ 4 is available (OPEN O6/O11), the daemon additionally denies
+  outbound connect from the plugin process entirely (defense in depth); where it is not,
+  the host-mediation is the only control — **documented gap** (docs/20-security.md T11).
+- DNS is resolved by the daemon at request time and the connection is made to the
+  resolved address after re-checking the host string (no TOCTOU via the plugin).
 
-## 3. Lifecycle
+## 3. Manifest (schemas/plugin-manifest.json)
 
-`install (dir copied + manifest validated) → start (spawn, rlimits set, Landlock applied
-on Linux ≥6.7 — OPEN O6 — else fs_roots enforced by the host on every `request`) →
-register (manifest must match, else `E_SCHEMA`, process killed) → events/invokes →
-crash/hang → watchdog kills, respawn ≤ 3 per 10 min with backoff → `remove` kills and
-deletes`. Daemon exit kills all plugin processes (job object on Windows, precedent
-`upstream/.../plugins.rs:180-205`; process group elsewhere).
+`{id, name, version, command[], actions[{id, name, params: <JSON Schema>}],
+capabilities[], events[], resources{}, fs_roots[]}`. `id` ∈ `[A-Za-z0-9._-]{1,80}`
+(precedent `upstream/.../plugins.rs:98-100`). Action args validated against `params`
+before invoke. Capabilities enforced per request/effect — not displayed only (contrast
+`upstream/.../plugins.rs:56-58`).
 
-## 4. Capabilities
+## 4. Lifecycle
 
-`state.read, state.write, device.write (frames/leds via effects), exec, net:<host-glob>,
-fs:<root>, emit`. Each plugin gets a `plugin_token` (random per start) that authorizes
-exactly its granted caps; the daemon checks caps on every `request` and every effect.
-Default grant: `state.read` only.
+`install → start (spawn, rlimits, Landlock fs + net-deny where available) → register
+(manifest must match, else E_SCHEMA + kill) → events/invokes → crash/hang → watchdog kill
++ respawn ≤ 3/10 min → remove`. Daemon exit kills all plugin processes (Windows job
+object, `upstream/.../plugins.rs:180-205`; process group elsewhere).
 
 ## 5. Failure isolation
 
-- Effect payloads validated against `schemas/state.json` subset; invalid → rejected,
-  `E_SCHEMA`, counted in `/plugins/<id>/stats.violations`.
-- Invoke timeout 2 s → plugin marked `degraded` (stops receiving events), not killed on
-  first offense; second consecutive timeout → restart.
-- Resource abuse (fork bomb, memory) → rlimits kill the child; daemon unaffected.
-  Test: `tests/conformance/plugins/abuse.py` asserts daemon health after each.
-- Plugin state lives under `/plugins/<id>/state` — the daemon owns it; the plugin can
-  only read/write it via granted requests.
+- Effects validated against the state schema subset before touching state; invalid →
+  rejected, counted in `/plugins/<id>/stats.violations`.
+- Invoke timeout 2 s → `degraded` (stops receiving events); second consecutive → restart.
+- Resource abuse → rlimits kill; daemon unaffected (conformance: fork-bomb, traversal,
+  cap violation, oversized net URL — docs/20-security.md T3/T5/T6/T11).
 
 ## 6. Python compatibility wrapper (ds-plugin-py, D09)
 
 Runs an existing hubdeck plugin (`hubdeck/.../plugins/base.py:112-272` interface) in a
-child process and translates: manifest generated from the plugin's
-`actions/states/values` dicts + pydantic arg models (the existing `manifest`/`wire()`
-emits JSON Schema already — `hubdeck/.../plugins/host/manifest.py`), `invoke/adjust/set`
-→ effects, `watch/watch_states` → event subscriptions. **Guarantees:** process isolation,
-lifecycle, wire contract, resource limits, capability enforcement. **Does not guarantee:**
-access to engine internals (`ctx.deck` beyond the proxied surface — see OPEN C1), in-process
-state sharing, timing. Plugins needing internals are ported (list produced by
-`ds migrate import`, docs/70-migration.md).
+child process, translates to the ds wire protocol: manifest generated from
+`actions/states/values` + pydantic arg models (existing `plugins/host/manifest.py` emits
+JSON Schema), `invoke/adjust/set` → effects, `watch/watch_states` → subscriptions, plus
+`sdk.http` for network. **Guarantees:** process isolation, lifecycle, wire contract,
+resource limits, host-mediated network. **Does not guarantee:** engine internals
+(`ctx.deck` depth — OPEN C1), in-process state sharing, timing. Port list from
+`ds migrate import` (docs/70-migration.md).
 
 ## 7. Example plugin (Python, ~40 lines)
 
 ```python
-# plugins/demo/plugin.py — run via ds-plugin-py
 import ds_plugin_py as sdk
 count = {"n": 0}
 @sdk.action("bump", params={"type":"object","properties":{"by":{"type":"integer","default":1}}})
@@ -89,13 +84,17 @@ def bump(args):
     count["n"] += args.get("by", 1)
     return [sdk.set("/controls/keys.0/label", str(count["n"])),
             sdk.set("/controls/keys.0/image", {"kind":"color","value":"#ff8800"})]
+@sdk.action("get_lamp")
+def get_lamp(args):
+    r = sdk.http("GET", "http://lights.lan/api/lamp")     # host-mediated, glob-checked (S4)
+    return [sdk.set("/plugins/demo/state/last", r["body"])]
 sdk.serve({"id":"demo","name":"Demo counter","version":"0.1.0",
-           "capabilities":["state.write"],"actions":[bump]})
+           "capabilities":["state.write","net:lights.lan"],"actions":[bump, get_lamp]})
 ```
 
 ## 8. SDK shape
 
-- `ds-plugin-sdk` (Rust) and `ds-plugin-py` (Python) expose: `serve(manifest)`,
-  `action(id, params)(fn)`, effect builders `set/emit/log`, request helpers
-  `get/set_state`, event iteration. Same wire protocol both sides.
-- Test command: `cargo test -p ds-plugin-sdk` + `tests/conformance/plugins/`.
+`ds-plugin-sdk` (Rust) and `ds-plugin-py` (Python): `serve(manifest)`,
+`@action(id, params)`, effect builders `set/emit/log`, `get/set_state`, `http()` (S4),
+event iteration. Same wire protocol both sides. Test: `cargo test -p ds-plugin-sdk` +
+`tests/conformance/plugins/`.

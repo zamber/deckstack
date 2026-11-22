@@ -13,12 +13,17 @@ extends it with `exec` in config (`plugins/python.py:58`).
 ## Decision
 
 Events on topics (`deck/control/…`, `deck/device/…`, `deck/system/…`, `app/<sender>/…`)
-are routed to **bindings stored in state** (`/bindings/…`, `schemas/binding.json`).
-Core vocabulary is closed and small: `set | emit | plugin | exec | sleep` + `when`
-conditions. `exec` is argv-only (no shell anywhere), needs admin scope + per-binding
-`allow_exec` + `/policy` allowlist, rlimits, audit event. Everything else — window
-watching, cron, webhooks, media — is an external program subscribing and calling the CLI
-(R4). The daemon is a router + state + device, never an app.
+are routed to **bindings stored as the `/bindings` array** in state (topics contain `/`,
+so they are `topic` fields with daemon-assigned `id`s, not path segments — S2;
+`schemas/binding.json`). Core vocabulary is closed and small: `set | emit | plugin | exec |
+sleep` + `when` (evaluated against state `path` or event `payload`; event ingest mirrors
+well-known payloads like `/focus` in the same transaction — S7). `exec` is
+**fire-and-forget** (no `timeout_ms`, S11), argv-only, `argv[0]` absolute (schema) AND in
+`/policy/exec/allow` AND NOT in `/policy/exec/deny` — pre-seeded with shells/interpreters/
+wrappers so "no shell" is enforced, not asserted (S3) — plus admin scope + `allow_exec`,
+rlimits, audit event. Everything else — window watching, cron, webhooks, media — is an
+external program subscribing and calling the CLI (R4). The daemon is a router + state +
+device, never an app.
 
 ## Alternatives
 

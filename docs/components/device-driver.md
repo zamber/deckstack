@@ -39,7 +39,7 @@ HID transport + protocol for the MasterHub family. Thin wrapper over the reused
   8. Rescan ≤1 s busy / 15 s idle; full re-push on reconnect; keys back ≤5 s target
      (`upstream/PROTOCOL.md:172-177`).
 - **Failure modes:** read error ⇒ module removed + `Disconnected` event; rescan re-inits.
-  Write error ⇒ queue dropped, counted in `/streams/<target>/stats`, module redrawn.
+  Write error ⇒ queue dropped, counted in `/telemetry/streams/<target>`, module redrawn.
   Forbidden report ⇒ `Err(Forbidden)`, logged, never retried.
 - **Dependencies:** `mh-protocol`, `mh-device` (git deps), `hidapi` (libusb static on
   Linux, `upstream/crates/mh-device/Cargo.toml:17-20`), `ds-platform` for location paths.

@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://deckstack.dev/schemas/state.json/v1",
-  "title": "deckstack state document",
-  "description": "The single JSON state document owned by ds-daemon. Paths in docs/contracts/state.md map to this tree. Frames are never stored here, only references.",
+  "title": "deckstack state document (durable part)",
+  "description": "The single JSON state document owned by ds-daemon. Paths in docs/contracts/state.md map to this tree. Frames are never stored here, only references, and pushing a frame never mutates this document or bumps rev (S1): per-frame statistics live in the non-durable /telemetry tree. /bindings is an ARRAY of binding objects addressed by id (S2), because topics contain '/' and cannot be path segments.",
   "type": "object",
-  "required": ["meta", "devices", "controls", "bindings", "plugins", "streams", "settings", "policy"],
+  "required": ["meta", "devices", "controls", "bindings", "plugins", "streams", "settings", "policy", "telemetry"],
   "additionalProperties": false,
   "properties": {
     "meta": {
@@ -12,7 +12,7 @@
       "required": ["version", "rev", "protocol"],
       "properties": {
         "version": {"const": 1},
-        "rev": {"type": "integer", "minimum": 0, "description": "Global revision; bumped by every committed transaction."},
+        "rev": {"type": "integer", "minimum": 0, "description": "Global revision; bumped by every committed durable transaction. Frame pushes and telemetry sampling never bump it."},
         "protocol": {"type": "integer", "minimum": 1},
         "daemon_pid": {"type": "integer"},
         "started_at": {"type": "string", "format": "date-time"}
@@ -30,7 +30,7 @@
     "controls": {
       "type": "object",
       "properties": {
-        "keys": {"type": "object", "patternProperties": {"^[0-9]|^1[0-4]$": {"$ref": "#/$defs/screenControl"}}},
+        "keys": {"type": "object", "patternProperties": {"^(?:[0-9]|1[0-4])$": {"$ref": "#/$defs/screenControl"}}, "description": "Key indices 0-14 only; '15' and '99' must NOT match (S8 regression test in tests/fixtures/)."},
         "dial": {"$ref": "#/$defs/screenControl"},
         "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}},
         "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}},
@@ -38,11 +38,10 @@
       }
     },
     "bindings": {
-      "type": "object",
-      "description": "Topic path -> list of bindings. Topics: deck/control/<c>/<g>, deck/device/<serial>/<e>, deck/system/<e>, app/<sender>/<topic>.",
-      "patternProperties": {
-        "^(deck|app)/[A-Za-z0-9_./*-]{1,200}$": {"type": "array", "items": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"}}
-      }
+      "type": "array",
+      "description": "Array of binding objects (schemas/binding.json), each with a unique 'id' (e.g. 'b0001'). Addressed as /bindings/<id> or listed as /bindings. Topics contain '/', so they are NOT path segments (S2).",
+      "items": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"},
+      "uniqueItems": true
     },
     "plugins": {
       "type": "object",
@@ -68,11 +67,24 @@
     },
     "streams": {
       "type": "object",
+      "description": "Per-target stream CONFIG only (durable). Live stats are non-durable telemetry under /telemetry/streams (S1).",
       "patternProperties": {
-        "^(keys|dial|key:[0-9]|key:1[0-4])$": {
+        "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$": {
           "type": "object",
           "properties": {
-            "stats": {
+            "queue_depth": {"type": "integer", "minimum": 1, "maximum": 2, "default": 2, "description": "1 in flight + 1 waiting (latest-frame-wins)."}
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "NON-DURABLE, sampled at <= 1 Hz by the daemon. Reads of /telemetry/* never bump rev and carry no rev; subscription events on /telemetry/* carry \"telemetry\": true and no rev (S1). Never persisted to state.json.",
+      "properties": {
+        "streams": {
+          "type": "object",
+          "patternProperties": {
+            "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$": {
               "type": "object",
               "properties": {
                 "sent": {"type": "integer", "minimum": 0},
@@ -82,7 +94,9 @@
                 "queue": {"type": "integer", "minimum": 0, "maximum": 1},
                 "in_flight": {"type": "boolean"},
                 "last_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                "last_seq": {"type": "integer", "minimum": 0}
+                "last_seq": {"type": "integer", "minimum": 0},
+                "writer_ms_p99": {"type": "number", "minimum": 0},
+                "sampled_at": {"type": "string", "format": "date-time"}
               }
             }
           }
@@ -92,20 +106,37 @@
     "settings": {"type": "object"},
     "policy": {
       "type": "object",
-      "description": "Policy is data (D18): the Salon-lights rule lives at /policy/allow/net/hosts. Only admin scope may write here; the daemon's device-write choke point enforces it.",
+      "description": "Policy is data (D18, S13): every enforcement point has a schema field here, none exists only in prose. Writable only with admin scope; enforced at the daemon's single device-write/request choke points.",
       "properties": {
-        "allow": {
+        "net": {
           "type": "object",
           "properties": {
-            "net": {"type": "object", "properties": {"hosts": {"type": "array", "items": {"type": "string"}}}}
+            "allow_hosts": {
+              "type": "array",
+              "items": {"type": "string", "pattern": "^(\\*\\.)?[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*$"},
+              "description": "Host glob list for mediated plugin network requests. '*' matches exactly one DNS label; matching is anchored against the full host. 'lights.lan' matches only lights.lan; '*.lan' matches lights.lan but NOT lan, a.b.lan, or lights.lan.evil.com (M5, S4)."
+            }
           }
         },
-        "exec": {"type": "object", "properties": {"allow": {"type": "array", "items": {"type": "string"}}}}
+        "fs": {
+          "type": "object",
+          "properties": {
+            "roots": {"type": "array", "items": {"type": "string", "pattern": "^/"}, "description": "Absolute roots any client/plugin may reference with kind:file images or exec cwd (canonicalized, '..' rejected)."}
+          }
+        },
+        "exec": {
+          "type": "object",
+          "properties": {
+            "allow": {"type": "array", "items": {"type": "string", "pattern": "^/"}, "description": "Absolute binary paths exec steps may run (argv[0] must be in this list). Admin-managed."},
+            "deny": {"type": "array", "items": {"type": "string", "pattern": "^/"}, "description": "Absolute paths always refused even if also in allow — shells, interpreters and wrappers belong here by default: /bin/sh, /bin/bash, /bin/dash, /bin/zsh, /usr/bin/env, etc. (S3: 'no shell' is enforced, not asserted)."}
+          }
+        },
+        "led_rate_per_s": {"type": "integer", "minimum": 1, "maximum": 30, "default": 30, "description": "Interim LED write cap pending soak test OPEN O2 (upstream/PROTOCOL.md:118-121)."}
       }
     },
     "focus": {
       "type": "object",
-      "description": "Ephemeral: last window-focus event written by ds-focus.",
+      "description": "Ephemeral mirror of the last app/focus/changed event payload. Written by the router in the SAME transaction that dispatches bindings to it (S7), so 'when' conditions on /focus see the new value atomically.",
       "properties": {
         "app": {"type": "string"},
         "title": {"type": "string"},
@@ -116,11 +147,11 @@
   },
   "$defs": {
     "visual": {
-      "description": "What a screen control shows. Frames are references, never bytes (ADR-005).",
+      "description": "What a screen control shows. Frames are references, never bytes (ADR-005); a frame descriptor changes only when the SOURCE changes via a set op, never per pushed frame (S1).",
       "oneOf": [
         {"type": "object", "required": ["kind", "value"], "properties": {"kind": {"const": "color"}, "value": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}}, "additionalProperties": false},
-        {"type": "object", "required": ["kind", "target", "seq", "sha256"], "properties": {"kind": {"const": "frame"}, "target": {"type": "string"}, "seq": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false},
-        {"type": "object", "required": ["kind", "path"], "properties": {"kind": {"const": "file"}, "path": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "target", "seq", "sha256"], "properties": {"kind": {"const": "frame"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}, "seq": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "path"], "properties": {"kind": {"const": "file"}, "path": {"type": "string", "pattern": "^(?!.*/\\.\\.(?:/|$))/[^/]+(/[^/]+)*$", "minLength": 1, "description": "Absolute path; the lookahead rejects any '..' segment (M3). The daemon additionally canonicalizes and confines to /policy/fs/roots at runtime."}}, "additionalProperties": false},
         {"type": "object", "required": ["kind", "name"], "properties": {"kind": {"const": "icon"}, "name": {"type": "string", "pattern": "^tabler:[a-z0-9-]+$"}}, "additionalProperties": false},
         {"type": "object", "required": ["kind", "value"], "properties": {"kind": {"const": "text"}, "value": {"type": "string", "maxLength": 32}, "fg": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}, "bg": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}}, "additionalProperties": false}
       ]

@@ -1,88 +1,105 @@
 # Contract: daemon IPC API
 
-Normative schema: `schemas/ipc-message.json`. Design: ADR-003, D04. R1/R7/R8.
+Normative schemas: `schemas/ipc-message.json` (NDJSON control), `schemas/stream-frame.json`
+(binary DSF1 frames). Example corpus validated in CI: `tests/fixtures/ipc-examples.json`
+via `sh tests/fixtures/validate.sh`. Design: ADR-003, D04. R1/R7/R8. Fixes B1/B2/S14.
 
 ## 1. Transports
 
-| Transport | Where | Framing |
-|---|---|---|
-| Unix domain socket | `$XDG_RUNTIME_DIR/deckstack/daemon.sock` (fallback `~/.local/state/deckstack/daemon.sock`); dir 0700 | NDJSON control on the main socket; binary frames on `<dir>/stream.sock` |
-| Windows named pipe | `\\.\pipe\deckstack-<username>` (+ `…-stream`) | same two framings |
-| WebSocket (opt-in adapter) | `ws://127.0.0.1:<port>/ws`, port in `~/.local/state/deckstack/http.port`; requires `Authorization: Bearer <token>` and `Host: 127.0.0.1\|localhost` (DNS-rebinding guard, precedent `hubdeck/src/hubdeck/gui/server.py:601`) | one JSON text frame per message; binary frames = stream |
-| HTTP (opt-in adapter, same port) | `GET/POST /api/<op>` for simple request/response | JSON body, cap 1 MiB control |
+### 1.1 Endpoints
 
-The socket pair is created at daemon start; the CLI never guesses ports (both current apps
-discover ephemeral ports via files — racy, `hubdeck/src/hubdeck/control.py:81-90`,
-`upstream/.../engine/plugins.rs:336-358`; rejected in D04).
+| Transport | Where | Used for |
+|---|---|---|
+| Unix domain socket | `$XDG_RUNTIME_DIR/deckstack/daemon.sock` (fallback `~/.local/state/deckstack/daemon.sock`); dir 0700, socket 0600 | all NDJSON control ops |
+| Frame stream socket | `<dir>/stream.sock` | DSF1 binary frames + `DSctl\n` NDJSON stream control |
+| Windows named pipe | `\\.\pipe\deckstack-<user>` (+ `…-stream`), ACL below | same two planes |
+| WebSocket (opt-in adapter) | `ws://127.0.0.1:<port>/ws`, port in `<dir>/http.port`; `Authorization: Bearer <token>` + `Host: 127.0.0.1\|localhost` (T7) | JSON text frames = control; binary frames = DSF1 |
+| HTTP (opt-in adapter, same port) | `GET/POST /api/<op>` | simple request/response, 1 MiB body cap |
+
+Windows pipe ACL (S5): the pipe is created with an explicit security descriptor
+`D:P(A;;GA;;;SY)(A;;GA;;;<current-user-sid>)` (SYSTEM + owning user only, via
+`CreateNamedPipe` `SECURITY_ATTRIBUTES` / `SetNamedSecurityInfo`); the token dir and
+`token`/`tokens.json` files get the equivalent file ACL (user + SYSTEM, no inheritance of
+broad ACEs). Test: a second local user's connect attempt fails with access denied
+(tests/hw or a Windows CI job with two accounts).
+
+### 1.2 Which verb uses which transport (B1/S14)
+
+| CLI verb | Transport | Wire |
+|---|---|---|
+| `get set bind unbind emit watch events plugin daemon token schema migrate` | control socket | NDJSON request/response |
+| `stream stats` / `stream stop` | control socket | NDJSON ops `stream-stats` / `stream-stop` |
+| `stream push` | control socket **then** stream socket | `stream-open {target, credits}` (NDJSON) authorizes; frames are DSF1 binary on stream.sock; acks are `DSctl\n` NDJSON `stream-ack`/`stream-nack`/`stream-credit` |
+
+`ds stream push` is therefore **not** an NDJSON op — a coder must not implement it as one.
 
 ## 2. Framing
 
-- **Control:** newline-delimited JSON. Client sends one line `hello`, one `auth`, then
-  requests; each request has an `id` (client-chosen int) and gets exactly one response
-  line with the same `id`. A connection may be reused (CLI uses one-shot by default;
-  `ds watch` keeps it open). Max line: **1 MiB** (`MAX_REQUEST` precedent 64 KiB at
-  `hubdeck/.../control.py:35` is too small for `set` with an inline image ref — 1 MiB).
-- **Stream (binary):** `magic "DSF1" | u32 meta_len | meta JSON | u64 payload_len | payload`.
-  Meta: `{target, seq, ts_ms, format: png|jpeg|gif, w, h, flags: [loop], crc32}`.
-  Max payload 16 MB (`MAX_BODY` precedent `upstream/.../plugins.rs:266`).
+- **Control:** newline-delimited JSON, one request line (`id` + `op`) → one response line
+  with the same `id`. Reusable connection; CLI one-shot by default, `ds watch` persistent.
+  Max line 1 MiB.
+- **DSF1 binary frame** (B2, schema `stream-frame.json`): `"DSF1" | u32 LE meta_len |
+  UTF-8 JSON meta | u64 LE payload_len | payload`. Meta: `{target, seq, ts_ms, format:
+  png|jpeg|gif, w, h, frames, fps, loop, crc32, max_payload_bytes: 16777216}`.
+  Max payload 16 MB (`MAX_BODY` precedent `upstream/.../plugins.rs:266`). Stream-socket
+  control lines are prefixed `DSctl\n` so the two framings never mix.
+- **Versioning:** first message `{"op":"hello","protocol":1,…}` →
+  `{"op":"welcome","protocol":1,"rev":N,…}`; mismatch → `E_VERSION`. Additive-only
+  changes; breaking changes bump `protocol`; schemas carry `/vN` `$id`s.
 
-## 3. Versioning
+## 3. Auth and scopes
 
-First message must be `{"op":"hello","protocol":1,"client":"ds/0.1.0"}`; daemon replies
-`{"op":"welcome","protocol":1,"rev":N,"server":"ds-daemon/0.1.0","features":[...]}`.
-Mismatch → `E_VERSION` and close. New optional fields are additive; removed fields are a
-protocol bump. `protocol` is bumped only for breaking changes; schemas in `schemas/` are
-versioned alongside (`"$id": "…/ipc-message.json/v1"`).
+- Per-install token file `<dir>/token`, 0600, generated at first start (per-run tokens
+  rejected — they break stateless CLI across restarts, D14). `auth` checks the token
+  constant-time (`hmac.compare_digest` precedent, `hubdeck/.../control.py:67`) and grants
+  min(requested, granted). Install token = `admin`; `ds token issue --scope read|mutate`
+  mints scoped tokens in `tokens.json` (0600).
+- `E_AUTH` = bad/missing token (exit 4). `E_SCOPE` (m4) = token valid but scope below the
+  request's requirement (exit 4). `E_CAP` = capability grant missing (plugins/exec/net/fs).
+- **Rotation (S12/M4):** `ds token revoke <id>` / rotate is **instant for new connections**:
+  the auth check reads the current token set per connection. A short grace (≤ 5 s) applies
+  only to requests already in flight on an established connection, tracked by a connection
+  generation counter bumped on rotation. No 60 s window for new requests. Test:
+  rotate, then a NEW connection with the old token → `E_AUTH`; an in-flight long
+  subscription on the old connection completes its current event batch then closes.
 
-## 4. Auth
+## 4. Operations and error model
 
-- Token file `~/.local/state/deckstack/token`, mode 0600, per-install, generated at first
-  start (precedent: per-install UUID token `upstream/.../plugins.rs:341-344`; per-RUN
-  tokens rejected — they break stateless CLI across restarts, D14).
-- Client sends `{"op":"auth","token":"…","scope":"read|mutate|admin"}`; the daemon
-  checks the token with a constant-time compare (precedent
-  `hmac.compare_digest`, `hubdeck/.../control.py:67`) and grants the MINIMUM of
-  requested and token scopes. Tokens: the install token has scope `admin`; `ds token
-  issue --scope read` creates scoped tokens stored in `tokens.json` (0600).
-- Failures: `E_AUTH` (exit 4). No token → only `hello`/`auth`/`ping` answer.
-
-## 5. Operations and error model
-
-Ops: `ping, get, set (transaction), subscribe, unsubscribe, emit, bind, unbind,
-plugin {list|invoke|install|remove}, stream-open, daemon {status|stop|reload}, token
-{list|issue|revoke}, schema {name}, test {frame-sha}`.
-
-Response envelope: `{"id":…,"ok":true,"rev":N,"result":…}` or
-`{"id":…,"ok":false,"error":{"code":"E_…","message":"…","path":…?}}`.
+Ops: `ping, hello, auth, get, set, subscribe, unsubscribe, emit, bind, unbind, plugin,
+stream-open, stream-stats, stream-stop, daemon, token, schema`. Response envelope:
+`{"id":…,"ok":true,"rev":N,"result":…}` or `{"id":…,"ok":false,"error":{…}}`.
 
 | Code | Meaning | CLI exit |
 |---|---|---|
-| `E_AUTH` | bad/missing token or scope | 4 |
-| `E_PATH` | path does not exist / bad syntax | 2 |
-| `E_SCHEMA` | value violates `schemas/state.json` | 1 |
-| `E_CONFLICT` | `if_rev` mismatch (payload has `current_rev`) | 3 |
-| `E_LIMIT` | size/rate/queue limit hit | 5 |
-| `E_CAP` | capability not granted (plugin/exec/net/fs) | 4 |
+| `E_AUTH` | bad/missing token | 4 |
+| `E_SCOPE` | valid token, insufficient scope | 4 |
+| `E_PATH` | path not found / bad syntax | 2 |
+| `E_SCHEMA` | value violates schema | 1 |
+| `E_CONFLICT` | `if_rev` mismatch (`current_rev` in payload) | 3 |
+| `E_LIMIT` | size/rate/queue limit | 5 |
+| `E_CAP` | capability not granted | 4 |
 | `E_UNREACHABLE` | daemon not running (client-side) | 6 |
 | `E_DEVICE` | hardware error (incl. `Forbidden`) | 7 |
 | `E_VERSION` | protocol mismatch | 8 |
 | `E_INTERNAL` | bug | 8 |
 
-## 6. Backpressure and limits
+The request/response split is schema-enforced: requests never carry `ok`, responses always
+do (m3 discriminator in `ipc-message.json`).
 
-- Control: per-connection in-flight requests ≤ 64; request line ≤ 1 MiB; response ≤ 4 MiB
-  (else paginate with `get --after`); idle connection closed after 300 s (except
-  subscriptions, kept until client closes or `dropped` overflow > 1000 events → close with
-  `E_LIMIT`).
-- Stream: per-target queue 2 (1 in flight + 1 waiting); producer credits: daemon sends
-  `{"op":"stream-credit","target":…,"credits":n}`; producer must not exceed credits +
-  queue depth; excess → `E_LIMIT` close of the stream. Device ceilings (32 fps accepted /
-  ~24 displayed / ~2.1 MB/s, `upstream/PROTOCOL.md:91-97,244,265`) are enforced by the
-  writer thread pacing, not by blocking producers.
-- Global: max 64 client connections; max 32 plugins; memory cap for frame queues
-  256 MiB total (drop oldest waiting frames beyond it).
+## 5. Backpressure and limits
 
-## 7. Full example session (Unix socket, NDJSON)
+- Control: ≤ 64 in-flight requests/connection; request line ≤ 1 MiB; response ≤ 4 MiB;
+  idle connection closed after 300 s (subscriptions exempt; > 1000 queued events →
+  `E_LIMIT` close).
+- Stream: per-target queue 2 (1 in flight + 1 waiting); producer must respect
+  `stream-credit` budgets; excess → `stream-nack` + `E_LIMIT`. Device ceilings
+  (32 fps accepted / ~24 displayed / ~2.1 MB/s, `upstream/PROTOCOL.md:91-97,244,265`)
+  are enforced by writer-thread pacing, never by blocking producers or the control plane
+  (S16/M8: in-flight frames are never dropped mid-send — see ADR-005).
+- Global: ≤ 64 connections, ≤ 32 plugins, frame-queue memory ≤ 256 MiB, telemetry
+  sampling ≤ 1 Hz (S1).
+
+## 6. Full example session (Unix socket, NDJSON)
 
 ```sh
 SOCK=$XDG_RUNTIME_DIR/deckstack/daemon.sock
@@ -93,23 +110,19 @@ TOKEN=$(cat ~/.local/state/deckstack/token)
   '{"id":2,"op":"get","path":"/meta"}' \
   '{"id":3,"op":"set","ops":[{"op":"set","path":"/controls/keys/0/image","value":{"kind":"color","value":"#3cc86e"}}],"if_rev":1}' \
   '{"id":4,"op":"subscribe","path":"/controls/keys/*"}' \
-  '{"id":5,"op":"emit","topic":"app/demo/hello","payload":{"n":1}}' \
+  '{"id":5,"op":"stream-open","target":"keys","credits":8}' \
+  '{"id":6,"op":"stream-stats","target":"keys"}' \
   ; sleep 0.2; } | socat - UNIX-CONNECT:$SOCK
+# then on stream.sock: DSF1 frame with meta {"target":"keys","seq":7,"format":"png","w":480,"h":272,"crc32":…} + PNG payload
 ```
 
-Replies (abridged):
+Replies (abridged; full corpus in `tests/fixtures/ipc-examples.json`):
 
 ```json
 {"id":0,"ok":true,"result":{"op":"welcome","protocol":1,"rev":1,"server":"ds-daemon/0.1.0"}}
 {"id":1,"ok":true,"result":{"scope":"admin"}}
-{"id":2,"ok":true,"rev":1,"result":{"version":1,"rev":1,"protocol":1}}
 {"id":3,"ok":true,"rev":2}
-{"id":4,"ok":true,"rev":2}
-{"id":5,"ok":true,"rev":2}
+{"id":5,"ok":true,"result":{"target":"keys","credits":8}}
 {"op":"event","path":"/controls/keys/0/image","rev":2,"value":{"kind":"color","value":"#3cc86e"}}
+{"op":"stream-ack","target":"keys","seq":7}
 ```
-
-Frame push over the stream socket (binary): meta
-`{"target":"keys","seq":7,"ts_ms":1732000000000,"format":"png","w":480,"h":272,"crc32":…}`
-+ PNG payload → daemon re-encodes to JPEG q80, chunks into `02 35` reports; stats at
-`/streams/keys/stats`.

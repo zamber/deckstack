@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deckstack.dev/schemas/stream-frame.json/v1",
+  "title": "deckstack DSF1 binary stream frame (frame plane)",
+  "description": "B2/S14: the frame plane is binary, not NDJSON. Layout on the stream socket (stream.sock / pipe): 4-byte magic \"DSF1\" | u32 LE meta_len | UTF-8 JSON meta (this schema) | u64 LE payload_len | payload bytes. The meta object is validated against this schema; the payload is NOT JSON. Control messages on the stream socket (stream-credit/stream-ack/stream-nack) are NDJSON lines prefixed by magic \"DSctl\\n\" so the two framings are distinguishable on one socket. See docs/contracts/ipc.md §2 and docs/contracts/streaming.md.",
+  "type": "object",
+  "required": ["target", "seq", "ts_ms", "format", "crc32"],
+  "additionalProperties": false,
+  "properties": {
+    "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$", "description": "Unified target vocabulary (S6): keys = 480x272 panel (cmd 0x35), key:N = 72x72 key N (cmd 0x36), dial = 240x240 (cmd 0x45)."},
+    "seq": {"type": "integer", "minimum": 0, "description": "Producer-side monotonically increasing sequence per target."},
+    "ts_ms": {"type": "integer", "minimum": 0, "description": "Producer timestamp, ms since epoch."},
+    "format": {"enum": ["png", "jpeg", "gif"], "description": "Wire format; the daemon always re-encodes to baseline JPEG, standard Huffman, 4:4:4 (upstream/PROTOCOL.md:87-96). Optimized-Huffman JPEG input is rejected with E_FORMAT."},
+    "w": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "h": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "frames": {"type": "integer", "minimum": 1, "maximum": 300, "description": "Frame count for gif; 1 otherwise."},
+    "fps": {"type": "number", "minimum": 1, "maximum": 30, "description": "Playback rate for multi-frame payloads."},
+    "loop": {"type": "boolean", "default": false},
+    "crc32": {"type": "integer", "minimum": 0, "maximum": 4294967295, "description": "CRC32 of the payload bytes."},
+    "max_payload_bytes": {"const": 16777216, "description": "Wire cap 16 MB (MAX_BODY precedent, upstream engine/plugins.rs:266). Enforced by the daemon before reading the payload."}
+  }
+}

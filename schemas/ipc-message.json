@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://deckstack.dev/schemas/ipc-message.json/v1",
   "title": "deckstack daemon IPC messages (control plane, NDJSON)",
-  "description": "One JSON object per line. Client sends hello, auth, then requests with client-chosen integer id; daemon replies once per id. Stream-plane frames are binary (DSF1) and not covered here. See docs/contracts/ipc.md.",
+  "description": "One JSON object per line on the control socket/pipe. Requests and responses are discriminated by the 'ok' field on responses (m3): requests never have 'ok', responses always do. Binary DSF1 stream frames are NOT JSON and are described by schemas/stream-frame.json, referenced from docs/contracts/ipc.md §2. Which verb uses which transport is specified in docs/contracts/ipc.md §1.2. Example corpus: tests/fixtures/ipc-examples.json (validated by tests/fixtures/validate.py).",
   "$defs": {
     "envelope": {
       "type": "object",
       "required": ["op"],
       "properties": {
-        "id": {"type": "integer", "description": "Correlation id; present on all requests and responses except async events."},
+        "id": {"type": "integer", "description": "Correlation id; present on all requests and on their responses, absent on async events."},
         "op": {"type": "string"}
       }
     },
@@ -16,12 +16,13 @@
       "type": "object",
       "required": ["code", "message"],
       "properties": {
-        "code": {"enum": ["E_AUTH", "E_PATH", "E_SCHEMA", "E_CONFLICT", "E_LIMIT", "E_CAP", "E_UNREACHABLE", "E_DEVICE", "E_VERSION", "E_INTERNAL"]},
+        "code": {"enum": ["E_AUTH", "E_SCOPE", "E_PATH", "E_SCHEMA", "E_CONFLICT", "E_LIMIT", "E_CAP", "E_UNREACHABLE", "E_DEVICE", "E_VERSION", "E_INTERNAL"], "description": "E_AUTH = bad/missing token. E_SCOPE (m4) = token valid but its scope is below the request's requirement. E_CAP = capability grant missing (plugins/exec/net/fs)."},
         "message": {"type": "string"},
         "path": {"type": "string"},
         "current_rev": {"type": "integer", "minimum": 0}
       }
     },
+    "path": {"type": "string", "pattern": "^/[A-Za-z0-9_./*-]{0,400}$"},
     "opSet": {
       "type": "object",
       "properties": {
@@ -34,7 +35,7 @@
             "required": ["op", "path"],
             "properties": {
               "op": {"enum": ["set", "delete", "merge"]},
-              "path": {"type": "string", "pattern": "^/[A-Za-z0-9_./*-]{0,400}$"},
+              "path": {"$ref": "#/$defs/path"},
               "value": {}
             }
           }
@@ -44,41 +45,54 @@
     }
   },
   "oneOf": [
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "hello"}, "protocol": {"const": 1}, "client": {"type": "string"}}, "required": ["op", "protocol"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "auth"}, "token": {"type": "string", "minLength": 16}, "scope": {"enum": ["read", "mutate", "admin"]}}, "required": ["op", "token"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "ping"}}},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "get"}, "path": {"type": "string"}, "fields": {"type": "array", "items": {"type": "string"}}}, "required": ["op", "path"]},
-    {"$ref": "#/$defs/envelope", "allOf": [{"$ref": "#/$defs/opSet"}], "properties": {"op": {"const": "set"}}, "required": ["op", "ops"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "subscribe"}, "path": {"type": "string"}, "from_rev": {"type": "integer", "minimum": 0}}, "required": ["op", "path"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "unsubscribe"}}, "required": ["op", "path"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "emit"}, "topic": {"type": "string", "pattern": "^(deck|app)/"}, "payload": {}}, "required": ["op", "topic"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "bind"}, "topic": {"type": "string"}, "binding": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"}}, "required": ["op", "topic", "binding"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "unbind"}, "topic": {"type": "string"}}, "required": ["op", "topic"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "plugin"}, "action": {"enum": ["list", "invoke", "install", "remove"]}, "id": {"type": "string"}, "args": {}}, "required": ["op", "action"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "stream-open"}, "target": {"type": "string"}}, "required": ["op", "target"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "daemon"}, "action": {"enum": ["status", "stop", "reload"]}}, "required": ["op", "action"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "token"}, "action": {"enum": ["list", "issue", "revoke"]}, "scope": {"enum": ["read", "mutate", "admin"]}, "id": {"type": "string"}}, "required": ["op", "action"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "schema"}, "name": {"enum": ["state", "ipc", "plugin-manifest", "binding"]}}, "required": ["op", "name"]},
-    {"$ref": "#/$defs/envelope", "properties": {"op": {"const": "test"}, "what": {"const": "frame-sha"}, "path": {"type": "string"}}, "required": ["op", "what", "path"]},
-    {
-      "type": "object",
-      "description": "Daemon -> client responses and async events.",
-      "properties": {
-        "id": {"type": "integer"},
-        "ok": {"type": "boolean"},
-        "rev": {"type": "integer", "minimum": 0},
-        "result": {},
-        "error": {"$ref": "#/$defs/error"},
-        "op": {"enum": ["welcome", "event", "dropped", "stream-credit", "stream-ack", "stream-nack"]},
-        "path": {"type": "string"},
-        "value": {},
-        "prev": {},
-        "count": {"type": "integer", "minimum": 0},
-        "target": {"type": "string"},
-        "credits": {"type": "integer", "minimum": 0},
-        "seq": {"type": "integer", "minimum": 0}
+    {"$comment": "=== requests (client -> daemon); none has 'ok' ===", "allOf": [{"$ref": "#/$defs/envelope"}], "not": {"required": ["ok"]}, "oneOf": [
+      {"properties": {"op": {"const": "hello"}, "protocol": {"const": 1}, "client": {"type": "string"}}, "required": ["op", "protocol"]},
+      {"properties": {"op": {"const": "auth"}, "token": {"type": "string", "minLength": 16}, "scope": {"enum": ["read", "mutate", "admin"]}}, "required": ["op", "token"]},
+      {"properties": {"op": {"const": "ping"}}},
+      {"properties": {"op": {"const": "get"}, "path": {"$ref": "#/$defs/path"}, "fields": {"type": "array", "items": {"type": "string"}}}, "required": ["op", "path"]},
+      {"allOf": [{"$ref": "#/$defs/opSet"}], "properties": {"op": {"const": "set"}}, "required": ["op", "ops"]},
+      {"properties": {"op": {"const": "subscribe"}, "path": {"$ref": "#/$defs/path"}, "from_rev": {"type": "integer", "minimum": 0}}, "required": ["op", "path"]},
+      {"properties": {"op": {"const": "unsubscribe"}, "path": {"$ref": "#/$defs/path"}}, "required": ["op", "path"]},
+      {"properties": {"op": {"const": "emit"}, "topic": {"type": "string", "pattern": "^(deck|app)/"}, "payload": {}}, "required": ["op", "topic"]},
+      {"properties": {"op": {"const": "bind"}, "binding": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"}}, "required": ["op", "binding"]},
+      {"properties": {"op": {"const": "unbind"}, "id": {"type": "string", "pattern": "^b[0-9]{4,}$"}}, "required": ["op", "id"]},
+      {"properties": {"op": {"const": "plugin"}, "action": {"enum": ["list", "invoke", "install", "remove"]}, "id": {"type": "string"}, "args": {}}, "required": ["op", "action"]},
+      {"properties": {"op": {"const": "stream-open"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}, "credits": {"type": "integer", "minimum": 1, "maximum": 1024}}, "required": ["op", "target"], "description": "B1/S14: control-plane op that authorizes the client to push DSF1 binary frames for 'target' on the stream socket; the daemon replies with the credit budget. ds stream push = stream-open + binary frames, NOT an NDJSON op."},
+      {"properties": {"op": {"const": "stream-stats"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}}, "required": ["op", "target"], "description": "B1: reads /telemetry/streams/<target> (non-durable, no rev bump, S1)."},
+      {"properties": {"op": {"const": "stream-stop"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}}, "required": ["op", "target"], "description": "B1: drains and closes a stream target; waiting frame dropped, counted."},
+      {"properties": {"op": {"const": "daemon"}, "action": {"enum": ["status", "stop", "reload"]}, "device": {"type": "string"}}, "required": ["op", "action"]},
+      {"properties": {"op": {"const": "token"}, "action": {"enum": ["list", "issue", "revoke"]}, "scope": {"enum": ["read", "mutate", "admin"]}, "id": {"type": "string"}}, "required": ["op", "action"]},
+      {"properties": {"op": {"const": "schema"}, "name": {"enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding"]}}, "required": ["op", "name"]}
+    ]},
+    {"$comment": "=== responses and async server messages (daemon -> client); all have 'ok' except events ===", "anyOf": [
+      {
+        "type": "object",
+        "required": ["ok"],
+        "properties": {
+          "id": {"type": "integer"},
+          "ok": {"type": "boolean"},
+          "rev": {"type": "integer", "minimum": 0},
+          "result": {},
+          "error": {"$ref": "#/$defs/error"}
+        }
       },
-      "required": ["ok"]
-    }
+      {
+        "type": "object",
+        "required": ["op"],
+        "not": {"required": ["ok"]},
+        "properties": {
+          "op": {"enum": ["welcome", "event", "dropped", "stream-credit", "stream-ack", "stream-nack"]},
+          "path": {"$ref": "#/$defs/path"},
+          "value": {},
+          "prev": {},
+          "rev": {"type": "integer", "minimum": 0, "description": "Absent on /telemetry/* events (S1)."},
+          "telemetry": {"const": true},
+          "count": {"type": "integer", "minimum": 0},
+          "target": {"type": "string"},
+          "credits": {"type": "integer", "minimum": 0},
+          "seq": {"type": "integer", "minimum": 0}
+        }
+      }
+    ]}
   ]
 }

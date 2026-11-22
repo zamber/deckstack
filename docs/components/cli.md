@@ -33,7 +33,7 @@ Stateless one-shot client of the daemon (R1). Full grammar contract: `docs/contr
   ds set /controls/keys/0/color '#ff8800'
   ds bind /controls/keys/0/down --do 'emit demo.pressed' --json
   ds watch /controls --ndjson | head -5
-  ds stream push keys --file frame.png --target panel
+  ds stream push keys --file frame.png
   ds plugin list --json
   ds daemon status
   ```

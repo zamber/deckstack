@@ -49,7 +49,18 @@ Two channels, one socket family, deliberately different encodings (ADR-004/005):
 | Path | `/control` endpoint on the daemon socket | separate stream endpoint `…/stream.sock` |
 | Latency class | p50 ≤ 2 ms, p99 ≤ 10 ms even under 32 fps frame load | throughput class: device caps at ~32 fps accepted / ~24 fps displayed / ~2.1 MB/s (`upstream/PROTOCOL.md:244,265`) |
 | Locking | state lock (RWLock), never held across I/O | per-module queue mutex, never held across HID writes |
-| Backpressure | slow subscriber: events dropped, counted (`dropped: n`) | latest-frame-wins: 1 frame in flight + 1 waiting per module (`upstream/app/src-tauri/src/engine/mod.rs:1303-1335`) |
+| Backpressure | slow subscriber: events dropped, counted (`dropped: n`) | latest-frame-wins: 1 frame in flight + 1 waiting per module (`upstream/app/src-tauri/src/engine/mod.rs:1303-1335`); the in-flight frame is never dropped mid-send (S16/M8) |
+
+**Per-frame state churn: none (S1).** Pushing a frame updates no durable state and no `rev`;
+stats are sampled ≤ 1 Hz into the non-durable `/telemetry/*` tree (state.md §0). At 32 fps
+there are zero state transactions and zero `/controls` subscription events per frame.
+
+**In-flight frames (S16/M8, verified against upstream):** the writer thread sends a picture
+whole via `module.send_all` (`upstream/app/src-tauri/src/engine/mod.rs:1488-1530`) and only
+ever replaces the *waiting* slot (`mod.rs:1303-1335`); abandoning an in-flight chunked
+transfer would tear the image on the module, so no timeout/drop is added there. Control
+independence is structural: writer threads share no lock with the state task and no lock is
+held across HID I/O — a stuck frame transfer cannot starve queries or bindings.
 
 Why: putting base64 frames into JSON state would inflate every query and serialize on the
 state lock — the exact failure observed in the Python engine, where a slow HID write
@@ -126,7 +137,7 @@ any byte leaves the host.
 | Thing | Lives | Durable? |
 |---|---|---|
 | State document (controls, bindings, plugins, settings, policy) | daemon memory + `~/.local/state/deckstack/state.json` | yes, atomic |
-| Frame bytes | frame-plane queues only; never persisted | no (only stats + last frame sha per target) |
+| Frame bytes | frame-plane queues only; never persisted | no (only telemetry stats + last frame sha per target, sampled ≤ 1 Hz, non-durable) |
 | Device identity/serials | `/devices/<serial>` in state; re-derived at connect | re-derived |
 | Tokens | `~/.local/state/deckstack/token` 0600 | yes, per-install |
 | Plugin code + manifests | `~/.local/share/deckstack/plugins/<id>/` | yes, user-owned |
