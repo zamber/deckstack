@@ -5,16 +5,24 @@
 #   conditional: cargo fmt/clippy/test when Cargo.toml exists (DS-004)
 #                conformance suite when tests/conformance/run.py exists (DS-018)
 # Clear summary at the end; exit nonzero on any failure.
-# Usage: sh tools/check.sh
+# Usage: sh tools/check.sh [tree-root]
+#   no argument  -> validate the tree this script lives in (the tree it is invoked from)
+#   tree-root    -> validate that tree instead (pr.sh passes the ticket worktree here)
 set -u
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=${1:-}
+if [ -z "$ROOT" ]; then
+  ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+else
+  case "$ROOT" in /*) ;; *) ROOT="$(pwd)/$ROOT" ;; esac
+fi
+[ -f "$ROOT/tools/check.sh" ] || { echo "check.sh: '$ROOT' is not a deckstack tree (no tools/check.sh there)" >&2; exit 2; }
 cd "$ROOT"
 
 fail=0
 pass() { echo "PASS  $1"; }
 bad()  { echo "FAIL  $1"; fail=1; }
 
-echo "== tools/check.sh =="
+echo "== tools/check.sh (validating tree: $ROOT) =="
 
 echo "-- always: fixture gate (schemas + examples + regex regressions)"
 if out=$(sh tests/fixtures/validate.sh 2>&1); then rc=0; else rc=$?; fi

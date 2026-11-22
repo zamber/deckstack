@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """deckstack ticket board tool - Python 3 stdlib only. See tickets/README.md."""
-import argparse, datetime, fcntl, json, os, re, subprocess, sys
+import argparse, datetime, fcntl, fnmatch, json, os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TDIR = os.path.join(ROOT, "tickets")
@@ -113,6 +113,24 @@ def touches_overlap(a, b):
     a = a.rstrip("/") + "/"
     b = b.rstrip("/") + "/"
     return a.startswith(b) or b.startswith(a)
+
+
+def touch_entry_matches(path, entry):
+    """Real glob / directory-prefix matching of one changed file against one touches entry.
+
+    'new:' keeps its semantics: the prefix is stripped and the declared path is matched
+    (so 'new:prs/DS-090.md' matches the file prs/DS-090.md). Globs use fnmatch ('src/*.rs'
+    matches 'src/main.rs'); a directory entry ('src/' or an existing dir 'src') matches every
+    file under it.
+    """
+    e = norm_touch(entry)
+    if fnmatch.fnmatch(path, e):
+        return True
+    d = e.rstrip("/")
+    if e.endswith("/") or os.path.isdir(os.path.join(ROOT, d)):
+        if path.startswith(d + "/"):
+            return True
+    return False
 
 
 def blocks_of(tickets):
@@ -672,6 +690,39 @@ def cmd_lanes(args):
     return 0
 
 
+def cmd_check_touches(args):
+    """check-touches <id> --diff <base>..<head>
+
+    Exit 0 iff every file changed in the diff range is covered by the ticket's touches
+    (fnmatch globs + directory prefixes + 'new:' declared paths). Prints the offending
+    files and exits 1 otherwise.
+    """
+    rng = args.diff
+    if "..." not in rng and ".." in rng:
+        rng = rng.replace("..", "...", 1)
+    with Lock(exclusive=False):
+        tickets, errs = load_tickets()
+    if args.id not in tickets:
+        print(f"error: no ticket {args.id}", file=sys.stderr)
+        return 1
+    touches = tickets[args.id]["meta"].get("touches", [])
+    r = git("diff", "--name-only", rng)
+    if r.returncode != 0:
+        print(f"error: git diff --name-only {rng}: {r.stderr.strip()}", file=sys.stderr)
+        return 2
+    files = [f for f in r.stdout.splitlines() if f]
+    outside = [f for f in files if not any(touch_entry_matches(f, e) for e in touches)]
+    if outside:
+        print(f"OUTSIDE TOUCHES for {args.id} (diff {rng}):")
+        for f in outside:
+            print(f"  - {f}")
+        print(f"touches: {json.dumps(touches)}")
+        return 1
+    print(f"OK - {len(files)} changed file(s) in {rng} all within touches of {args.id}: "
+          f"{json.dumps(touches)}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(prog="tickets.py", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -712,6 +763,14 @@ def main():
     p.set_defaults(func=cmd_index)
     p = sub.add_parser("lanes", help="tickets grouped by lane")
     p.set_defaults(func=cmd_lanes)
+    p = sub.add_parser("check-touches",
+                       help="verify every file in a diff range is within the ticket's touches "
+                            "(fnmatch globs, directory prefixes, 'new:' declared paths); "
+                            "exit 1 listing files outside touches")
+    p.add_argument("id")
+    p.add_argument("--diff", required=True,
+                   help="git diff range, e.g. main...ticket/DS-XXX ('..' is treated as '...')")
+    p.set_defaults(func=cmd_check_touches)
     args = ap.parse_args()
     sys.exit(args.func(args))
 
