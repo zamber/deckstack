@@ -482,6 +482,52 @@ def cmd_assign(args):
     return 0
 
 
+def cmd_add_touch(args):
+    with Lock(exclusive=True):
+        tickets, errs = load_tickets()
+        tid = args.id
+        if tid not in tickets:
+            print(f"error: no ticket {tid}", file=sys.stderr)
+            return 1
+        m = tickets[tid]["meta"]
+        touches = m.get("touches", [])
+        new = []
+        for entry in args.add:
+            if entry in touches or entry in new:
+                print(f"error: {entry!r} is already in touches of {tid}", file=sys.stderr)
+                return 1
+            if not touch_ok(entry):
+                print(f"error: touches entry {entry!r} does not exist (use a glob, an existing "
+                      f"path, a new path under an existing parent, or the 'new:' prefix)",
+                      file=sys.stderr)
+                return 1
+            new.append(entry)
+        if m.get("state") == "doing":
+            for other, ot in sorted(tickets.items()):
+                if other == tid or ot["meta"].get("state") != "doing":
+                    continue
+                hit = [x for x in new for y in ot["meta"].get("touches", [])
+                       if touches_overlap(x, y)]
+                if hit:
+                    print(f"error: file collision with doing ticket {other} on {hit}; "
+                          f"sequence or split the tickets first", file=sys.stderr)
+                    return 1
+        m["touches"] = touches + new
+        m["updated"] = today()
+        write_ticket(tickets[tid])
+        sync_outputs(tickets)
+        tickets2, errs2 = load_tickets()
+        errors2, _ = validate(tickets2, errs2)
+        hard = [e for e in errors2 if "collision" in e or "cycle" in e]
+        if hard:
+            print("error: add-touch would violate invariants:", file=sys.stderr)
+            for e in hard:
+                print("  " + e, file=sys.stderr)
+            return 1
+    print(f"{tid}: touches now " + json.dumps(m["touches"]))
+    return 0
+
+
 def cmd_ready(args):
     with Lock(exclusive=False):
         tickets, _ = load_tickets()
@@ -772,6 +818,14 @@ def main():
     p.add_argument("--branch"); p.add_argument("--worktree"); p.add_argument("--pr")
     p.add_argument("--owner"); p.add_argument("--clear", action="store_true")
     p.set_defaults(func=cmd_assign)
+    p = sub.add_parser("add-touch",
+                       help="append entries to a ticket's touches (lock + validate + sync; "
+                            "refuses duplicates, invalid entries and doing-ticket collisions); "
+                            "use this when scope must change instead of hand-editing metadata")
+    p.add_argument("id")
+    p.add_argument("--add", action="append", required=True, metavar="ENTRY",
+                   help="touches entry to append (repeatable)")
+    p.set_defaults(func=cmd_add_touch)
     p = sub.add_parser("ready", help="show the ready set and next-up tickets")
     p.set_defaults(func=cmd_ready)
     p = sub.add_parser("claim", help="claim a ready ticket (ready -> doing)")

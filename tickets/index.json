@@ -2274,7 +2274,7 @@
   {
     "id": "DS-092",
     "title": "tickets.py add-touch: extend a ticket's touches without hand-editing metadata",
-    "state": "doing",
+    "state": "review",
     "phase": 0,
     "lane": "workflow",
     "size": "S",
@@ -2283,7 +2283,8 @@
     "touches": [
       "tools/tickets.py",
       "docs/AGENT-WORKFLOW.md",
-      "tickets/README.md"
+      "tickets/README.md",
+      "docs/workflow-hardening-smoke.md"
     ],
     "branch": "ticket/DS-092",
     "worktree": ".worktrees/DS-092",
