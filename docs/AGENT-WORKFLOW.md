@@ -73,11 +73,15 @@ sh tools/pr.sh review DS-XXX --approve                # or --request-changes "re
 #      commits it on main as a coordination commit
 sh tools/pr.sh merge DS-XXX
 #   -> steward-only (same DS_STEWARD=1 + no-self-merge gate); requires verdict approved;
-#      rebases ticket/DS-XXX onto main in the worktree, re-runs tools/check.sh there,
+#      rebases ticket/DS-XXX onto main in the worktree; on a rebase conflict it runs
+#      tools/resolve-rebase.sh once, which auto-resolves the whitelisted generated/workflow
+#      paths and continues the rebase (see "Conflict avoidance" below); a conflicting path
+#      outside the whitelist stops the merge with a manual-resolution message, worktree
+#      intact. It then re-runs tools/check.sh there,
 #      lands on main --no-ff with a message naming ticket + PR, sets the ticket done on
 #      main, commits the board, removes the worktree, deletes the branch locally and on
 #      review, pushes main to review AND VERIFIES the remote sha (fails loudly if the
-#      push did not land). Stops on conflicts, worktree intact.
+#      push did not land).
 
 # inspection / recovery:
 sh tools/wt.sh list                    # worktrees vs board in-flight
@@ -98,6 +102,14 @@ python3 tools/tickets.py field DS-XXX state   # one field
   `file collision` error).
 - Contracts (`schemas/`, `docs/contracts/`) are high-contention: one ticket at a time.
 - `.worktrees/` and `.review.git/` are gitignored; `prs/<id>.md` records are committed.
+- Rebase conflicts in `pr.sh merge` auto-resolve only for the generated/workflow paths
+  whitelisted in `tools/resolve-rebase.sh`: `tickets/BOARD.md`, `tickets/GRAPH.md`,
+  `tickets/index.json`, `tickets/DS-*.md` (taken from main with `checkout --ours`, then
+  regenerated/normalized by the post-merge `tickets.py` calls) and `Cargo.lock` (taken
+  from main, then regenerated with `cargo generate-lockfile --offline`).
+  Every other conflicting path — source, contracts, docs, `prs/`, `docs/run-log.tsv` —
+  stays manual: `tools/pr.sh merge` stops with the manual-resolution message and leaves
+  the worktree intact for a human.
 
 ## Verification (every PR)
 

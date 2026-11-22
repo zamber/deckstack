@@ -351,7 +351,10 @@ cmd_merge() {
 
   echo "== merge $id: rebase $branch onto $MB in $wt =="
   if ! git -C "$ROOT/$wt" rebase "$MB"; then
-    die "rebase conflict — worktree left intact at $wt; resolve there, then re-run: sh tools/pr.sh merge $id"
+    echo "== rebase conflict; auto-resolving whitelisted paths with tools/resolve-rebase.sh =="
+    if ! sh "$ROOT/tools/resolve-rebase.sh" "$ROOT/$wt"; then
+      die "rebase conflict needs manual resolution in $wt (a path outside the resolver whitelist, or lockfile regeneration failed); resolve there, then re-run: sh tools/pr.sh merge $id"
+    fi
   fi
   if ! run_checks "$ROOT/$wt"; then
     cat "$TMP/checks.txt"
