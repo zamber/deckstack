@@ -4,7 +4,33 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
-description = "The ds-daemon long-lived process: state task, device glue, IPC server, router, frames, plugin host. Lib for now; bin lands in phase 1."
+description = "The ds-daemon long-lived process: state task, device glue, IPC server, lifecycle (docs/components/daemon.md, DS-015)."
+
+# The binary is a thin shell over the library modules; arg parsing is hand-rolled to keep
+# the dependency set small and identical between lib and bin (same pattern as bins/ds-vdev).
+[dependencies]
+ds-state = { path = "../ds-state", version = "0.1.0" }
+ds-ipc = { path = "../ds-ipc", version = "0.1.0" }
+ds-device = { path = "../ds-device", version = "0.1.0" }
+ds-protocol = { path = "../ds-protocol", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# SIGTERM/SIGINT -> shutdown flag. std has no signal API and the workspace lints deny
+# unsafe_code, so the handler comes from signal-hook instead of a hand-rolled sigaction.
+signal-hook = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+# The merged ds-vdev library serves the virtual device socket the integration test runs
+# the daemon against (DS-017).
+ds-vdev = { path = "../ds-vdev", version = "0.1.0" }
+# mh-device (same pinned rev as ds-device) names ModuleId in the Transport trait, which
+# the device module's unit tests implement on a mock.
+mh-device = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
+
+[[bin]]
+name = "ds-daemon"
+path = "src/main.rs"
 
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
