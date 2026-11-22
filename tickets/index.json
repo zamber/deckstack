@@ -2238,11 +2238,11 @@
   {
     "id": "DS-091",
     "title": "pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock",
-    "state": "ready",
+    "state": "doing",
     "phase": 0,
     "lane": "workflow",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-091",
     "depends_on": [],
     "touches": [
       "new:tools/resolve-rebase.sh",
@@ -2250,9 +2250,9 @@
       "new:tests/tools/test-resolve-rebase.sh",
       "docs/AGENT-WORKFLOW.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-091",
+    "worktree": ".worktrees/DS-091",
+    "pr": "prs/DS-091.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
