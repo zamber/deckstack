@@ -1284,7 +1284,7 @@
   {
     "id": "DS-041",
     "title": "Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation",
-    "state": "doing",
+    "state": "review",
     "phase": 4,
     "lane": "router",
     "size": "M",

@@ -3,8 +3,9 @@
 //! enforcement. This handler only sees authenticated, scope-checked requests.
 //!
 //! Phase-1 ops served here (the state ops of `docs/contracts/ipc.md` §4):
-//! `ping`, `get`, `set`, `subscribe`/`unsubscribe`, `emit`, `daemon status|stop`, `schema`.
-//! Binding/plugin/stream/token ops answer a clear "later ticket" error envelope.
+//! `ping`, `get`, `set`, `subscribe`/`unsubscribe`, `emit`, `bind`/`unbind` (DS-041),
+//! `daemon status|stop`, `schema`. Plugin/stream/token ops answer a clear "later
+//! ticket" error envelope.
 //!
 //! All state access goes through the [`StateHandle`] (bounded channel to the state
 //! task) — the IPC thread never touches the state document directly. Subscriptions and
@@ -75,13 +76,15 @@ impl DaemonHandler {
             "get" => self.op_get(req, id),
             "set" => self.op_set(req, id),
             "emit" => self.op_emit(req, id),
+            "bind" => self.op_bind(req, id),
+            "unbind" => self.op_unbind(req, id),
             "daemon" => self.op_daemon(req, id),
             "schema" => self.op_schema(req, id),
             other => Response::error_code(
                 id,
                 ErrorCode::EInternal,
                 format!(
-                    "op '{other}' is not served by this phase-1 daemon (bindings/plugins/streams/token land in later tickets)"
+                    "op '{other}' is not served by this phase-1 daemon (plugins/streams/token land in later tickets)"
                 ),
             ),
         }
@@ -172,6 +175,49 @@ impl DaemonHandler {
             .bus
             .publish(crate::router::Event::topic(topic, payload));
         Response::ok(id, json!({"emitted": topic, "subscribers": n}))
+    }
+
+    /// `bind` (ipc-message.json): append the request-shaped `binding` to `/bindings` in
+    /// ONE transaction (rev +1, one `/bindings` subscription event). The request's `id`
+    /// field is a placeholder (the schema requires the shape) — the daemon always
+    /// allocates the real id and returns it: `{"ok":true,"rev":N,"result":{"id":"b0001"}}`
+    /// (state.md §8). Shape/topic/`when` validation is daemon-side
+    /// (`ds_state::bindings`), so a raw IPC client gets the same errors as `ds bind`.
+    fn op_bind(&self, req: &Request, id: Option<i64>) -> Response {
+        let Some(binding) = req.get("binding").cloned() else {
+            return Response::error_code(id, ErrorCode::ESchema, "bind needs a binding object");
+        };
+        if !binding.is_object() {
+            return Response::error_code(id, ErrorCode::ESchema, "bind needs a binding object");
+        }
+        match self.state.bind(binding) {
+            Ok((binding_id, rev)) => Response::ok_rev(id, rev, json!({"id": binding_id})),
+            Err(e) => Response::error(id, e),
+        }
+    }
+
+    /// `unbind`: `{"op":"unbind","binding":"b0001"}` removes one binding (unknown id →
+    /// `E_PATH`), `{"op":"unbind","topic":"deck/control/keys.0/down"}` removes all with
+    /// exactly that topic (no match → `E_PATH`). One transaction, rev +1, result carries
+    /// the removed ids: `{"ok":true,"rev":N,"result":{"removed":["b0001"]}}`.
+    fn op_unbind(&self, req: &Request, id: Option<i64>) -> Response {
+        let binding_id = req.get("binding").and_then(Value::as_str);
+        let topic = req.get("topic").and_then(Value::as_str);
+        match (binding_id, topic) {
+            (Some(b), None) => match self.state.unbind(Some(b.to_string()), None) {
+                Ok((removed, rev)) => Response::ok_rev(id, rev, json!({"removed": removed})),
+                Err(e) => Response::error(id, e),
+            },
+            (None, Some(t)) => match self.state.unbind(None, Some(t.to_string())) {
+                Ok((removed, rev)) => Response::ok_rev(id, rev, json!({"removed": removed})),
+                Err(e) => Response::error(id, e),
+            },
+            _ => Response::error_code(
+                id,
+                ErrorCode::ESchema,
+                "unbind takes exactly one of 'binding' (id) or 'topic'",
+            ),
+        }
     }
 
     fn op_daemon(&self, req: &Request, id: Option<i64>) -> Response {
@@ -441,9 +487,36 @@ mod tests {
         assert_eq!(result["pid"], json!(std::process::id() as u64));
         r.validate().unwrap();
         // an op of a later phase answers a clear error, not a crash
-        let r = h.dispatch(&req(json!({"id": 2, "op": "bind", "binding": {}})));
+        let r = h.dispatch(&req(json!({"id": 2, "op": "plugin", "action": "list"})));
         assert!(!r.ok);
         assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::EInternal);
+        // bind with a code-ish step is E_SCHEMA; a valid bind returns the allocated id
+        let r = h.dispatch(&req(json!({
+            "id": 4, "op": "bind",
+            "binding": {"id": "b0000", "topic": "deck/x", "steps": [{"do": "eval", "code": "1"}]}
+        })));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
+        let r = h.dispatch(&req(json!({
+            "id": 5, "op": "bind",
+            "binding": {"id": "b0000", "topic": "deck/control/keys.0/down",
+                        "steps": [{"do": "sleep", "ms": 5}]}
+        })));
+        assert!(r.ok, "{:?}", r.error);
+        assert_eq!(r.rev, Some(1));
+        assert_eq!(r.result.as_ref().unwrap()["id"], json!("b0001"));
+        r.validate().unwrap();
+        // unbind by id, then unknown id -> E_PATH
+        let r = h.dispatch(&req(json!({"id": 6, "op": "unbind", "binding": "b0001"})));
+        assert!(r.ok);
+        assert_eq!(r.result.as_ref().unwrap()["removed"], json!(["b0001"]));
+        let r = h.dispatch(&req(json!({"id": 7, "op": "unbind", "binding": "b0009"})));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::EPath);
+        // unbind with neither field -> E_SCHEMA
+        let r = h.dispatch(&req(json!({"id": 8, "op": "unbind"})));
+        assert!(!r.ok);
+        assert_eq!(r.error.as_ref().unwrap().code, ErrorCode::ESchema);
         // stop triggers the shutdown flag
         assert!(!h.shutdown.get());
         let r = h.dispatch(&req(json!({"id": 3, "op": "daemon", "action": "stop"})));

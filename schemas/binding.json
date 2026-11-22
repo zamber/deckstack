@@ -8,11 +8,21 @@
   "additionalProperties": false,
   "properties": {
     "id": {"type": "string", "pattern": "^b[0-9]{4,}$", "description": "Daemon-assigned, unique within /bindings (S2)."},
-    "topic": {"type": "string", "pattern": "^(deck|app)/[A-Za-z0-9_./*-]{1,200}$"},
+    "topic": {"type": "string", "pattern": "^(deck|app)/[A-Za-z0-9_./*-]{1,200}$", "description": "Event topic this binding subscribes to (actions.md §1 grammar, reused): root deck|app, segments separated by '/' or '.', chars [A-Za-z0-9_-], and '*' allowed only as a whole segment (wildcard bindings, matched per actions.md §2). The segment grammar is enforced in code (ds-state bindings::validate_binding_topic; the daemon re-validates on bind) on top of this coarse pattern."},
     "when": {
       "type": "object",
+      "description": "Optional condition evaluated at dispatch time (evaluation is DS-042; DS-041 stores and validates the shape). Exactly one of 'path' (a state path) or 'payload' (an event payload field) selects the operand — never both, never neither. 'exists' takes no 'value'; every other op (eq, neq, gt, lt) requires one.",
       "required": ["op"],
       "additionalProperties": false,
+      "anyOf": [{"required": ["path"]}, {"required": ["payload"]}],
+      "not": {"required": ["path", "payload"]},
+      "allOf": [
+        {
+          "if": {"properties": {"op": {"const": "exists"}}, "required": ["op"]},
+          "then": {"not": {"required": ["value"]}},
+          "else": {"required": ["value"]}
+        }
+      ],
       "properties": {
         "path": {"type": "string", "pattern": "^/[A-Za-z0-9_./*-]{0,400}$", "description": "State path evaluated at event time. For app/* events the router first mirrors well-known payloads into state in the same transaction (S7), so /focus is current."},
         "payload": {"type": "string", "pattern": "^[A-Za-z0-9_.]{1,64}$", "description": "Event payload field to read instead of a state path (S7), e.g. \"app\"."},

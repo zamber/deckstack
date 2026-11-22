@@ -69,6 +69,19 @@ pub enum StateCommand {
     },
     /// Current `/meta/rev`.
     Rev { reply: Sender<StateResponse> },
+    /// `bind`: append a request-shaped binding to `/bindings`, allocating the id.
+    /// Replies with the allocated id and the new rev (one transaction).
+    Bind {
+        binding: Value,
+        reply: Sender<StateResponse>,
+    },
+    /// `unbind`: remove by binding id (`id`) or by exact topic (`topic`).
+    /// Replies with the removed ids and the new rev (one transaction).
+    Unbind {
+        id: Option<String>,
+        topic: Option<String>,
+        reply: Sender<StateResponse>,
+    },
     /// A clone of the whole in-memory document (tests/lifecycle).
     Snapshot { reply: Sender<StateResponse> },
     /// Persist the durable view now (clean shutdown).
@@ -92,6 +105,10 @@ pub enum StateResponse {
     Flag(bool),
     /// The current rev.
     Rev(u64),
+    /// `bind` committed: the allocated binding id and the new rev.
+    Bound { id: String, rev: u64 },
+    /// `unbind` committed: the removed ids and the new rev.
+    Unbound { removed: Vec<String>, rev: u64 },
     /// The whole document.
     Doc(Value),
     /// Persist done.
@@ -139,6 +156,10 @@ pub struct StateTask {
     pushes: Option<SyncSender<DevicePush>>,
     bus: Bus,
     subs: HashMap<String, SubscriptionId>,
+    /// High-water mark of allocated binding ids (`b%04d` of this + 1 is next). Initialized
+    /// from the loaded document and never lowered by an unbind, so ids are never reused
+    /// within a daemon run (DS-041).
+    bind_seq: u64,
 }
 
 impl StateTask {
@@ -152,12 +173,25 @@ impl StateTask {
     ) -> (StateHandle, JoinHandle<()>) {
         let (tx, rx) = std::sync::mpsc::sync_channel(STATE_CHANNEL_CAP);
         let handle = StateHandle { tx };
+        // The binding id high-water starts at the maximum id already in the document
+        // (a restarted daemon never reuses an id that is still stored).
+        let mut bind_seq = 0u64;
+        if let Some(arr) = store.document().get("bindings").and_then(Value::as_array) {
+            for b in arr {
+                if let Some(id) = b.get("id").and_then(Value::as_str) {
+                    if let Some(n) = id.strip_prefix('b').and_then(|d| d.parse::<u64>().ok()) {
+                        bind_seq = bind_seq.max(n);
+                    }
+                }
+            }
+        }
         let task = Self {
             store,
             rx,
             pushes,
             bus,
             subs: HashMap::new(),
+            bind_seq,
         };
         let thread = std::thread::Builder::new()
             .name("ds-state".into())
@@ -300,6 +334,28 @@ impl StateTask {
             StateCommand::Rev { reply } => {
                 let _ = reply.send(StateResponse::Rev(self.store.rev()));
             }
+            StateCommand::Bind { binding, reply } => {
+                let resp = match ds_state::bindings::add(&self.store, &mut self.bind_seq, &binding)
+                {
+                    Ok((id, rev)) => StateResponse::Bound { id, rev },
+                    Err(e) => StateResponse::Err(state_error(e)),
+                };
+                let _ = reply.send(resp);
+            }
+            StateCommand::Unbind { id, topic, reply } => {
+                let result = match (id, topic) {
+                    (Some(id), None) => ds_state::bindings::remove_by_id(&self.store, &id),
+                    (None, Some(topic)) => ds_state::bindings::remove_by_topic(&self.store, &topic),
+                    _ => Err(ds_state::StateError::Schema(
+                        "unbind takes exactly one of binding id or topic".to_string(),
+                    )),
+                };
+                let resp = match result {
+                    Ok((removed, rev)) => StateResponse::Unbound { removed, rev },
+                    Err(e) => StateResponse::Err(state_error(e)),
+                };
+                let _ = reply.send(resp);
+            }
             StateCommand::Snapshot { reply } => {
                 let _ = reply.send(StateResponse::Doc(self.store.document()));
             }
@@ -413,6 +469,34 @@ impl StateHandle {
     pub fn rev(&self) -> Result<u64, IpcError> {
         match self.ask(|reply| StateCommand::Rev { reply })? {
             StateResponse::Rev(r) => Ok(r),
+            _ => Err(IpcError::new(
+                ErrorCode::EInternal,
+                "unexpected state reply",
+            )),
+        }
+    }
+
+    /// `bind`: append a binding, allocating the id. Returns `(id, rev)`.
+    pub fn bind(&self, binding: Value) -> Result<(String, u64), IpcError> {
+        match self.ask(|reply| StateCommand::Bind { binding, reply })? {
+            StateResponse::Bound { id, rev } => Ok((id, rev)),
+            StateResponse::Err(e) => Err(e),
+            _ => Err(IpcError::new(
+                ErrorCode::EInternal,
+                "unexpected state reply",
+            )),
+        }
+    }
+
+    /// `unbind` by id or by exact topic. Returns `(removed ids, rev)`.
+    pub fn unbind(
+        &self,
+        id: Option<String>,
+        topic: Option<String>,
+    ) -> Result<(Vec<String>, u64), IpcError> {
+        match self.ask(|reply| StateCommand::Unbind { id, topic, reply })? {
+            StateResponse::Unbound { removed, rev } => Ok((removed, rev)),
+            StateResponse::Err(e) => Err(e),
             _ => Err(IpcError::new(
                 ErrorCode::EInternal,
                 "unexpected state reply",
@@ -595,5 +679,79 @@ mod tests {
             sent += 1;
         }
         assert_eq!(sent, STATE_CHANNEL_CAP);
+    }
+
+    #[test]
+    fn bind_unbind_round_trip_over_the_state_handle() {
+        let (h, t, _rx, bus) = spawn_fresh();
+        // the committed /bindings change is published on the bus as a state event
+        let (sink, rx) = std::sync::mpsc::channel();
+        let sink = Arc::new(crate::router::FnSink(Arc::new(move |msg: &Value| {
+            let _ = sink.send(msg.clone());
+        })));
+        bus.subscribe(
+            crate::router::Pattern::parse_wire("/bindings").unwrap(),
+            None,
+            "/bindings".to_string(),
+            sink,
+        );
+        let b = json!({"id": "b0000", "topic": "deck/control/keys.0/down",
+                       "steps": [{"do": "plugin", "id": "demo", "action": "bump", "args": {"by": 1}}]});
+        let (id, rev) = h.bind(b).unwrap();
+        assert_eq!(id, "b0001");
+        assert_eq!(rev, 1, "bind bumps rev exactly once");
+        let msg = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("one bus event for the committed /bindings change");
+        assert_eq!(msg["op"], "event");
+        assert_eq!(msg["path"], "/bindings");
+        assert_eq!(msg["rev"], 1);
+        assert_eq!(msg["value"][0]["id"], json!("b0001"));
+        // a second bind with a when condition stores it verbatim
+        let (id2, rev2) = h
+            .bind(json!({"id": "b0000", "topic": "app/focus/changed",
+                         "when": {"payload": "app", "op": "eq", "value": "code"},
+                         "steps": [{"do": "set", "path": "/controls/keys/3/image",
+                                    "value": {"kind": "color", "value": "#00ff00"}}] }))
+            .unwrap();
+        assert_eq!((id2.as_str(), rev2), ("b0002", 2));
+        let doc = h.snapshot().unwrap();
+        assert_eq!(doc["bindings"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            doc["bindings"][1]["when"],
+            json!({"payload": "app", "op": "eq", "value": "code"})
+        );
+        assert_eq!(
+            doc["bindings"][1]["id"],
+            json!("b0002"),
+            "the daemon assigned the id, not the request placeholder"
+        );
+        // a code-ish step is rejected with E_SCHEMA and does not bump rev
+        let err = h
+            .bind(json!({"id": "b0000", "topic": "deck/x", "steps": [{"do": "eval", "code": "1"}]}))
+            .unwrap_err();
+        assert_eq!(err.code, ErrorCode::ESchema);
+        assert_eq!(h.rev().unwrap(), 2);
+        // unbind by id
+        let (removed, rev3) = h.unbind(Some("b0001".into()), None).unwrap();
+        assert_eq!(removed, vec!["b0001".to_string()]);
+        assert_eq!(rev3, 3);
+        // unknown id -> E_PATH (CLI exit 2)
+        let err = h.unbind(Some("b0009".into()), None).unwrap_err();
+        assert_eq!(err.code, ErrorCode::EPath);
+        // unbind by topic removes all matching; no match -> E_PATH
+        let (removed, rev4) = h.unbind(None, Some("app/focus/changed".into())).unwrap();
+        assert_eq!(removed, vec!["b0002".to_string()]);
+        assert_eq!(rev4, 4);
+        let err = h.unbind(None, Some("app/nope/x".into())).unwrap_err();
+        assert_eq!(err.code, ErrorCode::EPath);
+        assert_eq!(h.snapshot().unwrap()["bindings"], json!([]));
+        // ids are never reused after an unbind within the run
+        let (id3, _) = h
+            .bind(json!({"id": "b0000", "topic": "deck/system/start", "steps": [{"do": "sleep", "ms": 5}]}))
+            .unwrap();
+        assert_eq!(id3, "b0003");
+        h.stop();
+        t.join().unwrap();
     }
 }

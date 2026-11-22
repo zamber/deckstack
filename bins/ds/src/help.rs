@@ -10,6 +10,8 @@ pub fn text(topic: &str) -> String {
         "schema" => SCHEMA_HELP.to_string(),
         "describe" => DESCRIBE_HELP.to_string(),
         "status" => STATUS_HELP.to_string(),
+        "bind" => BIND_HELP.to_string(),
+        "unbind" => UNBIND_HELP.to_string(),
         "daemon" => DAEMON_HELP.to_string(),
         "daemon start" => DAEMON_START_HELP.to_string(),
         "daemon stop" => DAEMON_STOP_HELP.to_string(),
@@ -32,6 +34,10 @@ Verbs (phase 1):
   set <path> <value> [--if-rev N] [--file f]
                                           write a state path (inline JSON/scalar,
                                           or an image file via --file)
+  bind <topic> --do '<step>' [--do …] [--when '<cond>']
+                                          append a binding to /bindings; prints the
+                                          daemon-assigned id (bNNNN)
+  unbind <id> | --topic <topic>           remove bindings (unknown id → exit 2)
   watch <path> [--ndjson] [--from-rev N] [--max-events N]
                                           stream events (persistent; --ndjson only)
   schema <state|ipc|stream-frame|plugin-manifest|binding>
@@ -145,6 +151,58 @@ Same control op as `ds daemon status`, plus the client name. Daemon down → exi
 with 'start it with: ds daemon start'.
 ";
 
+const BIND_HELP: &str = "\
+ds bind — append a binding to /bindings and print its daemon-assigned id (DS-041)
+
+Usage:
+  ds bind <topic> --do '<step>' [--do '<step>' …] [--when '<cond>'] [--json] [--compact]
+
+  <topic> is an event topic (actions.md §1): deck/control/keys.0/down, app/focus/changed,
+  … — wildcards (`*`) are allowed as whole segments. Each --do '<step>' is either a full
+  JSON step object or the shorthand:
+    set <path> <json-value>            e.g. --do 'set /controls/keys/1/image {\"kind\":\"color\",\"value\":\"#ff0000\"}'
+    emit <topic> [json-payload]        e.g. --do 'emit app/demo/red {}'
+    plugin <id.action> [json-args]     e.g. --do 'plugin demo.bump {\"by\":1}'
+    exec <argv…>                       e.g. --do 'exec /usr/bin/ffmpeg -i v.mp4'  (one token = one argv entry)
+    sleep <ms>                         e.g. --do 'sleep 200'
+  --when '<cond>' is a JSON condition, e.g. '{\"payload\":\"app\",\"op\":\"eq\",\"value\":\"code\"}'
+  (exactly one of path/payload; op exists|eq|neq|gt|lt; value required unless op=exists).
+
+  Steps are schema-validated against schemas/binding.json on the client AND the daemon;
+  code-ish steps ({\"do\":\"eval\",…}) are rejected with exit 1. Step execution lands with
+  DS-042 — bind only stores and validates them.
+
+Output:
+  human   ok rev=N id=b0001
+  --json  {\"ok\":true,\"rev\":N,\"result\":{\"id\":\"b0001\"}}
+
+Examples:
+  ds bind deck/control/keys.0/down --do 'plugin demo.bump {\"by\":1}' --json
+  ds bind app/focus/changed --when '{\"payload\":\"app\",\"op\":\"eq\",\"value\":\"code\"}' \\
+      --do 'set /controls/keys/3/image {\"kind\":\"color\",\"value\":\"#00ff00\"}'
+  ds get /bindings --json          # list all
+  ds watch /bindings --ndjson      # stream changes
+";
+
+const UNBIND_HELP: &str = "\
+ds unbind — remove bindings from /bindings (DS-041)
+
+Usage:
+  ds unbind <id> [--json] [--compact]            remove one binding by id (bNNNN)
+  ds unbind --topic <topic> [--json] [--compact] remove ALL bindings with this exact topic
+
+One transaction per invocation (rev +1, one /bindings event). An unknown id, or a topic
+with no binding, fails with E_PATH → exit 2.
+
+Output:
+  human   ok rev=N removed=b0001
+  --json  {\"ok\":true,\"rev\":N,\"result\":{\"removed\":[\"b0001\"]}}
+
+Examples:
+  ds unbind b0001
+  ds unbind --topic deck/control/keys.0/down --json
+";
+
 const DAEMON_HELP: &str = "\
 ds daemon — control the ds-daemon process
 
@@ -203,6 +261,8 @@ mod tests {
             "schema",
             "describe",
             "status",
+            "bind",
+            "unbind",
             "daemon",
             "daemon start",
             "daemon stop",

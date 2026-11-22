@@ -67,6 +67,17 @@ pub enum Command {
     DaemonStop,
     DaemonStatus,
     Status,
+    /// `ds bind <topic> --do '<step>' [--do …] [--when '<cond>']` (DS-041).
+    Bind {
+        topic: String,
+        dos: Vec<String>,
+        when: Option<String>,
+    },
+    /// `ds unbind <id> | --topic <topic>` (DS-041).
+    Unbind {
+        id: Option<String>,
+        topic: Option<String>,
+    },
     /// `--help` at some level; the topic selects the text.
     Help(&'static str),
     Version,
@@ -79,15 +90,13 @@ pub struct UsageError(pub String);
 /// The schema names `ds schema <name>` accepts (`schemas/`).
 pub const SCHEMA_NAMES: [&str; 5] = ["state", "ipc", "stream-frame", "plugin-manifest", "binding"];
 
-/// Phase-1 verbs (top-level words).
-pub const VERBS: [&str; 7] = [
-    "get", "set", "watch", "schema", "describe", "daemon", "status",
+/// Verbs (top-level words).
+pub const VERBS: [&str; 9] = [
+    "get", "set", "watch", "schema", "describe", "daemon", "status", "bind", "unbind",
 ];
 
 /// Verbs of later phases — recognized, but refused with exit 1 in phase 1.
-const LATER_PHASE: [&str; 7] = [
-    "bind", "unbind", "emit", "events", "stream", "plugin", "token",
-];
+const LATER_PHASE: [&str; 5] = ["emit", "events", "stream", "plugin", "token"];
 
 const DAEMON_SUBS: [&str; 3] = ["start", "stop", "status"];
 
@@ -131,6 +140,9 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
     let mut from_rev: Option<u64> = None;
     let mut max_events: Option<usize> = None;
     let mut device: Option<String> = None;
+    let mut do_steps: Vec<String> = Vec::new();
+    let mut when: Option<String> = None;
+    let mut topic_flag: Option<String> = None;
     let mut foreground = false;
     let mut help = false;
     let mut version = false;
@@ -165,6 +177,9 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
                     })?);
             }
             "--device" => device = Some(value_of(args, &mut i, &inline, flag)?),
+            "--do" => do_steps.push(value_of(args, &mut i, &inline, flag)?),
+            "--when" => when = Some(value_of(args, &mut i, &inline, flag)?),
+            "--topic" => topic_flag = Some(value_of(args, &mut i, &inline, flag)?),
             "--json" => set_mode(&mut g, OutputMode::Json)?,
             "--ndjson" => set_mode(&mut g, OutputMode::Ndjson)?,
             "--compact" => g.compact = true,
@@ -319,6 +334,60 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
             }
             Command::Status
         }
+        "bind" => {
+            reject_ndjson(&g, "bind")?;
+            let Some(topic) = rest.first() else {
+                return Err(UsageError(
+                    "bind needs a topic (e.g. `ds bind deck/control/keys.0/down --do 'sleep 5'`)"
+                        .to_string(),
+                ));
+            };
+            if rest.len() > 1 {
+                return Err(UsageError(format!(
+                    "bind takes exactly one topic, got extra: {}",
+                    rest[1..].join(" ")
+                )));
+            }
+            if do_steps.is_empty() {
+                return Err(UsageError(
+                    "bind needs at least one --do '<step>' (e.g. --do 'sleep 5')".to_string(),
+                ));
+            }
+            Command::Bind {
+                topic: topic.clone(),
+                dos: do_steps.clone(),
+                when: when.clone(),
+            }
+        }
+        "unbind" => {
+            reject_ndjson(&g, "unbind")?;
+            if rest.len() > 1 {
+                return Err(UsageError(format!(
+                    "unbind takes one binding id, got extra: {}",
+                    rest[1..].join(" ")
+                )));
+            }
+            match (rest.first(), &topic_flag) {
+                (Some(id), None) => Command::Unbind {
+                    id: Some(id.clone()),
+                    topic: None,
+                },
+                (None, Some(t)) => Command::Unbind {
+                    id: None,
+                    topic: Some(t.clone()),
+                },
+                (Some(_), Some(_)) => {
+                    return Err(UsageError(
+                        "unbind takes either <id> or --topic <topic>, not both".to_string(),
+                    ))
+                }
+                (None, None) => {
+                    return Err(UsageError(
+                        "unbind needs a binding id (bNNNN) or --topic <topic>".to_string(),
+                    ))
+                }
+            }
+        }
         "migrate" => {
             return Err(UsageError(
                 "there is no 'migrate' verb — porting of old apps is manual and ticket-driven (docs/70-porting-notes.md)"
@@ -401,6 +470,8 @@ fn help_command(positionals: &[String]) -> Result<Command, UsageError> {
             "schema" => "schema",
             "describe" => "describe",
             "status" => "status",
+            "bind" => "bind",
+            "unbind" => "unbind",
             _ => "top",
         })),
         "migrate" => Err(UsageError(
@@ -608,7 +679,77 @@ mod tests {
         assert!(parse_err(&["frobnicate"]).contains("unknown verb"));
         assert!(parse_err(&["get", "/x", "--bogus"]).contains("unknown argument"));
         assert!(parse_err(&[]).contains("missing verb"));
-        assert!(parse_err(&["bind", "/topic"]).contains("not implemented in phase 1"));
+        assert!(parse_err(&["emit", "/topic"]).contains("not implemented in phase 1"));
+    }
+
+    #[test]
+    fn parses_bind_and_unbind() {
+        let (c, _) = parse_ok(&[
+            "bind",
+            "deck/control/keys.0/down",
+            "--do",
+            "plugin demo.bump {\"by\":1}",
+            "--do",
+            "{\"do\":\"sleep\",\"ms\":5}",
+            "--when",
+            "{\"payload\":\"key\",\"op\":\"eq\",\"value\":0}",
+        ]);
+        assert_eq!(
+            c,
+            Command::Bind {
+                topic: "deck/control/keys.0/down".into(),
+                dos: vec![
+                    "plugin demo.bump {\"by\":1}".into(),
+                    "{\"do\":\"sleep\",\"ms\":5}".into()
+                ],
+                when: Some("{\"payload\":\"key\",\"op\":\"eq\",\"value\":0}".into()),
+            }
+        );
+        // --do is repeatable and may use the = form
+        let (c, _) = parse_ok(&[
+            "bind",
+            "app/focus/changed",
+            "--do=set /x 1",
+            "--do=emit app/y {}",
+        ]);
+        assert_eq!(
+            c,
+            Command::Bind {
+                topic: "app/focus/changed".into(),
+                dos: vec!["set /x 1".into(), "emit app/y {}".into()],
+                when: None,
+            }
+        );
+        // bind needs a topic and at least one --do
+        assert!(parse_err(&["bind"]).contains("needs a topic"));
+        assert!(parse_err(&["bind", "deck/x"]).contains("at least one --do"));
+        assert!(parse_err(&["bind", "a", "b", "--do", "sleep 1"]).contains("exactly one topic"));
+        // unbind by id / by topic / errors
+        let (c, _) = parse_ok(&["unbind", "b0001"]);
+        assert_eq!(
+            c,
+            Command::Unbind {
+                id: Some("b0001".into()),
+                topic: None
+            }
+        );
+        let (c, _) = parse_ok(&["unbind", "--topic", "deck/control/keys.0/down"]);
+        assert_eq!(
+            c,
+            Command::Unbind {
+                id: None,
+                topic: Some("deck/control/keys.0/down".into())
+            }
+        );
+        assert!(parse_err(&["unbind"]).contains("needs a binding id"));
+        assert!(parse_err(&["unbind", "b0001", "--topic", "deck/x"]).contains("not both"));
+        assert!(parse_err(&["unbind", "b0001", "b0002"]).contains("got extra"));
+        // --ndjson is refused for bind/unbind like the other non-streaming verbs
+        assert!(
+            parse_err(&["bind", "deck/x", "--do", "sleep 1", "--ndjson"])
+                .contains("--ndjson is only valid")
+        );
+        assert!(parse_err(&["unbind", "b0001", "--ndjson"]).contains("--ndjson is only valid"));
     }
 
     #[test]
@@ -652,6 +793,8 @@ mod tests {
             Command::Help("describe")
         );
         assert_eq!(parse_ok(&["status", "--help"]).0, Command::Help("status"));
+        assert_eq!(parse_ok(&["bind", "--help"]).0, Command::Help("bind"));
+        assert_eq!(parse_ok(&["unbind", "--help"]).0, Command::Help("unbind"));
         assert_eq!(parse_ok(&["daemon", "--help"]).0, Command::Help("daemon"));
         assert_eq!(
             parse_ok(&["daemon", "start", "--help"]).0,
