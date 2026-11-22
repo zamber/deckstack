@@ -6,6 +6,23 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 description = "MasterHub wire protocol: safe report builders and the forbidden-command list; re-exports mh-protocol (ADR-010)."
 
+# ADR-010: reuse the upstream mh-protocol crate as a pinned git dependency — no fork, no
+# vendor. Pinned rev 26364e2fdcf86df6c459ea0e940f1dd5ca84cde7 (upstream linux-bringup, also
+# reachable on origin as refs/pull/14/head). mh-protocol is pure encoding/decoding, no I/O,
+# so this crate stays dependency-light (only thiserror comes along) and hidapi is NOT pulled in.
+[dependencies]
+mh-protocol = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
+
+# Safety + behaviour tests live in the repo-level tests/protocol/ directory (ticket touches);
+# wire them as explicit test targets of this package.
+[[test]]
+name = "protocol_builders"
+path = "../../tests/protocol/builders.rs"
+
+[[test]]
+name = "protocol_safety"
+path = "../../tests/protocol/safety.rs"
+
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
 workspace = true
