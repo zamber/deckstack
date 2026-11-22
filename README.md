@@ -12,6 +12,25 @@ agent steering as first-class. Evidence about the two existing implementations:
 **Status: planning, alpha scope.** Documents, schemas and examples only — no working
 software yet. Nothing here edits the two hub repos.
 
+## Working on this repo (agents)
+
+All changes go through the ticket board — see [AGENTS.md](AGENTS.md) and
+[docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md). Quick start:
+
+```sh
+sh tools/bootstrap.sh                     # venv + requirements + sh tools/check.sh
+sh tools/setup-review-remote.sh           # once: local bare remote .review.git as `review`
+python3 tools/tickets.py ready            # claimable tickets (deps done)
+sh tools/wt.sh new DS-XXX --owner <name>  # claim + worktree .worktrees/DS-XXX, branch ticket/DS-XXX
+# edit only the ticket's touches; commit "ticket(DS-XXX): …" (+ Vibe trailer); then:
+sh tools/pr.sh submit DS-XXX              # PR record prs/DS-XXX.md, pushed to `review`
+# steward on main: sh tools/pr.sh review DS-XXX --approve && sh tools/pr.sh merge DS-XXX
+sh tools/check.sh                         # the gate every PR must pass
+```
+
+The flow was proven end to end on DS-000 (`prs/DS-000.md`, `prs/DS-000.review.md`,
+`docs/workflow-smoke.md`).
+
 ## How to read this repo
 
 | You are… | Start at |

@@ -53,7 +53,7 @@ external senders (ds-focus, cron, webhooks, agents)
 
 | Phase | Slice | Observable exit criterion |
 |---|---|---|
-| 0 | Contracts freeze + workspace + ticket/workflow scaffolding | `sh tests/fixtures/validate.sh` → ALL CHECKS PASSED; CI skeleton green |
+| 0 | Contracts freeze + workspace + ticket/workflow scaffolding | `sh tools/check.sh` green (fixture gate ALL CHECKS PASSED + board validate; CI skeleton runs it on Linux); ticket/worktree/PR flow proven on DS-000 |
 | 1 | **Walking skeleton on the virtual device**: daemon + CLI + socket + state + one key image via ds-vdev; empty-state invariant | `ds set /controls/keys/0/image --file k.png` → golden sha256 via `ds-vdevctl frames key:0`; fresh start has empty `/controls` |
 | 2 | Linux hardware bring-up + **camera verification** | hardware smoke green incl. `deckstack-verify check` on ≥1 key + panel; replug ≤ 5 s; handback on SIGTERM |
 | 3 | Streaming: frame plane, backpressure, telemetry, benchmarks | 32 fps push sustained, rev delta 0, query p99 ≤ 10 ms, drops counted |
@@ -64,6 +64,15 @@ external senders (ds-focus, cron, webhooks, agents)
 **Post-alpha backlog** (documented, not scheduled): lights.lan plugin
 (`docs/80-integrations.md`), Windows, macOS (`docs/40-platforms.md` TODOs), web/debug UI
 over the adapter, selective porting (`docs/70-porting-notes.md`).
+
+**Agent workflow (phase 0, landed):** all changes go through the ticket board —
+`python3 tools/tickets.py ready` → `sh tools/wt.sh new DS-XXX --owner <name>` (claim +
+`.worktrees/DS-XXX` on `ticket/DS-XXX` from `main`) → commit `ticket(DS-XXX): …` in the
+worktree → `sh tools/pr.sh submit DS-XXX` (PR record `prs/DS-XXX.md`, pushed to the local
+`review` remote) → steward `sh tools/pr.sh review DS-XXX --approve` + `sh tools/pr.sh
+merge DS-XXX`. Gate for every PR: `sh tools/check.sh`. Setup: `sh tools/bootstrap.sh` +
+`sh tools/setup-review-remote.sh`. Details: `AGENTS.md`, `docs/AGENT-WORKFLOW.md`;
+proven on DS-000 (`prs/DS-000.md`, `docs/workflow-smoke.md`).
 
 ## First walking skeleton (phase 1 — a coder starts here)
 

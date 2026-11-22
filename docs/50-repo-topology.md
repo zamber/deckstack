@@ -95,22 +95,29 @@ cargo test --workspace
 .venv/bin/python tests/conformance/run.py --build debug
 ```
 
-## 6. Worktree / PR workflow (protocol; tooling lands next run)
+## 6. Worktree / PR workflow (protocol + tooling — both committed)
 
-Full protocol in `docs/AGENT-WORKFLOW.md`. Summary: one worktree per ticket under
-`.worktrees/<id>` from `main`, branch `ticket/<id>`; local bare review remote `.review.git`;
-PR record `prs/<id>.md`; steward reviews, runs acceptance (`validate.sh` + `cargo test` +
-conformance), merges; **no worker commits to `main`**; file-ownership collisions checked
-against open tickets before claiming. Intended commands:
+Full protocol in `docs/AGENT-WORKFLOW.md`; operational summary in `AGENTS.md`. Summary:
+one worktree per ticket under `.worktrees/<id>` from `main`, branch `ticket/<id>`; local
+bare review remote `.review.git` (remote name `review`); PR record `prs/<id>.md` plus
+steward verdict `prs/<id>.review.md`; steward reviews, runs acceptance
+(`sh tools/check.sh`), lands on `main`; **no worker commits to `main`**; file-ownership
+collisions are refused by `tools/tickets.py` before claiming. Actual commands:
 
 ```sh
-git worktree add .worktrees/<id> -b ticket/<id> main
-git init --bare .review.git && git remote add review .review.git   # once
-git push review ticket/<id>                                        # + write prs/<id>.md
-# steward: review in a scratch worktree, run acceptance, merge to main, git worktree remove .worktrees/<id>
+sh tools/setup-review-remote.sh                  # once: .review.git + remote `review` + push main (no network)
+sh tools/wt.sh new DS-XXX --owner <name>         # claim (coordination commit on main) + worktree/branch from main
+# in .worktrees/DS-XXX: edit touches, commit "ticket(DS-XXX): …" (+ Vibe trailer)
+sh tools/pr.sh submit DS-XXX                     # checks + prs/DS-XXX.md + push ticket/DS-XXX to review
+# steward on main:
+sh tools/pr.sh review DS-XXX --approve           # verdict -> prs/DS-XXX.review.md (coordination commit)
+sh tools/pr.sh merge DS-XXX                      # land on main, ticket done, worktree+branch removed, push main
+sh tools/wt.sh list ; sh tools/pr.sh list        # inspect worktrees / open PRs
 ```
 
 `.worktrees/` and `.review.git/` are gitignored; `prs/<id>.md` records are committed.
+Proven end to end on DS-000 (see `prs/DS-000.md`, `prs/DS-000.review.md`,
+`docs/workflow-smoke.md`).
 
 ## 7. CI and release flow
 
