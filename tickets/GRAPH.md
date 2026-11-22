@@ -32,7 +32,7 @@ graph TD
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::backlog
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
-  DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::review
+  DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::doing
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::ready
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::ready
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(review), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
