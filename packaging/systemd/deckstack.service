@@ -1,0 +1,56 @@
+# deckstack.service — systemd *user* unit for the deckstack daemon (phase 1).
+# Ticket DS-019. Operator documentation: docs/runbook.md.
+#
+# Install (phase 1 ships this unit file only — there is no installer yet):
+#   install -Dm644 packaging/systemd/deckstack.service ~/.config/systemd/user/deckstack.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now deckstack.service
+#
+# Binary path: ExecStart names /usr/local/bin/ds-daemon explicitly — the path that
+# `cargo install --locked --path crates/ds-daemon --root /usr/local` (or a future distro
+# package / AppImage install, DS-083) puts it at. To run a build-tree binary instead,
+# override with a drop-in (no installer needed):
+#   systemctl --user edit deckstack.service
+#     [Service]
+#     ExecStart=
+#     ExecStart=/home/<you>/repos/deckstack/target/release/ds-daemon run --device ${DECKSTACK_DEVICE} --data-dir %t/deckstack
+# (DS_DAEMON_BIN is unrelated: it tells the `ds` CLI where to find ds-daemon, not systemd.)
+#
+# Device selection is config, not code: DECKSTACK_DEVICE defaults to `none` (no hardware)
+# via Environment= below; to use the virtual device or real hardware, put e.g.
+#   DECKSTACK_DEVICE=virtual:/tmp/vdev.sock
+# in ~/.config/deckstack/env. Note: systemd's ExecStart expansion has no shell-style
+# ${VAR:-default} form (unset variables expand to the empty string), so the default is
+# provided by Environment= and the optional EnvironmentFile overrides it — same semantics.
+
+[Unit]
+Description=deckstack daemon (ds-daemon)
+
+[Service]
+Type=simple
+Environment=DECKSTACK_DEVICE=none
+EnvironmentFile=-%h/.config/deckstack/env
+ExecStart=/usr/local/bin/ds-daemon run --device ${DECKSTACK_DEVICE} --data-dir %t/deckstack
+Restart=on-failure
+RestartSec=2s
+
+# Hardening basics, kept compatible with the socket paths: the runtime dir (%t) and
+# /tmp device sockets stay reachable, so no PrivateTmp; phase 2 needs /dev/hidraw*,
+# so no PrivateDevices. The daemon itself forces dir 0700 and socket/token/pid 0600.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=default.target
