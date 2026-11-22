@@ -387,7 +387,7 @@
   {
     "id": "DS-014",
     "title": "ds-device: virtual transport and report codec (device-agnostic driver core)",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "device",
     "size": "M",

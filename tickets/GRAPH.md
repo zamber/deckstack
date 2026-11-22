@@ -17,7 +17,7 @@ graph TD
   DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::done
   DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::doing
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::ready
-  DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::doing
+  DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::review
   DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::backlog
   DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::backlog
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::backlog
@@ -187,7 +187,7 @@ Critical path length: 10 tickets.
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(backlog), DS-032(backlog)
 - **daemon** (2): DS-015(backlog), DS-024(backlog)
-- **device** (4): DS-014(doing), DS-021(backlog), DS-022(backlog), DS-023(backlog)
+- **device** (4): DS-014(review), DS-021(backlog), DS-022(backlog), DS-023(backlog)
 - **docs** (1): DS-064(backlog)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
