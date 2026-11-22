@@ -2305,7 +2305,7 @@
   {
     "id": "DS-093",
     "title": "fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass",
-    "state": "review",
+    "state": "done",
     "phase": 0,
     "lane": "test",
     "size": "S",
@@ -2315,9 +2315,9 @@
       "tests/fixtures/validate.js",
       "tests/fixtures/"
     ],
-    "branch": "ticket/DS-093",
-    "worktree": ".worktrees/DS-093",
-    "pr": "prs/DS-093.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
