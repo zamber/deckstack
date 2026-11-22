@@ -66,7 +66,7 @@ graph TD
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
-  DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::ready
+  DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::doing
   DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::ready
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::ready
   DS001 --> DS006
@@ -209,12 +209,11 @@ Critical path length: 10 tickets.
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
-- **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(ready)
+- **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(doing)
 
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-018 - Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants (lane test)
 - DS-019 - systemd user unit + daemon lifecycle runbook (lane packaging)
-- DS-092 - tickets.py add-touch: extend a ticket's touches without hand-editing metadata (lane workflow)
 - DS-093 - fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass (lane test)
 - DS-094 - run-log evidence backfill for the rows flagged by the independent review (lane docs)
