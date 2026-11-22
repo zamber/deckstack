@@ -65,5 +65,5 @@ Generated: 2026-11-22 - 63 tickets.
 | DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
 | DS-091 | done | 0 | workflow | M | vibe/DS-091 | - | pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock |
 | DS-092 | doing | 0 | workflow | S | vibe/DS-092 | - | tickets.py add-touch: extend a ticket's touches without hand-editing metadata |
-| DS-093 | doing | 0 | test | S | vibe/DS-093 | - | fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass |
+| DS-093 | review | 0 | test | S | vibe/DS-093 | - | fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass |
 | DS-094 | ready | 0 | docs | S | - | - | run-log evidence backfill for the rows flagged by the independent review |

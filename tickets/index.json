@@ -2305,7 +2305,7 @@
   {
     "id": "DS-093",
     "title": "fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass",
-    "state": "doing",
+    "state": "review",
     "phase": 0,
     "lane": "test",
     "size": "S",
