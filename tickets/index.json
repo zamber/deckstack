@@ -2202,7 +2202,7 @@
   {
     "id": "DS-090",
     "title": "Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes",
-    "state": "doing",
+    "state": "review",
     "phase": 0,
     "lane": "workflow",
     "size": "S",
