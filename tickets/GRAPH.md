@@ -10,7 +10,7 @@ graph TD
   DS001["DS-001 Ticket board tool: tools/tickets.py (parse, validate, syn..."]:::done
   DS002["DS-002 Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setu..."]:::done
   DS003["DS-003 Check/bootstrap/CI skeleton: tools/check.sh, packaging/bo..."]:::done
-  DS004["DS-004 Cargo workspace skeleton: virtual manifest, crate stubs, ..."]:::ready
+  DS004["DS-004 Cargo workspace skeleton: virtual manifest, crate stubs, ..."]:::doing
   DS005["DS-005 Steward role: agents/deckstack-steward.md, tools/steward...."]:::done
   DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
   DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::backlog
@@ -183,7 +183,7 @@ Critical path length: 10 tickets.
 
 - **agents** (1): DS-063(backlog)
 - **bench** (1): DS-033(backlog)
-- **build** (1): DS-004(ready)
+- **build** (1): DS-004(doing)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(backlog), DS-032(backlog)
 - **daemon** (2): DS-015(backlog), DS-024(backlog)
@@ -209,4 +209,4 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-004 - Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config (lane build)
+- (none)

@@ -130,11 +130,11 @@
   {
     "id": "DS-004",
     "title": "Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config",
-    "state": "ready",
+    "state": "doing",
     "phase": 0,
     "lane": "build",
     "size": "S",
-    "owner": null,
+    "owner": "vibe/DS-004",
     "depends_on": [],
     "touches": [
       "new:Cargo.toml",
@@ -144,9 +144,9 @@
       "new:LICENSE",
       "new:NOTICE"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-004",
+    "worktree": ".worktrees/DS-004",
+    "pr": "prs/DS-004.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
