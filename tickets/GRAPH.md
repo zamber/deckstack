@@ -15,13 +15,13 @@ graph TD
   DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
   DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::done
   DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::done
-  DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::review
+  DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::done
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::ready
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::done
-  DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::backlog
-  DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::backlog
+  DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::ready
+  DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::ready
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::ready
-  DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::backlog
+  DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::ready
   DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::backlog
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::backlog
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::backlog
@@ -185,13 +185,13 @@ Critical path length: 10 tickets.
 - **bench** (1): DS-033(backlog)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
-- **cli** (2): DS-016(backlog), DS-032(backlog)
-- **daemon** (2): DS-015(backlog), DS-024(backlog)
+- **cli** (2): DS-016(ready), DS-032(backlog)
+- **daemon** (2): DS-015(ready), DS-024(backlog)
 - **device** (4): DS-014(done), DS-021(backlog), DS-022(backlog), DS-023(backlog)
 - **docs** (1): DS-064(backlog)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
-- **ipc** (2): DS-012(review), DS-013(ready)
+- **ipc** (2): DS-012(done), DS-013(ready)
 - **packaging** (3): DS-019(backlog), DS-025(backlog), DS-083(backlog)
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
@@ -201,7 +201,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (1): DS-011(done)
-- **test** (8): DS-018(backlog), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog)
+- **test** (8): DS-018(ready), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog)
 - **vdev** (2): DS-017(ready), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
@@ -210,4 +210,7 @@ Critical path length: 10 tickets.
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-013 - ds-ipc frame plane: DSF1 stream socket, credits/acks, limits (lane ipc)
+- DS-015 - ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs (lane daemon)
+- DS-016 - ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes (lane cli)
 - DS-017 - ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl (lane vdev)
+- DS-018 - Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants (lane test)

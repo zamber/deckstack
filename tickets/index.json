@@ -308,7 +308,7 @@
   {
     "id": "DS-012",
     "title": "ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "ipc",
     "size": "L",
@@ -323,9 +323,9 @@
       "tests/fixtures/ipc-examples.json",
       "new:crates/ds-client/"
     ],
-    "branch": "ticket/DS-012",
-    "worktree": ".worktrees/DS-012",
-    "pr": "prs/DS-012.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -423,7 +423,7 @@
   {
     "id": "DS-015",
     "title": "ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "daemon",
     "size": "L",
@@ -464,7 +464,7 @@
   {
     "id": "DS-016",
     "title": "ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "cli",
     "size": "L",
@@ -543,7 +543,7 @@
   {
     "id": "DS-018",
     "title": "Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "test",
     "size": "L",
