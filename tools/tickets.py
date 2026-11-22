@@ -324,6 +324,7 @@ def sync_outputs(tickets, promote=True):
                                                for d in m.get("depends_on", [])):
                 m["state"] = "ready"
                 m["updated"] = today()
+                write_ticket(t)
                 changed = True
     atomic_write(os.path.join(TDIR, "index.json"), gen_index(tickets))
     atomic_write(os.path.join(TDIR, "BOARD.md"), gen_board(tickets))
