@@ -752,7 +752,9 @@
     "touches": [
       "new:crates/ds-device/src/hotplug.rs",
       "new:crates/ds-daemon/src/device_task.rs",
-      "new:tests/hw/"
+      "new:tests/hw/",
+      "crates/ds-device/src/lib.rs",
+      "crates/ds-daemon/src/lib.rs"
     ],
     "branch": null,
     "worktree": null,
