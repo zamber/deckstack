@@ -2337,7 +2337,7 @@
   {
     "id": "DS-094",
     "title": "run-log evidence backfill for the rows flagged by the independent review",
-    "state": "review",
+    "state": "done",
     "phase": 0,
     "lane": "docs",
     "size": "S",
@@ -2346,9 +2346,9 @@
     "touches": [
       "docs/run-log.tsv"
     ],
-    "branch": "ticket/DS-094",
-    "worktree": ".worktrees/DS-094",
-    "pr": "prs/DS-094.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
