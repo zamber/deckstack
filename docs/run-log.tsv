@@ -32,3 +32,4 @@ ts	phase	decision	why	evidence	result
 2026-11-22T22:26:42Z	phase2	DS-029 safety conformance merged	every safety claim needs an executable check on vdev and hardware	conformance 25 tests, 24 pass, 1 skipped; merge 69b4103	done
 2026-11-22T22:54:56Z	phase3	DS-031 frame service merged	latest-frame-wins queues, writer threads, /telemetry/streams and the 256 MiB budget are the contract	cargo test -p ds-daemon; merge 5d85d6b; PR prs/DS-031.md	done
 2026-11-22T23:27:01Z	phase2	DS-023 hot-plug rescan/reconnect/re-push merged	phase 2 needs the deck to survive unplug and come back	cargo test -p ds-device/-p ds-daemon; DS_HARDWARE smoke 69+3; merge b10c6fe	done
+2026-11-22T23:31:09Z	phase4	DS-042 core step vocabulary + when evaluation merged	bindings need executable steps; plugin/exec stubbed until DS-050/043	cargo test -p ds-daemon; bindings suite 15/15; merge fd8318d	done; plugin/exec stubs typed
