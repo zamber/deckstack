@@ -349,11 +349,11 @@
   {
     "id": "DS-013",
     "title": "ds-ipc frame plane: DSF1 stream socket, credits/acks, limits",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "ipc",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-013",
     "depends_on": [
       "DS-004"
     ],
@@ -362,9 +362,9 @@
       "docs/contracts/streaming.md",
       "schemas/stream-frame.json"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-013",
+    "worktree": ".worktrees/DS-013",
+    "pr": "prs/DS-013.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
