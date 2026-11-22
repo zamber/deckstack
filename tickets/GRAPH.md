@@ -41,8 +41,8 @@ graph TD
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
-  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::review
-  DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
+  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
+  DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::ready
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::ready
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::backlog
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::backlog
@@ -205,8 +205,8 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(done), DS-042(review), DS-044(ready)
-- **security** (2): DS-043(backlog), DS-081(backlog)
+- **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(ready)
+- **security** (2): DS-043(ready), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(ready), DS-093(done)
@@ -218,6 +218,7 @@ Critical path length: 10 tickets.
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
+- DS-043 - Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests (lane security)
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
