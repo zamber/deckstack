@@ -16,6 +16,10 @@ pub fn text(topic: &str) -> String {
         "daemon start" => DAEMON_START_HELP.to_string(),
         "daemon stop" => DAEMON_STOP_HELP.to_string(),
         "daemon status" => DAEMON_STATUS_HELP.to_string(),
+        "stream" => STREAM_HELP.to_string(),
+        "stream push" => STREAM_PUSH_HELP.to_string(),
+        "stream stats" => STREAM_STATS_HELP.to_string(),
+        "stream stop" => STREAM_STOP_HELP.to_string(),
         _ => TOP_HELP.to_string(),
     }
 }
@@ -46,6 +50,13 @@ Verbs (phase 1):
   daemon start [--device URI] [--foreground] | stop | status
                                           control the ds-daemon process
   status                                  daemon status + client info
+
+Verbs (phase 3):
+  stream push <target> --file f | --dir d --fps N [--loop]
+                                          push frames to a display target over the
+                                          frame stream socket (DS-032)
+  stream stats <target> [--json]          /telemetry/streams/<target> (no rev)
+  stream stop <target>                    stop the producer of a target
 
 Global flags:
   --socket PATH       control socket (default $XDG_RUNTIME_DIR/deckstack/daemon.sock)
@@ -247,6 +258,93 @@ Output: human `ok running pid=… rev=… device=… socket=…`, or --json one 
   ds: daemon unreachable at <socket> — start it with: ds daemon start  [exit 6]
 ";
 
+const STREAM_HELP: &str = "\
+ds stream — the frame-plane producer verbs (docs/contracts/streaming.md, DS-032)
+
+Usage:
+  ds stream push <target> --file <frame> [--loop] [--fps N] [--credits N]
+  ds stream push <target> --dir <frames-dir> --fps N [--loop] [--credits N]
+  ds stream stats <target> [--json] [--compact]
+  ds stream stop <target> [--json] [--compact]
+  ds stream <push|stats|stop> --help
+
+  <target> is the unified vocabulary (S6): keys | key:0-14 | dial — 'panel'/'screen'
+  are not targets. Frames ride the binary DSF1 framing on <dir>/stream.sock after a
+  stream-open; push is never a plain NDJSON op (ipc.md §1.2).
+
+Exit codes: same table as the top level; a missing daemon/stream socket is exit 6
+(E_UNREACHABLE), backpressure timeouts are exit 5 (E_LIMIT), a bad target is exit 1.
+";
+
+const STREAM_PUSH_HELP: &str = "\
+ds stream push — push frames to a display target over the frame stream socket (DS-032)
+
+Usage:
+  ds stream push <target> --file <frame.png|jpg|gif> [--loop]
+  ds stream push <target> --dir <dir> --fps N [--loop] [--credits N]
+  ds stream push <target> --file <video.mp4> [--fps N]     (decoded by external ffmpeg)
+
+  --file sends one frame. --dir sends every file of the directory in filename order
+  (the %04d-style sequence) at --fps N — capped client-side at 300 frames and 30 fps
+  with a clear error. --loop sets the loop flag in the frame meta. A non-image --file
+  (video) is decoded by spawning ffmpeg argv-only (ffmpeg -y -i <file> <tmp>/%04d.png —
+  no shell, no eval, core never links ffmpeg); a missing ffmpeg is a clear error, and
+  the documented manual equivalent is: ffmpeg -i v.mp4 frames/%04d.png && ds stream
+  push <target> --dir frames/ --fps 30.
+
+  Transport: control socket stream-open (when served) then DSctl stream-open +
+  DSF1 frames on <socket-dir>/stream.sock; the daemon acks each frame (stream-ack) and
+  re-grants credits (stream-credit) as its queue drains. The producer honours the
+  credit window, waits for replenishment on backpressure (stream-nack E_LIMIT) and
+  exits 5 on a backpressure timeout — it never spins or buffers unboundedly.
+  Frame payloads are capped at 16 MB on the wire.
+
+Output:
+  human   ok target=<t> sent=<n> frames=<n> [fps=N] [loop=true]
+  --json  {\"ok\":true,\"target\":…,\"sent\":…,\"frames\":…,\"fps\":…,\"loop\":…}
+
+Examples:
+  ds stream push keys --file frame.png
+  ds stream push keys --dir frames/ --fps 30
+  ds stream push dial --file anim.gif --loop
+  ds stream push keys --file v.mp4 --fps 24
+";
+
+const STREAM_STATS_HELP: &str = "\
+ds stream stats — print /telemetry/streams/<target> over the control socket (DS-032)
+
+Usage:
+  ds stream stats <target> [--json] [--compact]
+
+  <target>: keys | key:0-14 | dial (S6). Reads the stream-stats op (or the
+  /telemetry/streams/<target> path) — telemetry only: the object is printed as-is and
+  never carries a rev, and the read never bumps rev (S1).
+
+Output:
+  human   one line per fact: sent: 960 / dropped: 12 / fps: 32.0 / …
+  --json  the stats object itself, e.g.
+          {\"sent\":960,\"dropped\":12,\"fps\":32.0,\"bytes\":6700000,\"queue\":1,
+           \"in_flight\":true,\"last_sha256\":\"…\",\"last_seq\":959,\"writer_ms_p99\":4.1,
+           \"sampled_at\":\"…\"}
+
+A target with no stream yet is E_PATH (exit 2).
+";
+
+const STREAM_STOP_HELP: &str = "\
+ds stream stop — stop the producer of a stream target (DS-032)
+
+Usage:
+  ds stream stop <target> [--json] [--compact]
+
+  Sends stream-stop (control op; DSctl stream-stop on stream.sock when the daemon does
+  not serve the control op). The daemon drains the target's queue and refuses new
+  frames. Exit 0 when the producer is already gone (no stream socket / no session).
+
+Output:
+  human   ok target=<t> stopped=true
+  --json  {\"ok\":true,\"target\":…,\"stopped\":true}
+";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,6 +365,10 @@ mod tests {
             "daemon start",
             "daemon stop",
             "daemon status",
+            "stream",
+            "stream push",
+            "stream stats",
+            "stream stop",
         ] {
             let t = text(topic);
             assert!(t.contains("Usage:"), "{topic} help has no Usage line");
