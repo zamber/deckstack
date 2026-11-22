@@ -21,9 +21,9 @@ graph TD
   DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::done
   DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::done
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::done
-  DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::doing
+  DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::done
   DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::doing
-  DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::backlog
+  DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::ready
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::backlog
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::backlog
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::backlog
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (1): DS-011(done)
-- **test** (9): DS-018(doing), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog), DS-093(done)
+- **test** (9): DS-018(done), DS-020(ready), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
@@ -213,6 +213,7 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
+- DS-020 - End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton (lane test)
 - DS-040 - Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering (lane router)
 - DS-041 - Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation (lane router)
 - DS-094 - run-log evidence backfill for the rows flagged by the independent review (lane docs)

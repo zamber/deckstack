@@ -546,7 +546,7 @@
   {
     "id": "DS-018",
     "title": "Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "test",
     "size": "L",
@@ -559,9 +559,9 @@
       "new:tests/conformance/",
       "tests/requirements.txt"
     ],
-    "branch": "ticket/DS-018",
-    "worktree": ".worktrees/DS-018",
-    "pr": "prs/DS-018.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -617,7 +617,7 @@
   {
     "id": "DS-020",
     "title": "End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "test",
     "size": "L",
