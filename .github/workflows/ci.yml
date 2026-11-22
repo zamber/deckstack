@@ -1,0 +1,34 @@
+name: ci
+
+# Linux-only alpha CI (docs/00-scope.md invariant 4): no Windows/macOS jobs.
+# Single gate job: fixture gate + tools/check.sh (which adds cargo fmt/clippy/test
+# once Cargo.toml exists — DS-004 — and the conformance suite once
+# tests/conformance/run.py exists — DS-018).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Rust toolchain for the cargo gates (inactive until Cargo.toml lands, DS-004).
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # node is preinstalled on ubuntu-latest (tests/fixtures/validate.sh uses it)
+      - name: fixture gate
+        run: sh tests/fixtures/validate.sh
+
+      - name: full gate
+        run: sh tools/check.sh
