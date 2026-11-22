@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deckstack.dev/schemas/plugin-manifest.json/v1",
+  "title": "deckstack plugin manifest",
+  "description": "Declared by every plugin in ~/.local/share/deckstack/plugins/<id>/manifest.json. See docs/contracts/plugins.md.",
+  "type": "object",
+  "required": ["id", "name", "version", "command", "capabilities"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,80}$"},
+    "name": {"type": "string", "maxLength": 120},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "description": {"type": "string", "maxLength": 500},
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {"type": "string"},
+      "description": "argv array, executed directly — never through a shell."
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "params"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,80}$"},
+          "name": {"type": "string", "maxLength": 120},
+          "description": {"type": "string", "maxLength": 500},
+          "params": {"type": "object", "description": "JSON Schema for the action arguments."}
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(state\\.read|state\\.write|device\\.write|exec|emit|net:[A-Za-z0-9.*-]{1,200}|fs:/[A-Za-z0-9_./-]{0,200})$"
+      },
+      "description": "Explicit grants enforced per request/effect by the daemon (ADR-006/009). Default grant when omitted is state.read only."
+    },
+    "events": {
+      "type": "array",
+      "items": {"enum": ["keyDown", "keyUp", "dialRotate", "slide", "state", "willAppear", "willDisappear", "focus"]},
+      "description": "Events the plugin wants delivered (upstream event names, upstream/.../engine/plugins.rs:14-20)."
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "cpu_s": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "nproc": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "nofile": {"type": "integer", "minimum": 8, "maximum": 4096},
+        "as_mb": {"type": "integer", "minimum": 64, "maximum": 65536}
+      },
+      "description": "Applied as rlimits at spawn; defaults 10/64/64/1024."
+    },
+    "fs_roots": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^/"},
+      "description": "Absolute roots the plugin may read/write (Landlock on Linux >= 6.7, else host-enforced canonicalization)."
+    }
+  }
+}

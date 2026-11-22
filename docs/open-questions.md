@@ -1,0 +1,28 @@
+# Open questions and contradictions
+
+Every item is unverified or conflicting in the sources read. Each names the experiment that
+resolves it. Prefixes: `hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`,
+`deckstack/` = this repo.
+
+## Contradictions found
+
+| # | Contradiction | Where | Proposed resolution |
+|---|---|---|---|
+| C1 | Discovery 10 §4: `hubdeck/CLAUDE.md:34` says `ctx.deck` was NOT proxied to remote plugins; `hubdeck/docs/plans/plugin-host.md:33-36` says `_RemoteDeck` landed. | deckstack/docs/discovery/10 §4 | Low impact on deckstack (remote plugins are replaced by the wrapper, D09). Resolve during phase 5 by reading `hubdeck/src/hubdeck/plugins/host/remote.py` and noting which plugins actually used `ctx.deck` remotely. |
+| C2 | Discovery docs cite `hubdeck/src/hubdeck/gui/server.py:556-566` for the Host-header DNS-rebinding check; in the current checkout the check is at `gui/server.py:601` (docstring at :4). Line drift, not a factual conflict. | deckstack/docs/discovery/10 §8 vs hubdeck checkout | This plan cites the verified line (`gui/server.py:601`). Discovery files are read-only; noted here instead. |
+| C3 | BRIEF R5 says "tests must be able to capture what the device reports"; the hardware has no screen readback at all (upstream/PROTOCOL.md:19-23, 141-167; discovery/40 §6). Cannot be met literally. | deckstack/BRIEF.md R5 vs discovery/40 §6 | Resolved as D15: strongest proxy = frames-sent log + per-write byte counts + feature-read liveness + HID read errors + optional camera oracle. Gap documented in docs/30-testing.md. USBPcap experiment (discovery/50 T3) would settle whether any feedback report exists. |
+
+## Open questions (with resolving experiment)
+
+| # | Question | Evidence | Experiment |
+|---|---|---|---|
+| O1 | Pure-Wayland (non-KDE) foreground watching: neither implementation has a native path. Python is KWin-D-Bus-only (`hubdeck/src/hubdeck/platforms/linux/focus.py:99-103`); Rust polls X11 xcb / hyprland / kdotool (`upstream/app/src-tauri/src/engine/foreground.rs:157-195`). Behaviour on Bazzite KDE-Wayland and other Wayland DEs is unverified. | discovery/50 O1 | On Bazzite: run KWin script, `wlr-foreign-toplevel` (ext-foreign-toplevel-v1), and `kdotool`; log event latency vs `busctl monitor`; pick ds-focus's default backend in docs/40-platforms.md phase 6. |
+| O2 | Suspected fader-module LED rate limit ~25 reports/s ("likely, not proven"); two drops seen at ~50/s. | upstream/PROTOCOL.md:118-121; discovery/50 P4 | Soak: 10/25/50/100 LED writes/s for 1 h on the faders module while pinging feature `0x2E`; daemon LED cap set from result (default 30/s until then). |
+| O3 | Throughput with two same-kind screen modules on one base (mirroring is known; bandwidth is not). | upstream/PROTOCOL.md:130-139; discovery/50 P7 | Two keys modules, distinct panels, measure fps + camera-check both. Affects /streams limits in docs/contracts/streaming.md. |
+| O4 | Linux HID backend: upstream uses hidapi `linux-static-libusb` because vendor HID gets no hidraw node; a udev rule is needed either way. Whether hidraw+udev gives better hot-plug notification than libusb polling is untested. | upstream/crates/mh-device/Cargo.toml:17-20; discovery/50 O2 | In phase 2: enumerate both backends on Bazzite, record handle counts and rescan latency (target ≤2 s per discovery/40 §7); keep libusb if hidraw adds no value. |
+| O5 | Windows named-pipe throughput vs loopback TCP for the NDJSON control plane and binary frame stream. Upstream has no named pipes at all (grep-verified), so pipe performance is unmeasured. | discovery/50 O3 | Phase 2 Windows VM: push 32 fps panel frames over the pipe to the virtual device, compare p99 with TCP. |
+| O6 | Landlock availability/behaviour for plugin fs confinement on Bazzite's kernel (≥5.13 for fs, ≥6.7 for full ABI); fallback is rlimits-only. | deckstack/docs/20-security.md | Phase 5: `landlock_restrict_self` probe on the running kernel; if unavailable, fs policy enforced in the wrapper process only (weaker — documented). |
+| O7 | Whether mh-device's reader-thread model or polled reads (hubdeck `device/manager.py:66-79`) behaves better under the daemon's frame load on Linux libusb; per-write cost on shared vs dedicated handle differs 2.7 ms vs 34.8 ms. | upstream/PROTOCOL.md:116-118; discovery/50 F3 | Phase 2: dedicated writer handle per module on Linux hidraw; measure with a throttled virtual HID; keep upstream reader threads. |
+| O8 | macOS: rollers silent without SET_IDLE (fixed upstream via `crates/mh-device/src/recover.rs:15-18`); exclusive hidapi opens mean only one program may hold the deck. Untested on macOS in this plan. | upstream/PROTOCOL.md:40; hubdeck docs/masterhub-protocol.md:36-37 | macOS smoke suite in CI matrix (phase 2+); ds-daemon must refuse to open when another holder exists and say so in `ds daemon status`. |
+| O9 | `HUBDECK_AUTOMATION` virtual copy (upstream/src/automation.rs:4-45) vs a report-level virtual device: discovery 20 §9 marked "no protocol-level write assertions in app tests — OPEN: confirm". Confirmed by reading: upstream app tests contain no write-asserting harness equivalent to `hubdeck/tests/fakes/virtual_hub.py`. | deckstack/docs/discovery/20 §9 | Closed for planning purposes: deckstack adopts the Python-style report-level virtual hub (D16). No further experiment needed. |
+| O10 | Daemon token rotation/revocation UX: scoped tokens live in one token file; rotation must not break running CLIs mid-call. | deckstack/docs/contracts/ipc.md | Phase 1 prototype: `ds token rotate` keeps old token valid for 60 s grace; conformance test asserts old token rejected after grace. |

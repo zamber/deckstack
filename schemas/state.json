@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deckstack.dev/schemas/state.json/v1",
+  "title": "deckstack state document",
+  "description": "The single JSON state document owned by ds-daemon. Paths in docs/contracts/state.md map to this tree. Frames are never stored here, only references.",
+  "type": "object",
+  "required": ["meta", "devices", "controls", "bindings", "plugins", "streams", "settings", "policy"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["version", "rev", "protocol"],
+      "properties": {
+        "version": {"const": 1},
+        "rev": {"type": "integer", "minimum": 0, "description": "Global revision; bumped by every committed transaction."},
+        "protocol": {"type": "integer", "minimum": 1},
+        "daemon_pid": {"type": "integer"},
+        "started_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "devices": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Za-z0-9_-]{1,64}$": {
+          "$ref": "#/$defs/device"
+        }
+      },
+      "description": "Keyed by USB serial (read at connect, upstream/crates/mh-device/src/hub.rs:241-245)."
+    },
+    "controls": {
+      "type": "object",
+      "properties": {
+        "keys": {"type": "object", "patternProperties": {"^[0-9]|^1[0-4]$": {"$ref": "#/$defs/screenControl"}}},
+        "dial": {"$ref": "#/$defs/screenControl"},
+        "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}},
+        "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}},
+        "rollers": {"type": "object", "patternProperties": {"^[0-1]$": {"$ref": "#/$defs/ledControl"}}}
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "description": "Topic path -> list of bindings. Topics: deck/control/<c>/<g>, deck/device/<serial>/<e>, deck/system/<e>, app/<sender>/<topic>.",
+      "patternProperties": {
+        "^(deck|app)/[A-Za-z0-9_./*-]{1,200}$": {"type": "array", "items": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"}}
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Za-z0-9._-]{1,80}$": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {"enum": ["installing", "running", "degraded", "stopped", "crashed"]},
+            "manifest": {"$ref": "https://deckstack.dev/schemas/plugin-manifest.json/v1"},
+            "state": {"type": "object"},
+            "stats": {
+              "type": "object",
+              "properties": {
+                "restarts": {"type": "integer", "minimum": 0},
+                "violations": {"type": "integer", "minimum": 0},
+                "invokes": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    },
+    "streams": {
+      "type": "object",
+      "patternProperties": {
+        "^(keys|dial|key:[0-9]|key:1[0-4])$": {
+          "type": "object",
+          "properties": {
+            "stats": {
+              "type": "object",
+              "properties": {
+                "sent": {"type": "integer", "minimum": 0},
+                "dropped": {"type": "integer", "minimum": 0},
+                "fps": {"type": "number", "minimum": 0},
+                "bytes": {"type": "integer", "minimum": 0},
+                "queue": {"type": "integer", "minimum": 0, "maximum": 1},
+                "in_flight": {"type": "boolean"},
+                "last_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "last_seq": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    },
+    "settings": {"type": "object"},
+    "policy": {
+      "type": "object",
+      "description": "Policy is data (D18): the Salon-lights rule lives at /policy/allow/net/hosts. Only admin scope may write here; the daemon's device-write choke point enforces it.",
+      "properties": {
+        "allow": {
+          "type": "object",
+          "properties": {
+            "net": {"type": "object", "properties": {"hosts": {"type": "array", "items": {"type": "string"}}}}
+          }
+        },
+        "exec": {"type": "object", "properties": {"allow": {"type": "array", "items": {"type": "string"}}}}
+      }
+    },
+    "focus": {
+      "type": "object",
+      "description": "Ephemeral: last window-focus event written by ds-focus.",
+      "properties": {
+        "app": {"type": "string"},
+        "title": {"type": "string"},
+        "pid": {"type": "integer"},
+        "at_rev": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "visual": {
+      "description": "What a screen control shows. Frames are references, never bytes (ADR-005).",
+      "oneOf": [
+        {"type": "object", "required": ["kind", "value"], "properties": {"kind": {"const": "color"}, "value": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "target", "seq", "sha256"], "properties": {"kind": {"const": "frame"}, "target": {"type": "string"}, "seq": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "path"], "properties": {"kind": {"const": "file"}, "path": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "name"], "properties": {"kind": {"const": "icon"}, "name": {"type": "string", "pattern": "^tabler:[a-z0-9-]+$"}}, "additionalProperties": false},
+        {"type": "object", "required": ["kind", "value"], "properties": {"kind": {"const": "text"}, "value": {"type": "string", "maxLength": 32}, "fg": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}, "bg": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}}, "additionalProperties": false}
+      ]
+    },
+    "screenControl": {
+      "type": "object",
+      "properties": {
+        "image": {"$ref": "#/$defs/visual"},
+        "label": {"type": "string", "maxLength": 32},
+        "brightness": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Backlight 1-100; 0 is refused on the dial (upstream/PROTOCOL.md:61)."}
+      }
+    },
+    "ledControl": {
+      "type": "object",
+      "properties": {
+        "led": {
+          "type": "object",
+          "required": ["mode", "color", "brightness"],
+          "properties": {
+            "mode": {"enum": ["off", "static", "breathing", "strobe", "spring", "cycling", "random", "wave", "water", "rainbow"]},
+            "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+            "brightness": {"type": "integer", "minimum": 0, "maximum": 100}
+          }
+        },
+        "value": {"type": "integer", "minimum": 0, "maximum": 100, "description": "Device-reported fader position; written by the daemon from input events only."}
+      }
+    },
+    "device": {
+      "type": "object",
+      "required": ["kind", "connection"],
+      "properties": {
+        "kind": {"enum": ["keys", "dial", "m0-base", "faders", "knobs", "rollers"]},
+        "model": {"type": "string"},
+        "pid": {"type": "integer"},
+        "slot": {"type": "string", "description": "USB port path, e.g. 1-4-3 (upstream/PROTOCOL.md:107)."},
+        "connection": {"enum": ["connected", "disconnected"]},
+        "last_seen_rev": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}
