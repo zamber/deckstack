@@ -1229,7 +1229,7 @@
   {
     "id": "DS-040",
     "title": "Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering",
-    "state": "review",
+    "state": "done",
     "phase": 4,
     "lane": "router",
     "size": "L",
@@ -1253,9 +1253,9 @@
       "crates/ds-daemon/src/ipc.rs",
       "crates/ds-daemon/src/state.rs"
     ],
-    "branch": "ticket/DS-040",
-    "worktree": ".worktrees/DS-040",
-    "pr": "prs/DS-040.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
