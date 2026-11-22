@@ -1,1 +1,945 @@
-[]
+[
+  {
+    "id": "DS-000",
+    "title": "Workflow smoke: add docs/workflow-smoke.md through the worktree/PR flow",
+    "state": "ready",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:docs/workflow-smoke.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/workflow-smoke.md exists on main after the PR merge",
+      "python3 tools/tickets.py show DS-000 reports state done"
+    ],
+    "verification": [
+      "python3 tools/tickets.py validate",
+      "git log main shows the ticket(DS-000) commit and the merge",
+      "sh tools/check.sh (once DS-003 lands; until then python3 tools/tickets.py validate)"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-001",
+    "title": "Ticket board tool: tools/tickets.py (parse, validate, sync, board/graph/index)",
+    "state": "done",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "M",
+    "owner": "autolith/run-50951",
+    "depends_on": [],
+    "touches": [
+      "tools/tickets.py",
+      "tickets/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "python3 tools/tickets.py validate exits 0 on the board",
+      "python3 tools/tickets.py sync regenerates tickets/index.json, tickets/BOARD.md, tickets/GRAPH.md"
+    ],
+    "verification": [
+      "python3 -m py_compile tools/tickets.py",
+      "python3 tools/tickets.py validate",
+      "python3 tools/tickets.py list / ready / graph / index / lanes all run"
+    ],
+    "blocks": [
+      "DS-006"
+    ]
+  },
+  {
+    "id": "DS-002",
+    "title": "Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold",
+    "state": "ready",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:tools/wt.sh",
+      "new:tools/pr.sh",
+      "new:tools/setup-review-remote.sh",
+      "new:prs/README.md",
+      "new:prs/TEMPLATE.md",
+      ".gitignore"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "sh tools/wt.sh new DS-000 --owner smoke works end to end (worktree + branch ticket/DS-000 created from clean main)",
+      "sh tools/pr.sh submit DS-000 writes prs/DS-000.md from prs/TEMPLATE.md and pushes ticket/DS-000 to the review remote",
+      "sh tools/pr.sh review DS-000 and sh tools/pr.sh merge DS-000 complete the loop on main"
+    ],
+    "verification": [
+      "python3 tools/tickets.py validate",
+      "bash -n tools/wt.sh tools/pr.sh tools/setup-review-remote.sh",
+      "full DS-000 smoke flow green (see DS-000 acceptance)"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-003",
+    "title": "Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml",
+    "state": "ready",
+    "phase": 0,
+    "lane": "ci",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:tools/check.sh",
+      "packaging/bootstrap.sh",
+      "new:.github/workflows/ci.yml",
+      "tests/fixtures/validate.sh"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "sh tools/check.sh runs schema validation + tickets validate and exits 0 on a clean tree",
+      "sh packaging/bootstrap.sh builds (cargo if workspace exists) + fixture gate + venv and exits 0",
+      "CI workflow runs tools/check.sh on push/PR on Linux only"
+    ],
+    "verification": [
+      "sh tests/fixtures/validate.sh prints ALL CHECKS PASSED",
+      "sh tools/check.sh exits 0",
+      "python3 tools/tickets.py validate",
+      "act --dry-run or a manual workflow review of .github/workflows/ci.yml (no CI runner required locally)"
+    ],
+    "blocks": [
+      "DS-018"
+    ]
+  },
+  {
+    "id": "DS-004",
+    "title": "Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config",
+    "state": "ready",
+    "phase": 0,
+    "lane": "build",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:Cargo.toml",
+      "new:crates/",
+      "new:rustfmt.toml",
+      "new:clippy.toml",
+      "new:LICENSE",
+      "new:NOTICE"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "cargo build --workspace is green with stub crates",
+      "cargo fmt --check and cargo clippy --workspace -- -D warnings run clean",
+      "every planned crate dir exists under crates/ with a stub lib.rs (ds-protocol, ds-device, ds-state, ds-ipc, ds-client, ds-daemon, ds-vdev)"
+    ],
+    "verification": [
+      "cargo build --workspace",
+      "cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace",
+      "sh tools/check.sh exits 0",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-010",
+      "DS-011",
+      "DS-012",
+      "DS-013",
+      "DS-014"
+    ]
+  },
+  {
+    "id": "DS-005",
+    "title": "Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist",
+    "state": "ready",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:agents/deckstack-steward.md",
+      "new:tools/steward.sh",
+      "docs/AGENT-WORKFLOW.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "agents/deckstack-steward.md defines the steward role and review checklist",
+      "sh tools/steward.sh runs vibe with the steward agent in this repo workdir, or prints the documented command if vibe is unavailable"
+    ],
+    "verification": [
+      "bash -n tools/steward.sh",
+      "sh tools/steward.sh --help prints usage or the documented vibe command",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-006"
+    ]
+  },
+  {
+    "id": "DS-006",
+    "title": "Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented",
+    "state": "backlog",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-001",
+      "DS-005"
+    ],
+    "touches": [
+      "AGENTS.md",
+      "docs/AGENT-WORKFLOW.md",
+      "README.md",
+      "PLAN.md",
+      "skills/deckstack/SKILL.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "every command shown in AGENTS.md and docs/AGENT-WORKFLOW.md was executed and works (or is marked as landing with its ticket)",
+      "skills/deckstack/SKILL.md matches the actual ticket/worktree/PR commands",
+      "CLI self-description contract (ds schema / ds describe / --help / exit codes) is documented as the agent-facing contract"
+    ],
+    "verification": [
+      "python3 tools/tickets.py validate",
+      "sh tools/check.sh exits 0",
+      "manual run of each steering command with results pasted into the PR record"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-010",
+    "title": "ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable)",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "protocol",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-004"
+    ],
+    "touches": [
+      "new:crates/ds-protocol/",
+      "new:tests/protocol/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "cargo test -p ds-protocol green, including safety tests that assert forbidden HID commands cannot be constructed",
+      "ds-protocol re-exports the mh-protocol builders with the wire version pinned (protocol: 1)"
+    ],
+    "verification": [
+      "cargo test -p ds-protocol",
+      "cargo clippy -p ds-protocol -- -D warnings",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-011",
+    "title": "ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "state",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-004"
+    ],
+    "touches": [
+      "new:crates/ds-state/",
+      "schemas/state.json",
+      "new:tests/state/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "fresh state document validates against schemas/state.json and has empty /controls, /bindings, /plugins (empty-state invariant)",
+      "get/set by path with rev bump on durable writes, transactions atomic, subscriptions notified",
+      "/telemetry/* never persisted, never bumps rev"
+    ],
+    "verification": [
+      "cargo test -p ds-state",
+      "sh tests/fixtures/validate.sh (schema gate)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-015"
+    ]
+  },
+  {
+    "id": "DS-012",
+    "title": "ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "ipc",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-004"
+    ],
+    "touches": [
+      "new:crates/ds-ipc/",
+      "docs/contracts/ipc.md",
+      "schemas/ipc-message.json",
+      "tests/fixtures/ipc-examples.json"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "NDJSON request/response over the Unix control socket per docs/contracts/ipc.md, validated against schemas/ipc-message.json",
+      "hello with protocol: 1, token auth (0600 file), scoped tokens, error envelope with stable codes, size limits enforced",
+      "crates/ds-client builds on ds-ipc and can run one op against a mock server"
+    ],
+    "verification": [
+      "cargo test -p ds-ipc -p ds-client",
+      "sh tests/fixtures/validate.sh (ipc-examples corpus green)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-015",
+      "DS-016",
+      "DS-018"
+    ]
+  },
+  {
+    "id": "DS-013",
+    "title": "ds-ipc frame plane: DSF1 stream socket, credits/acks, limits",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "ipc",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-004"
+    ],
+    "touches": [
+      "new:crates/ds-ipc/src/frames/",
+      "docs/contracts/streaming.md",
+      "schemas/stream-frame.json"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "DSF1 binary frames over the stream socket per docs/contracts/streaming.md, validated against schemas/stream-frame.json",
+      "stream-ack/stream-nack flow with credits and per-target limits enforced",
+      "frames never touch state/rev \u2014 asserted by test"
+    ],
+    "verification": [
+      "cargo test -p ds-ipc",
+      "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-014",
+    "title": "ds-device: virtual transport and report codec (device-agnostic driver core)",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-004"
+    ],
+    "touches": [
+      "new:crates/ds-device/",
+      "docs/components/virtual-device.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-device builds against mh-device (git dep, ADR-010) with a virtual transport implementation",
+      "module report codec decodes/encodes reports; chunk reassembly verified by tests",
+      "device trait allows virtual:/tmp/vdev.sock style addressing"
+    ],
+    "verification": [
+      "cargo test -p ds-device",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-015",
+      "DS-017"
+    ]
+  },
+  {
+    "id": "DS-015",
+    "title": "ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "daemon",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-011",
+      "DS-012",
+      "DS-014"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/",
+      "new:crates/ds-client/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds daemon start --device virtual:/tmp/vdev.sock binds the control socket, writes a 0600 token, starts from empty state, logs lifecycle",
+      "state task owns the ds-state document; IPC server (ds-ipc control) serves get/set; device task owns the ds-device transport",
+      "SIGTERM exits cleanly (guard/handback detail is DS-024)"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon",
+      "manual: start daemon against ds-vdev, ds get/set round-trip (with DS-016) or raw NDJSON via python",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-019",
+      "DS-020"
+    ]
+  },
+  {
+    "id": "DS-016",
+    "title": "ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "cli",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-012"
+    ],
+    "touches": [
+      "new:bins/ds/",
+      "docs/contracts/cli.md",
+      "docs/components/cli.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds get/set/watch/schema/describe/daemon/status work against a running daemon per docs/contracts/cli.md",
+      "--json prints one object; streaming verbs support --ndjson and exit 1 on --json; exit codes 0-8 stable; --help at every level",
+      "ds migrate exits 1 (no migrate verb exists)"
+    ],
+    "verification": [
+      "cargo test -p ds-cli 2>/dev/null || cargo test --workspace",
+      "scripted smoke against ds-vdev + ds daemon (PLAN.md walking skeleton steps 3-6)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-020"
+    ]
+  },
+  {
+    "id": "DS-017",
+    "title": "ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "vdev",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-014"
+    ],
+    "touches": [
+      "new:crates/ds-vdev/",
+      "new:bins/ds-vdev",
+      "new:bins/ds-vdevctl",
+      "docs/components/virtual-device.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-vdev --socket /tmp/vdev.sock serves a report-level virtual MasterHub; ds daemon can connect via virtual:/tmp/vdev.sock",
+      "ds-vdevctl --socket /tmp/vdev.sock frames key:0 prints the reassembled frame sha256 after an image set",
+      "inject and throttle controls work for conformance/bench use"
+    ],
+    "verification": [
+      "cargo test -p ds-vdev",
+      "smoke: ds-vdev up, ds daemon start --device virtual:/tmp/vdev.sock, ds set image, ds-vdevctl frames key:0 sha matches",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-020"
+    ]
+  },
+  {
+    "id": "DS-018",
+    "title": "Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "test",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-003",
+      "DS-012"
+    ],
+    "touches": [
+      "new:tests/conformance/",
+      "tests/requirements.txt"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "python tests/conformance/run.py starts a daemon on ds-vdev (or a mock) and runs the suite, exit 0",
+      "asserts the empty-state invariant (fresh start: /controls, /bindings, /plugins empty) and no-migrate (ds migrate exits 1)",
+      "covers CLI verbs, IPC NDJSON shapes, state rev semantics end to end"
+    ],
+    "verification": [
+      "python tests/conformance/run.py (exit 0)",
+      "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-020"
+    ]
+  },
+  {
+    "id": "DS-019",
+    "title": "systemd user unit + daemon lifecycle runbook",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "packaging",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-015"
+    ],
+    "touches": [
+      "new:packaging/systemd/deckstack.service",
+      "new:docs/runbook.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "packaging/systemd/deckstack.service is a valid user unit (systemd-analyze verify) that starts ds daemon on the default virtual or hid device",
+      "docs/runbook.md documents start/stop/status/logs/recovery for the operator"
+    ],
+    "verification": [
+      "systemd-analyze verify packaging/systemd/deckstack.service (or --user)",
+      "manual: systemctl --user enable/start/stop with the unit on a test machine, or document the manual fallback",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-020",
+    "title": "End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton",
+    "state": "backlog",
+    "phase": 1,
+    "lane": "test",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-015",
+      "DS-016",
+      "DS-017",
+      "DS-018"
+    ],
+    "touches": [
+      "new:tests/e2e/",
+      "new:examples/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "tests/e2e runs the PLAN.md walking skeleton end to end: ds set /controls/keys/0/image --file examples/key.png -> ds-vdevctl frames key:0 prints the golden sha256",
+      "get round-trips with rev; watch --ndjson streams and watch --json exits 1; ds migrate exits 1; query p99 <= 10 ms under a looped load (bench skeleton)",
+      "phase-1 exit criteria from docs/60-roadmap.md observable"
+    ],
+    "verification": [
+      "python tests/e2e/run.py (or sh tests/e2e/run.sh) exit 0",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-021",
+      "DS-025"
+    ]
+  },
+  {
+    "id": "DS-021",
+    "title": "Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "device",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-020"
+    ],
+    "touches": [
+      "new:crates/ds-device/src/hid/",
+      "new:tests/hw/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-device gains a hid: transport that enumerates and opens the MasterHub via hidraw/libusb on Linux",
+      "reader thread delivers module reports to the same trait the virtual transport uses",
+      "DS_HARDWARE=1 cargo test -p ds-device --test hid enumerates the real deck (skipped without hardware)"
+    ],
+    "verification": [
+      "cargo test -p ds-device (unit, no hardware)",
+      "DS_HARDWARE=1 python tests/hw/smoke.py enumerate step green on the real deck",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-022"
+    ]
+  },
+  {
+    "id": "DS-022",
+    "title": "Software-mode handshake, module init, safe builders on real hardware",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-021"
+    ],
+    "touches": [
+      "new:crates/ds-device/src/handshake.rs",
+      "new:tests/hw/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "daemon brings the real deck through the software-mode handshake before any read (invariant: software-mode handshake before reads)",
+      "module init sequence runs; all writes go through ds-protocol safe builders",
+      "hardware smoke handshake step green"
+    ],
+    "verification": [
+      "DS_HARDWARE=1 python tests/hw/smoke.py (handshake step)",
+      "cargo test -p ds-device",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-023",
+      "DS-024",
+      "DS-029"
+    ]
+  },
+  {
+    "id": "DS-023",
+    "title": "Hot-plug rescan, reconnect, re-push, unresponsive-device handling",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-022"
+    ],
+    "touches": [
+      "new:crates/ds-device/src/hotplug.rs",
+      "new:crates/ds-daemon/src/device_task.rs",
+      "new:tests/hw/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "unplug/replug of the deck is detected and the daemon reconnects, re-handshakes, and re-pushes state within 5 s",
+      "an unresponsive device (no reports) is detected, marked, and recovered or surfaced without wedging the IPC plane"
+    ],
+    "verification": [
+      "DS_HARDWARE=1 python tests/hw/smoke.py replug step green (<= 5 s)",
+      "cargo test -p ds-device -p ds-daemon (fault-injection unit tests)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-026"
+    ]
+  },
+  {
+    "id": "DS-024",
+    "title": "Guard/handback: clean device state on daemon exit, SIGTERM, crash",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "daemon",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-022"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/guard.rs",
+      "new:tests/hw/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "on SIGTERM/exit the daemon hands the deck back (safe state: no half-pushed frames, backlight per policy, no backlight-0) and exits 0",
+      "on crash, the next start detects the previous run and recovers (re-handshake, re-push)",
+      "hardware smoke SIGTERM handback step green"
+    ],
+    "verification": [
+      "DS_HARDWARE=1 python tests/hw/smoke.py SIGTERM handback step green",
+      "cargo test -p ds-daemon (guard unit tests with mock device)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-026"
+    ]
+  },
+  {
+    "id": "DS-025",
+    "title": "udev rules, device permissions, install docs (Linux)",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "packaging",
+    "size": "S",
+    "owner": null,
+    "depends_on": [
+      "DS-020"
+    ],
+    "touches": [
+      "new:packaging/udev/99-deckstack.rules",
+      "docs/40-platforms.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "packaging/udev/99-deckstack.rules grants the owning user access to the MasterHub hidraw device (SUBSYSTEM==hidraw, ATTRS{idVendor}/idProduct match, MODE=0660, GROUP/TAG)",
+      "docs/40-platforms.md gains the install/permissions section for Bazzite/Fedora",
+      "after install + udevadm control --reload, the daemon opens the deck as a normal user"
+    ],
+    "verification": [
+      "udevadm verify packaging/udev/99-deckstack.rules (or manual review)",
+      "on hardware: install rule, reload, run DS_HARDWARE=1 enumerate without root",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-026",
+    "title": "Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py)",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "test",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-023",
+      "DS-024"
+    ],
+    "touches": [
+      "new:tests/hw/smoke.py",
+      "new:tests/hw/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "DS_HARDWARE=1 python tests/hw/smoke.py green on the real deck: enumerate, handshake, one frame per target, liveness <= 100 ms, replug <= 5 s, SIGTERM handback, forbidden command -> E_DEVICE + zero bytes",
+      "without DS_HARDWARE=1 the suite skips cleanly (CI never needs hardware)"
+    ],
+    "verification": [
+      "DS_HARDWARE=1 python tests/hw/smoke.py (exit 0, output in PR record)",
+      "python tests/hw/smoke.py (skip path, exit 0)",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-027",
+      "DS-028"
+    ]
+  },
+  {
+    "id": "DS-027",
+    "title": "deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/)",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "verify",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-026"
+    ],
+    "touches": [
+      "new:tools/verify/",
+      "docs/90-verification.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "tools/verify implements deckstack-verify per docs/90-verification.md: camera discovery, calibration, capture, pixel compare, CLI (check command)",
+      "deckstack-verify check passes for >= 1 key (key:0) and the panel on the real deck \u2014 camera-verified pixels",
+      "in-tree at tools/verify/ during alpha; subtree-split ready per repos.toml"
+    ],
+    "verification": [
+      "python3 -m pytest tools/verify/tests or tools/verify self-test (vdev-backed, no camera)",
+      "on hardware with camera: deckstack-verify check key:0 and panel green",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-028",
+    "title": "Camera golden checks for key:0, panel, LED + calibration procedure",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "verify",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-026"
+    ],
+    "touches": [
+      "new:tools/verify/golden/",
+      "docs/90-verification.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "tools/verify/golden/ holds the golden captures for key:0, the panel (keys), and LED states with a documented calibration procedure",
+      "deckstack-verify check passes against the goldens on the real deck (camera-verified)",
+      "goldens are test fixtures only \u2014 never installed as deck defaults (empty-state invariant)"
+    ],
+    "verification": [
+      "deckstack-verify check key:0 / panel / LED green on hardware",
+      "vdev self-test still green",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-029",
+    "title": "Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape",
+    "state": "backlog",
+    "phase": 2,
+    "lane": "test",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-022"
+    ],
+    "touches": [
+      "new:tests/conformance/safety/",
+      "docs/20-security.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "conformance cases assert: forbidden HID commands are unrepresentable (ds-protocol safety tests) and any attempted forbidden write yields E_DEVICE + zero bytes on the wire",
+      "no reads in hardware mode before the software-mode handshake; backlight 0 never sent; no raw escape hatch exists in the CLI/API",
+      "all safety cases run on vdev in CI and on hardware via DS_HARDWARE=1 smoke"
+    ],
+    "verification": [
+      "python tests/conformance/run.py -k safety (exit 0)",
+      "DS_HARDWARE=1 python tests/hw/smoke.py forbidden-command step",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  }
+]
