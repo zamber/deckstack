@@ -61,11 +61,11 @@
   {
     "id": "DS-002",
     "title": "Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold",
-    "state": "ready",
+    "state": "done",
     "phase": 0,
     "lane": "workflow",
     "size": "M",
-    "owner": null,
+    "owner": "autolith/run-4004342966",
     "depends_on": [],
     "touches": [
       "new:tools/wt.sh",
@@ -95,11 +95,11 @@
   {
     "id": "DS-003",
     "title": "Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml",
-    "state": "ready",
+    "state": "done",
     "phase": 0,
     "lane": "ci",
     "size": "M",
-    "owner": null,
+    "owner": "autolith/run-4004342966",
     "depends_on": [],
     "touches": [
       "new:tools/check.sh",
@@ -171,11 +171,11 @@
   {
     "id": "DS-005",
     "title": "Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist",
-    "state": "ready",
+    "state": "done",
     "phase": 0,
     "lane": "workflow",
     "size": "S",
-    "owner": null,
+    "owner": "autolith/run-4004342966",
     "depends_on": [],
     "touches": [
       "new:agents/deckstack-steward.md",
@@ -203,11 +203,11 @@
   {
     "id": "DS-006",
     "title": "Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented",
-    "state": "backlog",
+    "state": "done",
     "phase": 0,
     "lane": "workflow",
     "size": "M",
-    "owner": null,
+    "owner": "autolith/run-4004342966",
     "depends_on": [
       "DS-001",
       "DS-005"

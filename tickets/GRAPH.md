@@ -8,11 +8,11 @@ Generated: 2026-11-22 - 58 tickets, DAG (no cycles; enforced by validate).
 graph TD
   DS000["DS-000 Workflow smoke: add docs/workflow-smoke.md through the wo..."]:::done
   DS001["DS-001 Ticket board tool: tools/tickets.py (parse, validate, syn..."]:::done
-  DS002["DS-002 Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setu..."]:::ready
-  DS003["DS-003 Check/bootstrap/CI skeleton: tools/check.sh, packaging/bo..."]:::ready
+  DS002["DS-002 Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setu..."]:::done
+  DS003["DS-003 Check/bootstrap/CI skeleton: tools/check.sh, packaging/bo..."]:::done
   DS004["DS-004 Cargo workspace skeleton: virtual manifest, crate stubs, ..."]:::ready
-  DS005["DS-005 Steward role: agents/deckstack-steward.md, tools/steward...."]:::ready
-  DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::backlog
+  DS005["DS-005 Steward role: agents/deckstack-steward.md, tools/steward...."]:::done
+  DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
   DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::backlog
   DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::backlog
   DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::backlog
@@ -183,7 +183,7 @@ Critical path length: 10 tickets.
 - **agents** (1): DS-063(backlog)
 - **bench** (1): DS-033(backlog)
 - **build** (1): DS-004(ready)
-- **ci** (2): DS-003(ready), DS-082(backlog)
+- **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(backlog), DS-032(backlog)
 - **daemon** (2): DS-015(backlog), DS-024(backlog)
 - **device** (4): DS-014(backlog), DS-021(backlog), DS-022(backlog), DS-023(backlog)
@@ -204,11 +204,8 @@ Critical path length: 10 tickets.
 - **vdev** (2): DS-017(backlog), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
-- **workflow** (5): DS-000(done), DS-001(done), DS-002(ready), DS-005(ready), DS-006(backlog)
+- **workflow** (5): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-002 - Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold (lane workflow)
-- DS-003 - Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml (lane ci)
 - DS-004 - Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config (lane build)
-- DS-005 - Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist (lane workflow)

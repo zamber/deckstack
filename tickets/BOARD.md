@@ -6,11 +6,11 @@ Generated: 2026-11-22 - 58 tickets.
 |---|---|---|---|---|---|---|---|
 | DS-000 | done | 0 | workflow | S | autolith/run-4004342966 | - | Workflow smoke: add docs/workflow-smoke.md through the worktree/PR flow |
 | DS-001 | done | 0 | workflow | M | autolith/run-50951 | - | Ticket board tool: tools/tickets.py (parse, validate, sync, board/graph/index) |
-| DS-002 | ready | 0 | workflow | M | - | - | Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold |
-| DS-003 | ready | 0 | ci | M | - | - | Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml |
+| DS-002 | done | 0 | workflow | M | autolith/run-4004342966 | - | Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold |
+| DS-003 | done | 0 | ci | M | autolith/run-4004342966 | - | Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml |
 | DS-004 | ready | 0 | build | S | - | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
-| DS-005 | ready | 0 | workflow | S | - | - | Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist |
-| DS-006 | backlog | 0 | workflow | M | - | DS-001, DS-005 | Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented |
+| DS-005 | done | 0 | workflow | S | autolith/run-4004342966 | - | Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist |
+| DS-006 | done | 0 | workflow | M | autolith/run-4004342966 | DS-001, DS-005 | Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented |
 | DS-010 | backlog | 1 | protocol | M | - | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
 | DS-011 | backlog | 1 | state | L | - | DS-004 | ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation |
 | DS-012 | backlog | 1 | ipc | L | - | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
