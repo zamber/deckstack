@@ -1,0 +1,21 @@
+[package]
+name = "ds-vdev-bin"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Serve a report-level virtual MasterHub on a Unix socket (DS-017)."
+
+# The binary is a thin shell over the ds-vdev library; arg parsing is hand-rolled to keep the
+# dependency set identical to the library's.
+[dependencies]
+ds-vdev = { path = "../../crates/ds-vdev" }
+ds-protocol = { path = "../../crates/ds-protocol" }
+
+[[bin]]
+name = "ds-vdev"
+path = "src/main.rs"
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true

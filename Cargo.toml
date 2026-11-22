@@ -1,12 +1,12 @@
 # deckstack umbrella workspace — virtual manifest (docs/50-repo-topology.md §1).
 #
-# Crates live under crates/; the CLI/sender binaries under bins/ join the members
-# glob when bins/ first exists (cargo rejects an empty "bins/*" glob, so it is not
-# listed yet — phase 1 adds it together with the first bin).
+# Crates live under crates/; the CLI/sender binaries under bins/ (DS-017 added the first
+# ones: ds-vdev and ds-vdevctl — cargo rejects an empty "bins/*" glob, so the glob joined
+# the members together with the first bin).
 
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "bins/*"]
 
 [workspace.package]
 version = "0.1.0"
