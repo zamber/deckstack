@@ -24,8 +24,8 @@
 //!   LED/backlight — never backlight 0 — brightness in range), every one through the
 //!   forbidden-command guard.
 //!
-//! Out of scope here (later tickets): hot-plug (DS-023), guard/handback (DS-024), udev rules
-//! (DS-025), and ds-vdev itself (DS-017).
+//! Out of scope here (later tickets): guard/handback (DS-024), udev rules (DS-025),
+//! and ds-vdev itself (DS-017). Hot-plug lives in [`hotplug`] (DS-023).
 //!
 //! ```no_run
 //! use ds_device::{DeviceUri, Transport};
@@ -46,6 +46,7 @@ pub mod error;
 pub mod frame;
 pub mod handshake;
 pub mod hid;
+pub mod hotplug;
 pub mod module;
 pub mod rate;
 pub mod report;
