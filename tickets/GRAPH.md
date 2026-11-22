@@ -33,7 +33,7 @@ graph TD
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
-  DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::doing
+  DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::ready
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::ready
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 - **daemon** (3): DS-015(done), DS-024(ready), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(ready)
 - **docs** (2): DS-064(backlog), DS-094(done)
-- **frames** (3): DS-030(doing), DS-031(ready), DS-034(backlog)
+- **frames** (3): DS-030(done), DS-031(ready), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)

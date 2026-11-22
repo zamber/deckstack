@@ -986,7 +986,7 @@
   {
     "id": "DS-030",
     "title": "JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests",
-    "state": "review",
+    "state": "done",
     "phase": 3,
     "lane": "frames",
     "size": "M",
@@ -1007,9 +1007,9 @@
       "new:crates/ds-daemon/src/frames/mod.rs",
       "crates/ds-daemon/tests/daemon.rs"
     ],
-    "branch": "ticket/DS-030",
-    "worktree": ".worktrees/DS-030",
-    "pr": "prs/DS-030.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
