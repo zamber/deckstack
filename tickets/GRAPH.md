@@ -14,7 +14,7 @@ graph TD
   DS005["DS-005 Steward role: agents/deckstack-steward.md, tools/steward...."]:::done
   DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
   DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::done
-  DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::doing
+  DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::done
   DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::ready
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::ready
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::ready
@@ -200,7 +200,7 @@ Critical path length: 10 tickets.
 - **router** (4): DS-040(backlog), DS-041(backlog), DS-042(backlog), DS-044(backlog)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
-- **state** (1): DS-011(doing)
+- **state** (1): DS-011(done)
 - **test** (8): DS-018(backlog), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog)
 - **vdev** (2): DS-017(backlog), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
