@@ -158,6 +158,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ds"
+version = "0.1.0"
+dependencies = [
+ "ds-client",
+ "ds-daemon",
+ "ds-ipc",
+ "ds-vdev",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "ds-client"
 version = "0.1.0"
 dependencies = [
