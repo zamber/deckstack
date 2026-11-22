@@ -950,7 +950,7 @@
   {
     "id": "DS-029",
     "title": "Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "test",
     "size": "L",

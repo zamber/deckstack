@@ -8,8 +8,16 @@ through the real `ds` binary and the raw NDJSON control socket (black box), asse
 the contracts of docs/contracts/{cli,ipc,state}.md -- including the scope invariants
 (empty state at start, no `ds migrate`, rev semantics, S1 telemetry no-rev).
 
+It also registers the DS-029 safety suite (tests/conformance/safety/, imported below), so
+this one command machine-checks the mh-protocol safety invariants too (forbidden HID
+commands unrepresentable + refused with zero bytes on the wire, software-mode handshake
+before any read on keys/dial, backlight-0 never sent, no raw escape hatch in the CLI/IPC).
+
 Usage:
-    python3 tests/conformance/run.py [--verbose]
+    python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
+
+    -k SUBSTR   only run tests whose id contains SUBSTR (e.g. `-k safety` runs only the
+                DS-029 safety cases; may be given multiple times)
 
 Exit code 0 = all green, nonzero = at least one failure (or the stack did not boot).
 Every wait carries a timeout; the daemon and vdev are always killed (SIGTERM then
@@ -37,7 +45,8 @@ OP_TIMEOUT_S = 20
 BOOT_TIMEOUT_S = 30
 WATCH_TIMEOUT_S = 20
 KILL_TIMEOUT_S = 5
-SUITE_TIMEOUT_S = 600
+# the safety suite (DS-029) may compile extra cargo test targets on a cold cache
+SUITE_TIMEOUT_S = 1200
 
 BINARIES = ("ds", "ds-daemon", "ds-vdev", "ds-vdevctl")
 
@@ -677,11 +686,51 @@ def _alarm(signum, frame):
     raise TimeoutError("conformance suite exceeded the %ss watchdog" % SUITE_TIMEOUT_S)
 
 
+def _safety_suite():
+    """The DS-029 safety suite (tests/conformance/safety/), registered into this run so
+    `python tests/conformance/run.py` machine-checks the safety invariants too."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from safety.run import safety_suite
+    return safety_suite()
+
+
+def _filter_suite(suite, patterns):
+    """Keep only the tests whose id contains one of the `-k` substrings."""
+    out = unittest.TestSuite()
+    for t in suite:
+        if isinstance(t, unittest.TestSuite):
+            sub = _filter_suite(t, patterns)
+            if sub.countTestCases():
+                out.addTests(sub)
+        elif any(p.lower() in t.id().lower() for p in patterns):
+            out.addTest(t)
+    return out
+
+
+def _parse_k(argv):
+    patterns = []
+    i = 1
+    while i < len(argv):
+        if argv[i] == "-k" and i + 1 < len(argv):
+            patterns.append(argv[i + 1])
+            i += 2
+        else:
+            i += 1
+    return patterns
+
+
 def main():
+    patterns = _parse_k(sys.argv)
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(SUITE_TIMEOUT_S)
     try:
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(Conformance)
+        suite = unittest.TestSuite()
+        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(Conformance))
+        suite.addTests(_safety_suite())
+        if patterns:
+            suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,
                                          resultclass=LineResult)
         result = runner.run(suite)
@@ -690,7 +739,8 @@ def main():
     n = result.testsRun
     bad = len(result.failures) + len(result.errors)
     print("-" * 60)
-    print("conformance: %d tests, %d passed, %d failed/errored" % (n, n - bad, bad))
+    print("conformance: %d tests, %d passed, %d failed/errored, %d skipped"
+          % (n, n - bad - len(result.skipped), bad, len(result.skipped)))
     if bad:
         print("RESULT: FAIL")
         return 1
