@@ -272,11 +272,11 @@
   {
     "id": "DS-011",
     "title": "ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "state",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-011",
     "depends_on": [
       "DS-004"
     ],
@@ -285,9 +285,9 @@
       "schemas/state.json",
       "new:tests/state/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-011",
+    "worktree": ".worktrees/DS-011",
+    "pr": "prs/DS-011.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
