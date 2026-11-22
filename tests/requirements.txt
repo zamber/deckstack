@@ -1,2 +1,4 @@
-pytest>=8
-jsonschema>=4
+# deckstack test requirements.
+# The conformance harness (tests/conformance/run.py) is python3-stdlib-only
+# (unittest, json, socket, subprocess, tempfile): no third-party packages,
+# so this file intentionally pins nothing.
