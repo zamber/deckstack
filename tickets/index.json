@@ -583,7 +583,7 @@
   {
     "id": "DS-019",
     "title": "systemd user unit + daemon lifecycle runbook",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "packaging",
     "size": "M",
