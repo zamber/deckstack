@@ -15,7 +15,7 @@ graph TD
   DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
   DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::done
   DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::done
-  DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::doing
+  DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::review
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::ready
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::done
   DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::backlog
@@ -191,7 +191,7 @@ Critical path length: 10 tickets.
 - **docs** (1): DS-064(backlog)
 - **frames** (3): DS-030(backlog), DS-031(backlog), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
-- **ipc** (2): DS-012(doing), DS-013(ready)
+- **ipc** (2): DS-012(review), DS-013(ready)
 - **packaging** (3): DS-019(backlog), DS-025(backlog), DS-083(backlog)
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
