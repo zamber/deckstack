@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-11-22T16:23:03Z	start	resumed unsupervised deckstack implementation; prior work is in git history	user authorized continued unsupervised work after stepping away	git log --oneline b9bc5fe..44b87bd	main 44b87bd; DS-004/010/011 done
+2026-11-22T16:23:03Z	frame	predicate: DS-012, DS-013 and DS-014 merged, tools/check.sh green, board valid, no stale worktrees	phase-1 IPC and device gate in the ticket plan	tickets/BOARD.md; docs/60-roadmap.md	defined
+2026-11-22T16:23:03Z	policy	temporary yolo for Vibe workers via agent=auto-approve	worker log and permission rough edges blocked smart-approve; user authorized yolo	user instruction 2026-11-22; agent=auto-approve	applied to new runs
+2026-11-22T16:23:03Z	gate	verified main after the DS-011 merge	do not build on an unverified base	sh tools/check.sh; python3 tools/tickets.py validate	CHECK ALL GREEN; 59 tickets done:10 ready:3
+2026-11-22T16:23:03Z	merge	DS-011 merged after manual Cargo.lock and generated-ticket conflict resolution	parallel branches update generated files; resolver not automated yet	commit d718037; main 44b87bd	done; automation open
