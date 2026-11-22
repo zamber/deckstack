@@ -70,7 +70,7 @@ graph TD
   DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::done
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::done
   DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::done
-  DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::ready
+  DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -208,7 +208,7 @@ Critical path length: 10 tickets.
 - **router** (4): DS-040(done), DS-041(done), DS-042(ready), DS-044(ready)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
-- **state** (2): DS-011(done), DS-096(ready)
+- **state** (2): DS-011(done), DS-096(doing)
 - **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(ready), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
@@ -228,4 +228,3 @@ Critical path length: 10 tickets.
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
 - DS-062 - CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors (lane test)
-- DS-096 - state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) (lane state)

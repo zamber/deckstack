@@ -2419,20 +2419,20 @@
   {
     "id": "DS-096",
     "title": "state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093)",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "state",
     "size": "S",
-    "owner": null,
+    "owner": "vibe/DS-096",
     "depends_on": [],
     "touches": [
       "schemas/state.json",
       "docs/contracts/state.md",
       "tests/fixtures/validate.js"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-096",
+    "worktree": ".worktrees/DS-096",
+    "pr": "prs/DS-096.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
