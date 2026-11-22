@@ -506,7 +506,7 @@
   {
     "id": "DS-017",
     "title": "ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "vdev",
     "size": "L",
@@ -521,9 +521,9 @@
       "Cargo.toml",
       "docs/components/virtual-device.md"
     ],
-    "branch": "ticket/DS-017",
-    "worktree": ".worktrees/DS-017",
-    "pr": "prs/DS-017.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
