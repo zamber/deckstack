@@ -30,6 +30,39 @@ No alpha phase exit criterion or CI gate mentions Windows or macOS (`docs/60-roa
 | Audio | stays external (`Unsupported` in Python app) | `hubdeck/.../platforms/linux/__init__.py:8-9` |
 | Permissions | udev rules; systemd unit hardening (NoNewPrivileges, ProtectSystem=strict, PrivateTmp) | packaging/ |
 
+### 1.1 Install: udev rules and device permissions (operator)
+
+Phase 2 runs as a normal user, so the deck's device nodes need a udev rule — no
+root/sudo at runtime. Ship `packaging/udev/99-deckstack.rules` (VID `0x2516`, the five
+module PIDs `01f6|01fe|0202|0204|0206`, `TAG+="uaccess"` on both the `hidraw` and `usb`
+nodes; no `MODE=0666`):
+
+```sh
+sudo install -Dm644 packaging/udev/99-deckstack.rules /etc/udev/rules.d/99-deckstack.rules
+# either location works; /etc/udev/rules.d overrides /usr/lib/udev/rules.d
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Verify the rule took effect on the plugged-in deck:
+
+```sh
+ls -l /dev/hidraw*                 # uaccess nodes carry an ACL for the logged-in user
+udevadm info /dev/hidraw<N>        # check the tag; replug if the device was already attached
+```
+
+**Group fallback** (systems without logind/`uaccess`): use the commented rule variant
+`GROUP="deckstack", MODE="0660"` in the rules file, then
+`sudo groupadd -r deckstack && sudo usermod -aG deckstack "$USER"` and re-login.
+
+**Without the rule** the daemon cannot open the device: `hid:` open fails with
+`E_DEVICE` (CLI exit 7, `docs/contracts/ipc.md` §4) — the same code as any hardware
+error, so check `ls -l /dev/hidraw*` first when diagnosing.
+
+**`ds-vdev` avoids all of this**: the virtual device (`ds daemon start --device
+virtual:/tmp/vdev.sock`, `docs/runbook.md`) talks over a Unix socket owned by the
+user, so no hidraw/usb node and no udev rule are involved — that is why CI and the
+runbook need no permissions setup.
+
 ## 2. Windows — TODO (do not start until Linux alpha is stable)
 
 **Where the shim goes:** `ds-ipc` (named pipe `\\.\pipe\deckstack-<user>` + `-stream`,
