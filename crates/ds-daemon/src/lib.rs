@@ -13,6 +13,9 @@
 //!   (`ping`, `get`, `set`, `subscribe`/`unsubscribe`, `daemon status`, `schema`).
 //! - [`device`] — the device task: owns the `ds-device` [`Transport`] opened from the
 //!   device URI and applies state image/color pushes to the hardware.
+//! - [`router`] — the event bus + router (DS-040): device input reports become
+//!   `deck/control/*` events, committed state changes become state events, the `emit`
+//!   op publishes `app/*`/`deck/*` topics; IPC `subscribe`/`unsubscribe` register on it.
 //! - [`daemon`] — the glue: arg parsing + assembling the tasks + the run loop.
 //! - [`lifecycle`] — data dir resolution + permissions, token, pid file, structured logs,
 //!   SIGTERM handling, socket/pid cleanup.
@@ -24,6 +27,7 @@ pub mod daemon;
 pub mod device;
 pub mod ipc;
 pub mod lifecycle;
+pub mod router;
 pub mod state;
 
 /// `schemas/stream-frame.json`, embedded so the `schema` op can serve it like the others.

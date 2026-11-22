@@ -12,9 +12,15 @@
 //! Committed `/controls/...` changes are forwarded to the device task as
 //! [`DevicePush`]es over a second bounded channel (dropped + counted when full — the
 //! state task never blocks on the device).
+//!
+//! Committed durable changes are also published on the event bus
+//! ([`crate::router::Bus`], DS-040) as state events — one per changed path, carrying the
+//! commit's rev. `/telemetry/*` events never enter the bus (S1): they are delivered only
+//! to the direct store subscriptions of `/telemetry/*` patterns.
 
 use crate::device::DevicePush;
 use crate::lifecycle;
+use crate::router::Bus;
 use ds_ipc::error::{ErrorCode, IpcError};
 use ds_ipc::server::Connection;
 use ds_state::{Event, GetReply, StateError, Store, SubscriptionId, Transaction};
@@ -125,20 +131,24 @@ fn project(value: &Value, fields: Option<&[String]>) -> Value {
     }
 }
 
-/// The state task: owns the store, applies commands, forwards device pushes.
+/// The state task: owns the store, applies commands, forwards device pushes and publishes
+/// committed durable changes on the event bus.
 pub struct StateTask {
     store: Store,
     rx: Receiver<StateCommand>,
     pushes: Option<SyncSender<DevicePush>>,
+    bus: Bus,
     subs: HashMap<String, SubscriptionId>,
 }
 
 impl StateTask {
     /// Spawn the state task on a new thread. `pushes` (when given) receives the
-    /// `/controls/...` change events for the device task.
+    /// `/controls/...` change events for the device task; `bus` receives every committed
+    /// durable change as a state event (DS-040).
     pub fn spawn(
         store: Store,
         pushes: Option<SyncSender<DevicePush>>,
+        bus: Bus,
     ) -> (StateHandle, JoinHandle<()>) {
         let (tx, rx) = std::sync::mpsc::sync_channel(STATE_CHANNEL_CAP);
         let handle = StateHandle { tx };
@@ -146,6 +156,7 @@ impl StateTask {
             store,
             rx,
             pushes,
+            bus,
             subs: HashMap::new(),
         };
         let thread = std::thread::Builder::new()
@@ -173,6 +184,32 @@ impl StateTask {
                     "error",
                     "ds-daemon::state",
                     &format!("cannot subscribe the device forwarder: {e}"),
+                );
+            }
+        }
+        // A second root watcher publishes every committed durable change on the event bus
+        // (DS-040). Telemetry events never enter the bus (S1). Publishing only enqueues
+        // into bounded per-subscriber queues, so the state task never blocks on a
+        // subscriber (backpressure: drop-oldest + counted `dropped`, see router::bus).
+        {
+            let bus = self.bus.clone();
+            let cb: ds_state::store::WatchCallback = Arc::new(move |ev: Event| {
+                if ev.telemetry {
+                    return;
+                }
+                bus.publish(crate::router::Event::State {
+                    path: ev.path,
+                    ts_ms: lifecycle::now_ms() as u64,
+                    value: ev.value,
+                    prev: ev.prev,
+                    rev: ev.rev.unwrap_or(0),
+                });
+            });
+            if let Err(e) = self.store.subscribe("/", cb) {
+                lifecycle::log(
+                    "error",
+                    "ds-daemon::state",
+                    &format!("cannot subscribe the bus publisher: {e}"),
                 );
             }
         }
@@ -418,15 +455,21 @@ mod tests {
     use ds_state::{Op, Store};
     use serde_json::json;
 
-    fn spawn_fresh() -> (StateHandle, JoinHandle<()>, Option<Receiver<DevicePush>>) {
+    fn spawn_fresh() -> (
+        StateHandle,
+        JoinHandle<()>,
+        Option<Receiver<DevicePush>>,
+        Bus,
+    ) {
         let (push_tx, push_rx) = std::sync::mpsc::sync_channel(8);
-        let (h, t) = StateTask::spawn(Store::fresh(), Some(push_tx));
-        (h, t, Some(push_rx))
+        let bus = Bus::new();
+        let (h, t) = StateTask::spawn(Store::fresh(), Some(push_tx), bus.clone());
+        (h, t, Some(push_rx), bus)
     }
 
     #[test]
     fn get_set_describe_round_trip() {
-        let (h, t, _rx) = spawn_fresh();
+        let (h, t, _rx, _bus) = spawn_fresh();
         // empty state at start
         let meta = h.get("/meta", None).unwrap();
         assert_eq!(meta.rev, Some(0));
@@ -476,7 +519,7 @@ mod tests {
 
     #[test]
     fn committed_controls_changes_are_forwarded_to_the_device_channel() {
-        let (h, t, rx) = spawn_fresh();
+        let (h, t, rx, _bus) = spawn_fresh();
         h.set(Transaction::new(vec![Op::set(
             "/controls/keys/3/image",
             json!({"kind": "color", "value": "#ff8800"}),
@@ -500,6 +543,38 @@ mod tests {
         )]))
         .unwrap();
         assert!(rx.as_ref().unwrap().try_recv().is_err());
+        h.stop();
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn committed_changes_are_published_on_the_bus_as_state_events() {
+        let (h, t, _rx, bus) = spawn_fresh();
+        let (sink, rx) = std::sync::mpsc::channel();
+        let sink = std::sync::Arc::new(crate::router::FnSink(std::sync::Arc::new(
+            move |msg: &serde_json::Value| {
+                let _ = sink.send(msg.clone());
+            },
+        )));
+        let pat = crate::router::Pattern::parse_wire("/controls/keys/*").unwrap();
+        bus.subscribe(pat, None, "/controls/keys/*".to_string(), sink);
+        let rev = h
+            .set(Transaction::new(vec![Op::set(
+                "/controls/keys/3/label",
+                json!("Salon"),
+            )]))
+            .unwrap();
+        let msg = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("one bus event per committed change");
+        assert_eq!(msg["op"], "event");
+        assert_eq!(msg["path"], "/controls/keys/3/label");
+        assert_eq!(msg["rev"], rev);
+        assert_eq!(msg["value"], json!("Salon"));
+        // a change outside the pattern is not delivered
+        h.set(Transaction::new(vec![Op::set("/settings/x", json!(1))]))
+            .unwrap();
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
         h.stop();
         t.join().unwrap();
     }

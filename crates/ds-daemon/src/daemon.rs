@@ -14,11 +14,13 @@
 use crate::device;
 use crate::ipc::{DaemonHandler, StatusInfo};
 use crate::lifecycle::{self, RunPaths, Shutdown};
+use crate::router::{Bus, Event as RouterEvent};
 use crate::state::StateTask;
 use ds_device::uri::DeviceUri;
 use ds_ipc::limits::ServerConfig;
 use ds_ipc::server::Server;
 use ds_state::Store;
+use serde_json::json;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -175,9 +177,15 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
 
     let (shutdown, _signals) = Shutdown::install();
 
+    // The event bus (DS-040): the state task publishes committed changes on it, the device
+    // task publishes decoded input reports and connect/disconnect, the IPC handler serves
+    // subscribe/unsubscribe/emit through it, and the daemon lifecycle publishes here.
+    let bus = Bus::new();
+
     // Device task first so the state task can forward pushes to it from the start.
-    let (device_handle, device_thread, device_status) = device::spawn(device, shutdown.clone());
-    let (state, state_thread) = StateTask::spawn(store, Some(device_handle.sender()));
+    let (device_handle, device_thread, device_status) =
+        device::spawn(device, shutdown.clone(), bus.clone());
+    let (state, state_thread) = StateTask::spawn(store, Some(device_handle.sender()), bus.clone());
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {
@@ -188,6 +196,7 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     };
     let handler = Arc::new(DaemonHandler::new(
         state.clone(),
+        bus.clone(),
         shutdown.clone(),
         status,
         crate::server_name(),
@@ -208,6 +217,15 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
             crate::server_name()
         ),
     );
+    bus.publish(RouterEvent::topic(
+        "daemon/start",
+        json!({
+            "pid": std::process::id(),
+            "server": crate::server_name(),
+            "device": device_label,
+            "rev": rev,
+        }),
+    ));
 
     // Wait for SIGTERM/SIGINT or the `daemon stop` op.
     while !shutdown.get() {
@@ -215,6 +233,10 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     }
 
     lifecycle::log("info", "ds-daemon", "shutdown requested; draining");
+    bus.publish(RouterEvent::topic(
+        "daemon/stop",
+        json!({"reason": "shutdown"}),
+    ));
     if let Err(e) = state.persist() {
         lifecycle::log("error", "ds-daemon", &format!("final persist failed: {e}"));
     }

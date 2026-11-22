@@ -23,8 +23,16 @@
 //!
 //! On connect, keys/dial get the software-mode handshake first — commands only land on
 //! those modules in software mode (mh-protocol safety invariant).
+//!
+//! Input reports from the device (key/fader/dial/knob/roller, or injected by
+//! `ds-vdevctl inject`, DS-017) are decoded by the router ([`crate::router::InputDecoder`])
+//! into `deck/control/<control>/<gesture>` events published on the event bus (DS-040), and
+//! connect/disconnect become `deck/device/<serial>/<event>` events. Publishing only
+//! enqueues into bounded per-subscriber queues, so the device reader never blocks on a
+//! slow subscriber.
 
 use crate::lifecycle::{self, Shutdown};
+use crate::router::{self, Bus};
 use ds_device::module::module_info;
 use ds_device::rate::{RateLimiter, DEFAULT_LED_RATE_PER_S};
 use ds_device::transport::{DeviceEvent, Transport};
@@ -400,10 +408,12 @@ pub type DeviceStatus = Arc<Mutex<Option<String>>>;
 ///
 /// `device` is `None` for `--device none`. A URI that fails to open is logged loudly and
 /// the daemon keeps running without hardware (hot-plug/retry is DS-023); the returned
-/// status says what happened.
+/// status says what happened. `bus` is the event bus (DS-040): input reports and
+/// connect/disconnect are published on it.
 pub fn spawn(
     device: Option<DeviceUri>,
     shutdown: Shutdown,
+    bus: Bus,
 ) -> (DeviceHandle, JoinHandle<()>, DeviceStatus) {
     let (tx, rx) = std::sync::mpsc::sync_channel(DEVICE_CHANNEL_CAP);
     let dropped = Arc::new(AtomicU64::new(0));
@@ -415,7 +425,7 @@ pub fn spawn(
     let status2 = Arc::clone(&status);
     let thread = std::thread::Builder::new()
         .name("ds-device".into())
-        .spawn(move || run_loop(device, rx, shutdown, status2))
+        .spawn(move || run_loop(device, rx, shutdown, status2, bus))
         .expect("spawn ds-device thread");
     (handle, thread, status)
 }
@@ -425,8 +435,10 @@ fn run_loop(
     rx: Receiver<DevicePush>,
     shutdown: Shutdown,
     status: DeviceStatus,
+    bus: Bus,
 ) {
     let limits = RateLimits::new();
+    let mut decoder = router::InputDecoder::new();
     let transport: Option<Box<dyn Transport>> = match &device {
         None => {
             *status.lock().unwrap() = Some("none".to_string());
@@ -455,6 +467,13 @@ fn run_loop(
                         }
                     }
                 }
+                // The connect is a bus event: deck/device/<serial>/connected (DS-040).
+                let serial = virtual_module_id(ModuleKind::Keys).serial;
+                bus.publish(router::device_event(
+                    &serial,
+                    "connected",
+                    serde_json::json!({"device": uri.to_string()}),
+                ));
                 Some(t)
             }
             Err(e) => {
@@ -490,15 +509,31 @@ fn run_loop(
         match &transport {
             Some(t) => match t.recv(TRANSPORT_POLL) {
                 Ok(DeviceEvent::Input { module, input }) => {
+                    // Decode the input report into deck/control/* (or deck/device/*) events
+                    // and publish them on the bus (DS-040). Publish never blocks.
+                    let events = decoder.decode(&module, &input);
+                    let n = events.len();
+                    for ev in events {
+                        bus.publish(ev);
+                    }
                     lifecycle::log(
                         "info",
                         "ds-daemon::device",
-                        &format!("input from {:?}: {:?}", module.kind, input),
+                        &format!(
+                            "input from {:?} ({}): {:?} -> {n} bus event(s)",
+                            module.kind, module.serial, input
+                        ),
                     );
                 }
                 Ok(DeviceEvent::Disconnected) => {
                     lifecycle::log("warn", "ds-daemon::device", "device disconnected");
                     *status.lock().unwrap() = Some("disconnected".to_string());
+                    let serial = virtual_module_id(ModuleKind::Keys).serial;
+                    bus.publish(router::device_event(
+                        &serial,
+                        "disconnected",
+                        serde_json::json!({}),
+                    ));
                     break;
                 }
                 Err(ds_device::Error::Timeout(_)) => {}
@@ -1025,7 +1060,7 @@ mod tests {
     #[test]
     fn device_task_with_no_device_accepts_and_drops_pushes() {
         let shutdown = Shutdown::manual();
-        let (handle, thread, status) = spawn(None, shutdown.clone());
+        let (handle, thread, status) = spawn(None, shutdown.clone(), Bus::new());
         assert!(handle.push(DevicePush::State {
             path: "/controls/keys/0/image".into(),
             value: json!({"kind": "color", "value": "#ffffff"}),
