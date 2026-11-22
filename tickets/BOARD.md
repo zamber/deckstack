@@ -68,4 +68,4 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-093 | done | 0 | test | S | vibe/DS-093 | - | fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass |
 | DS-094 | done | 0 | docs | S | vibe/DS-094 | - | run-log evidence backfill for the rows flagged by the independent review |
 | DS-095 | done | 1 | daemon | M | vibe/DS-095 | DS-015, DS-017 | ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports |
-| DS-096 | doing | 1 | state | S | vibe/DS-096 | - | state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) |
+| DS-096 | review | 1 | state | S | vibe/DS-096 | - | state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) |

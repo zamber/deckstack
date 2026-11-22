@@ -29,12 +29,14 @@
     },
     "controls": {
       "type": "object",
+      "description": "The complete control surface of the deck layout: keys, dial, knobs, faders, rollers — no other kind (the write path rejects unknown kinds).",
+      "additionalProperties": false,
       "properties": {
-        "keys": {"type": "object", "patternProperties": {"^(?:[0-9]|1[0-4])$": {"$ref": "#/$defs/screenControl"}}, "description": "Key indices 0-14 only; '15' and '99' must NOT match (S8 regression test in tests/fixtures/)."},
+        "keys": {"type": "object", "patternProperties": {"^(?:[0-9]|1[0-4])$": {"$ref": "#/$defs/screenControl"}}, "additionalProperties": false, "description": "Key indices 0-14 only (15 keys on the screen module); '15', '99' and any other index are rejected at object level (S8 regression tests in tests/fixtures/)."},
         "dial": {"$ref": "#/$defs/screenControl"},
-        "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}},
-        "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}},
-        "rollers": {"type": "object", "patternProperties": {"^[0-1]$": {"$ref": "#/$defs/ledControl"}}}
+        "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Knob indices 0-2 only (3 knobs); any other index is rejected at object level (S8)."},
+        "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Fader indices 0-4 only (5 faders); any other index is rejected at object level (S8)."},
+        "rollers": {"type": "object", "patternProperties": {"^[0-1]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Roller indices 0-1 only (2 rollers); any other index is rejected at object level (S8)."}
       }
     },
     "bindings": {
@@ -67,7 +69,7 @@
     },
     "streams": {
       "type": "object",
-      "description": "Per-target stream CONFIG only (durable). Live stats are non-durable telemetry under /telemetry/streams (S1).",
+      "description": "Per-target stream CONFIG only (durable). Live stats are non-durable telemetry under /telemetry/streams (S1). Targets are the unified vocabulary keys | dial | key:<0-14> (S6); any other key is rejected at object level.",
       "patternProperties": {
         "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$": {
           "type": "object",
@@ -75,7 +77,8 @@
             "queue_depth": {"type": "integer", "minimum": 1, "maximum": 2, "default": 2, "description": "1 in flight + 1 waiting (latest-frame-wins)."}
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "telemetry": {
       "type": "object",
@@ -83,6 +86,7 @@
       "properties": {
         "streams": {
           "type": "object",
+          "description": "Non-durable per-target stream stats. Targets are the unified vocabulary keys | dial | key:<0-14> (S6); any other key is rejected at object level.",
           "patternProperties": {
             "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$": {
               "type": "object",
@@ -99,7 +103,8 @@
                 "sampled_at": {"type": "string", "format": "date-time"}
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       }
     },
