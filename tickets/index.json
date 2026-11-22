@@ -1075,11 +1075,11 @@
   {
     "id": "DS-032",
     "title": "ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits",
-    "state": "ready",
+    "state": "doing",
     "phase": 3,
     "lane": "cli",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-032",
     "depends_on": [
       "DS-013",
       "DS-016",
@@ -1093,9 +1093,9 @@
       "bins/ds/src/verbs.rs",
       "bins/ds/src/help.rs"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-032",
+    "worktree": ".worktrees/DS-032",
+    "pr": "prs/DS-032.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
