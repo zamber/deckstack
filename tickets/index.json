@@ -465,7 +465,7 @@
   {
     "id": "DS-016",
     "title": "ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "cli",
     "size": "L",
