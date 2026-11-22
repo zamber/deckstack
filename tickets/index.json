@@ -583,11 +583,11 @@
   {
     "id": "DS-019",
     "title": "systemd user unit + daemon lifecycle runbook",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "packaging",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-019",
     "depends_on": [
       "DS-015"
     ],
@@ -595,9 +595,9 @@
       "new:packaging/systemd/deckstack.service",
       "new:docs/runbook.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-019",
+    "worktree": ".worktrees/DS-019",
+    "pr": "prs/DS-019.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
