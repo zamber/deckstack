@@ -12,3 +12,4 @@ ts	phase	decision	why	evidence	result
 2026-11-22T16:58:24Z	open	DS-013, DS-015, DS-016, DS-017 and DS-018 are ready; none started	stop at a verified checkpoint rather than start a new wave without a review	tickets/BOARD.md	open
 2026-11-22T16:59:11Z	pivot	abandoned the pr.sh rebase conflict resolver edit after a tool visibility error; resolved conflicts manually	the merge had to proceed and the generated-file conflict set is small	tools/pr.sh unchanged; DS-012 merge commit 86f2850	manual path; automation open
 2026-11-22T16:59:11Z	verdict	phase-1 predicate is partial: DS-012 and DS-014 are verified, DS-013 is open	hand back at a verified checkpoint rather than claim the whole gate	main 9f7e5a8; tickets/BOARD.md	INCONCLUSIVE for full predicate; DS-013/015/016/017/018 ready
+2026-11-22T17:05:45Z	handoff	wrote HANDOFF.md for the next driver	user requested a handoff	HANDOFF.md; main 3644d1c	written
