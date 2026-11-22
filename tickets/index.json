@@ -960,7 +960,8 @@
     ],
     "touches": [
       "new:tests/conformance/safety/",
-      "docs/20-security.md"
+      "docs/20-security.md",
+      "tests/conformance/run.py"
     ],
     "branch": null,
     "worktree": null,
@@ -1086,7 +1087,11 @@
     ],
     "touches": [
       "new:bins/ds/src/stream/",
-      "docs/contracts/cli.md"
+      "docs/contracts/cli.md",
+      "bins/ds/src/main.rs",
+      "bins/ds/src/cli.rs",
+      "bins/ds/src/verbs.rs",
+      "bins/ds/src/help.rs"
     ],
     "branch": null,
     "worktree": null,
