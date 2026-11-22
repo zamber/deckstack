@@ -62,4 +62,4 @@ Generated: 2026-11-22 - 59 tickets.
 | DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
 | DS-082 | backlog | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | backlog | 6 | packaging | M | - | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
-| DS-090 | review | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
+| DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
