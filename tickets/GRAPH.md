@@ -52,7 +52,7 @@ graph TD
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::ready
   DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::ready
-  DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::ready
+  DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::doing
   DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::backlog
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::backlog
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(ready), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(ready), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(doing), DS-080(ready), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(ready)
@@ -224,6 +224,5 @@ Critical path length: 10 tickets.
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
-- DS-062 - CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors (lane test)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-080 - Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion (lane test)
