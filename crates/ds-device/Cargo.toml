@@ -4,7 +4,18 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
-description = "Device driver for MasterHub decks over mh-device, plus the virtual transport and the /policy write choke point."
+description = "Device-agnostic driver core for MasterHub decks: transport trait, virtual transport over a Unix socket, and the module report codec with chunk reassembly."
+
+# ADR-010: reuse the upstream crates as pinned git dependencies — no fork, no vendor.
+# mh-device (pinned rev, same as ds-protocol's mh-protocol pin) provides the module identity
+# type the transport trait is keyed on; the real HID transport lands on top of it in DS-021.
+# ds-protocol (DS-010, merged) provides the safe report builders, the input parser and the
+# forbidden-command guard.
+[dependencies]
+ds-protocol = { path = "../ds-protocol" }
+mh-device = { git = "https://github.com/Przemotar/hubdeck.git", rev = "26364e2fdcf86df6c459ea0e940f1dd5ca84cde7" }
+sha2 = "0.10"
+thiserror = "2"
 
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]

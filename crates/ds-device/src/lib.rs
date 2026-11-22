@@ -1,9 +1,50 @@
-//! `ds-device` — HID transport and driver for MasterHub decks, thin over mh-device (ADR-010),
-//! with the virtual transport and the `/policy` write choke point.
+//! `ds-device` — the device-agnostic driver core for MasterHub decks, thin over the reused
+//! upstream crates (ADR-010), plus the virtual transport so the same code runs in CI with no
+//! hardware (ADR-015).
 //!
-//! Component spec: `docs/components/device-driver.md`. This crate is a stub from the DS-004
-//! workspace skeleton: it has no dependencies and no behaviour yet. The real implementation
-//! lands with the phase-1 ticket that owns this component (DS-014 wires in mh-device).
+//! Component spec: `docs/components/device-driver.md`. This crate is the phase-1 core of DS-014:
+//!
+//! - [`transport`] — the [`Transport`] trait (open by URI, send reports, feature queries,
+//!   reader-thread events) and [`open`], which dispatches `virtual:<path>` to
+//!   [`vtransport::VirtualTransport`] and refuses `hid:` until DS-021.
+//! - [`vtransport`] — the virtual transport over a Unix socket; ds-vdev (DS-017) serves the other
+//!   end. The socket protocol is pinned in `docs/components/virtual-device.md`.
+//! - [`frame`] — the socket framing; [`report`] — the module report codec (classify/pad raw
+//!   reports, refuse forbidden bytes); [`module`] — the per-module descriptors (pid, report
+//!   lengths, input tag).
+//! - [`chunks`] — reassembly of chunked image pushes with sha256 verification.
+//! - [`rate`] — host-side write throttling (token bucket; LED cap default 30/s).
+//!
+//! Out of scope here (later tickets): real HID (DS-021), handshake/safe builders on the wire
+//! (DS-022), hot-plug (DS-023), guard/handback (DS-024), and ds-vdev itself (DS-017).
+//!
+//! ```no_run
+//! use ds_device::{DeviceUri, Transport};
+//! use ds_protocol::ModuleKind;
+//!
+//! let uri = DeviceUri::parse("virtual:/tmp/vdev.sock").unwrap();
+//! let dev = ds_device::open(&uri).unwrap();
+//! let keys = ds_device::vtransport::virtual_module_id(ModuleKind::Keys);
+//! let (handshake, _mode) = ds_protocol::enter_software_mode(ModuleKind::Keys).unwrap();
+//! dev.send(&keys, &handshake).unwrap(); // 03 3A 01, padded to 32 B
+//! let ev = dev.recv(std::time::Duration::from_secs(1)).unwrap();
+//! ```
+
+pub mod chunks;
+pub mod error;
+pub mod frame;
+pub mod module;
+pub mod rate;
+pub mod report;
+pub mod transport;
+pub mod uri;
+pub mod vtransport;
+
+pub use chunks::{Reassembled, Reassembler, ReassemblyError};
+pub use error::{Error, Result};
+pub use transport::{open, DeviceEvent, Transport};
+pub use uri::DeviceUri;
+pub use vtransport::VirtualTransport;
 
 /// Crate name, for logs and `--version` output.
 pub const CRATE_NAME: &str = "ds-device";
@@ -18,7 +59,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stub_smoke() {
+    fn crate_metadata() {
         assert_eq!(CRATE_NAME, "ds-device");
         assert!(!version().is_empty());
     }

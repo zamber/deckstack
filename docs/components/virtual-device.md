@@ -39,3 +39,26 @@ so the real `ds-device` code path (chunking, framing, safety) runs unchanged.
   ds-vdevctl --socket /tmp/vdev.sock frames key:0    # sha256 of the reassembled frame
   ds-vdevctl --socket /tmp/vdev.sock writes | tail -3
   ```
+
+## Socket protocol (normative — ds-device ↔ ds-vdev)
+
+Pinned by DS-014; the Rust implementation is `crates/ds-device/src/frame.rs` (host side) and the
+server side lands with DS-017. Every message on the Unix socket is one frame:
+
+```
+u32 LE body_len | u8 kind | u16 LE pid | payload[body_len - 3]
+```
+
+- `pid` is the USB product id of the module the message is about (vendor id `0x2516` always);
+  `pid = 0` means "the connection itself" (only `CLOSE`). `body_len` is in `3..=4096`.
+- Host → device kinds: `0x01` **write** (output report bytes, report id `0x02` first, padded to
+  the module's output report length — 320 B keys/dial, 64 B M0), `0x02` **feature set**
+  (`0x03 …`, padded to 32 B), `0x03` **feature get** (payload = `[feature_id]`), `0x04` **close**
+  (no payload).
+- Device → host kinds: `0x81` **input** (raw input report bytes, id `0x01` first — this is the
+  `--inject` path), `0x82` **ack** (payload = `u32 LE` byte count accepted, the `hid_write`
+  return; sent in request order, possibly delayed by `--throttle-kbps`), `0x83` **answer**
+  (feature report answer bytes, report id first — the reply to `0x03`), `0x84` **error**
+  (payload = UTF-8 message, e.g. a refused forbidden report).
+- One ack per write/feature-set, one answer per feature-get; input reports arrive
+  asynchronously and may interleave with acks/answers. The host matches them by `pid`.
