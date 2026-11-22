@@ -387,8 +387,13 @@ cmd_merge() {
     vibe_commit "ticket($id): mark $id done, record merge $mc (coordination commit)"
   fi
 
-  # cleanup: worktree, branch locally and on review, push main
-  git worktree remove "$ROOT/$wt" || die "could not remove $wt after merge; inspect manually"
+  # cleanup: worktree, branch locally and on review, push main.
+  # A resolved rebase (tools/resolve-rebase.sh) or a sync can leave generated ticket
+  # files dirty in the worktree; the branch is already merged, so discard them.
+  git -C "$ROOT/$wt" reset --hard --quiet 2>/dev/null || true
+  git clean -fdq "$ROOT/$wt" 2>/dev/null || true
+  git worktree remove "$ROOT/$wt" || git worktree remove --force "$ROOT/$wt" \
+    || die "could not remove $wt after merge; inspect manually"
   git worktree prune
   echo "removed worktree $wt"
   git branch -d "$branch" 2>/dev/null || git branch -D "$branch"
