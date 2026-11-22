@@ -367,7 +367,11 @@ cmd_merge() {
   mc=$(git rev-parse HEAD)
   echo "merged as $mc"
 
-  # ticket done on main (board), clear linkage fields, commit the board
+  # Conflict resolution can drop the submit commit's review state; normalize.
+  mstate=$(field "$id" state)
+  if [ "$mstate" = "doing" ]; then
+    $TICKETS state "$id" review || die "could not normalize $id doing->review"
+  fi
   $TICKETS state "$id" done || die "could not set $id done"
   $TICKETS assign "$id" --clear
   # record merge + verdict in the PR record (it arrived on main via the merge)

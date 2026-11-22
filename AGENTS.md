@@ -89,3 +89,4 @@ run report. Under 400 words.
 | Rule | Enforced by |
 |---|---|
 | Workflow-owned coordination files and generated `Cargo.lock` are not feature diff. | `tests/tools/test_check_touches.py` via `tools/check.sh` |
+| A merge normalizes a ticket from doing through review to done; conflict resolution may drop the submit state. | `tools/pr.sh merge`; DS-010 completion |
