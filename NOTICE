@@ -1,0 +1,16 @@
+# NOTICE
+
+deckstack is dual-licensed under the MIT OR Apache-2.0 licenses (see `LICENSE`).
+
+## Third-party attributions
+
+The `ds-protocol` and `ds-device` crates will depend on the `mh-protocol` and
+`mh-device` crates from hubdeck-upstream as pinned git dependencies (ADR-010),
+wired in with tickets DS-010/DS-014. Those crates are themselves licensed
+`MIT OR Apache-2.0`; their copyright notices and license texts are preserved in
+the upstream repository and will be carried into this file when the git
+dependencies land.
+
+Placeholder — replace with the exact upstream repository URL, pinned revision,
+and upstream copyright/license lines when DS-010/DS-014 wire in the
+mh-protocol/mh-device git dependencies.

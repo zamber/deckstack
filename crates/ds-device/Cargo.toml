@@ -1,0 +1,11 @@
+[package]
+name = "ds-device"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Device driver for MasterHub decks over mh-device, plus the virtual transport and the /policy write choke point."
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true

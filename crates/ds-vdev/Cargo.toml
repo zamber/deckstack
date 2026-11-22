@@ -1,0 +1,11 @@
+[package]
+name = "ds-vdev"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Virtual MasterHub at the HID-report level for CI and development (R10). Lib for now; bin lands in phase 1."
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true

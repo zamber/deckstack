@@ -1,0 +1,11 @@
+[package]
+name = "ds-state"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "State document, revisions, transactions and subscriptions (schemas/state.json, docs/contracts/state.md)."
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true
