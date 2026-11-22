@@ -424,11 +424,11 @@
   {
     "id": "DS-015",
     "title": "ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "daemon",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-015",
     "depends_on": [
       "DS-011",
       "DS-012",
@@ -438,9 +438,9 @@
       "new:crates/ds-daemon/",
       "new:crates/ds-client/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-015",
+    "worktree": ".worktrees/DS-015",
+    "pr": "prs/DS-015.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
