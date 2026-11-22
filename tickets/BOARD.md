@@ -26,7 +26,7 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-022 | done | 2 | device | M | vibe/DS-022 | DS-021 | Software-mode handshake, module init, safe builders on real hardware |
 | DS-023 | ready | 2 | device | M | - | DS-022 | Hot-plug rescan, reconnect, re-push, unresponsive-device handling |
 | DS-024 | ready | 2 | daemon | M | - | DS-022 | Guard/handback: clean device state on daemon exit, SIGTERM, crash |
-| DS-025 | doing | 2 | packaging | S | vibe/DS-025 | DS-020 | udev rules, device permissions, install docs (Linux) |
+| DS-025 | review | 2 | packaging | S | vibe/DS-025 | DS-020 | udev rules, device permissions, install docs (Linux) |
 | DS-026 | backlog | 2 | test | M | - | DS-023, DS-024 | Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py) |
 | DS-027 | backlog | 2 | verify | L | - | DS-026 | deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) |
 | DS-028 | backlog | 2 | verify | M | - | DS-026 | Camera golden checks for key:0, panel, LED + calibration procedure |

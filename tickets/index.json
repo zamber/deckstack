@@ -811,7 +811,7 @@
   {
     "id": "DS-025",
     "title": "udev rules, device permissions, install docs (Linux)",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "packaging",
     "size": "S",
