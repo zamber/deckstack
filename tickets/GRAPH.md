@@ -35,10 +35,10 @@ graph TD
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
-  DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::review
-  DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
-  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
-  DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
+  DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::done
+  DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::ready
+  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::ready
+  DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::ready
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
@@ -59,7 +59,7 @@ graph TD
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::backlog
-  DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::backlog
+  DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::ready
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::backlog
@@ -190,14 +190,14 @@ Critical path length: 10 tickets.
 ## Parallel lanes
 
 - **agents** (1): DS-063(backlog)
-- **bench** (1): DS-033(backlog)
+- **bench** (1): DS-033(ready)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
-- **cli** (2): DS-016(done), DS-032(review)
+- **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(ready), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
 - **docs** (2): DS-064(backlog), DS-094(done)
-- **frames** (3): DS-030(done), DS-031(done), DS-034(backlog)
+- **frames** (3): DS-030(done), DS-031(done), DS-034(ready)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
@@ -210,17 +210,21 @@ Critical path length: 10 tickets.
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(ready), DS-093(done)
-- **vdev** (2): DS-017(done), DS-035(backlog)
+- **vdev** (2): DS-017(done), DS-035(ready)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
-- **web** (1): DS-074(backlog)
+- **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
+- DS-033 - Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak (lane bench)
+- DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
+- DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
 - DS-043 - Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests (lane security)
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
 - DS-062 - CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors (lane test)
+- DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-080 - Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion (lane test)

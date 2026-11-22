@@ -1083,7 +1083,7 @@
   {
     "id": "DS-032",
     "title": "ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits",
-    "state": "review",
+    "state": "done",
     "phase": 3,
     "lane": "cli",
     "size": "M",
@@ -1101,9 +1101,9 @@
       "bins/ds/src/verbs.rs",
       "bins/ds/src/help.rs"
     ],
-    "branch": "ticket/DS-032",
-    "worktree": ".worktrees/DS-032",
-    "pr": "prs/DS-032.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1131,7 +1131,7 @@
   {
     "id": "DS-033",
     "title": "Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "bench",
     "size": "M",
@@ -1148,7 +1148,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "cargo bench -p ds-bench -- stream-32fps-query-p99: 32 fps panel push for 60 s on throttled ds-vdev sustains, rev delta == 0, /controls subscription events == 0, dropped == sent - accepted, control get p99 <= 10 ms (p50 <= 2 ms)",
       "frame-push-no-state-churn (S1) and stream-throughput (>= 32 fps accepted on throttled vdev) benches exist with the docs/30-testing.md section 5 budgets",
@@ -1171,7 +1171,7 @@
   {
     "id": "DS-034",
     "title": "Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "frames",
     "size": "M",
@@ -1188,7 +1188,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "GIF and directory animations decode to <= 300 frames at <= 30 fps, min frame 0.02 s; over-limit input is rejected with E_FORMAT/E_LIMIT and never reaches the device",
       "loop flag flows through DSF1 meta (schemas/stream-frame.json) and ds stream push --loop; each frame is still queued latest-frame-wins with no rev churn (S1)",
@@ -1207,7 +1207,7 @@
   {
     "id": "DS-035",
     "title": "vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn",
-    "state": "backlog",
+    "state": "ready",
     "phase": 3,
     "lane": "vdev",
     "size": "M",
@@ -1225,7 +1225,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "ds-vdev --throttle-kbps simulates the ~2.1 MB/s device ceiling (upstream/PROTOCOL.md:265) and --drop-after simulates hot-unplug; both are deterministic and documented",
       "under throttle, ds stream push gets stream-nack/E_LIMIT on credit exhaustion and the CLI exits 5 without spinning; queued frames are dropped+counted per DS-031 policy and the in-flight frame is always sent whole (reassembled vdev sha intact)",
@@ -2055,7 +2055,7 @@
   {
     "id": "DS-074",
     "title": "Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI",
-    "state": "backlog",
+    "state": "ready",
     "phase": 7,
     "lane": "web",
     "size": "M",
@@ -2073,7 +2073,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "scope guard holds: no web UI in alpha (ADR-014, docs/00-scope.md invariant 3) \u2014 this post-alpha ticket may only ship a THIN debug client over the generic WS/HTTP adapter: GET/POST /api/<op> (1 MiB body cap) and /ws (binary frames = DSF1, text = control), 127.0.0.1 bind, Host: 127.0.0.1|localhost + bearer token on every request incl. WS upgrade (T7), 404 at /",
       "if implemented later: bins/ds-web serves static debug assets only (state viewer, event log, frame pusher for debugging) with zero business logic \u2014 all logic stays in the daemon/CLI",
