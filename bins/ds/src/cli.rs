@@ -78,6 +78,23 @@ pub enum Command {
         id: Option<String>,
         topic: Option<String>,
     },
+    /// `ds stream push <target> --file f | --dir d --fps N [--loop] [--credits N]` (DS-032).
+    StreamPush {
+        target: String,
+        file: Option<PathBuf>,
+        dir: Option<PathBuf>,
+        fps: Option<u32>,
+        loop_: bool,
+        credits: Option<u32>,
+    },
+    /// `ds stream stats <target> [--json]` (DS-032).
+    StreamStats {
+        target: String,
+    },
+    /// `ds stream stop <target>` (DS-032).
+    StreamStop {
+        target: String,
+    },
     /// `--help` at some level; the topic selects the text.
     Help(&'static str),
     Version,
@@ -91,14 +108,16 @@ pub struct UsageError(pub String);
 pub const SCHEMA_NAMES: [&str; 5] = ["state", "ipc", "stream-frame", "plugin-manifest", "binding"];
 
 /// Verbs (top-level words).
-pub const VERBS: [&str; 9] = [
-    "get", "set", "watch", "schema", "describe", "daemon", "status", "bind", "unbind",
+pub const VERBS: [&str; 10] = [
+    "get", "set", "watch", "schema", "describe", "daemon", "status", "bind", "unbind", "stream",
 ];
 
 /// Verbs of later phases — recognized, but refused with exit 1 in phase 1.
-const LATER_PHASE: [&str; 5] = ["emit", "events", "stream", "plugin", "token"];
+const LATER_PHASE: [&str; 4] = ["emit", "events", "plugin", "token"];
 
 const DAEMON_SUBS: [&str; 3] = ["start", "stop", "status"];
+
+const STREAM_SUBS: [&str; 3] = ["push", "stats", "stop"];
 
 /// Parse one inline `set` value: JSON when it parses, else the bare scalar as a string
 /// (`'#3cc86e'` → `"#3cc86e"`, `80` → `80`, `'"Salon"'` → `"Salon"`).
@@ -143,6 +162,10 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
     let mut do_steps: Vec<String> = Vec::new();
     let mut when: Option<String> = None;
     let mut topic_flag: Option<String> = None;
+    let mut dir: Option<PathBuf> = None;
+    let mut fps: Option<u32> = None;
+    let mut loop_ = false;
+    let mut credits: Option<u32> = None;
     let mut foreground = false;
     let mut help = false;
     let mut version = false;
@@ -180,6 +203,22 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
             "--do" => do_steps.push(value_of(args, &mut i, &inline, flag)?),
             "--when" => when = Some(value_of(args, &mut i, &inline, flag)?),
             "--topic" => topic_flag = Some(value_of(args, &mut i, &inline, flag)?),
+            "--dir" => dir = Some(PathBuf::from(value_of(args, &mut i, &inline, flag)?)),
+            "--fps" => {
+                let s = value_of(args, &mut i, &inline, flag)?;
+                fps = Some(s.parse::<u32>().map_err(|_| {
+                    UsageError(format!(
+                        "--fps needs a whole number of frames per second (1-30), got {s:?}"
+                    ))
+                })?);
+            }
+            "--loop" => loop_ = true,
+            "--credits" => {
+                let s = value_of(args, &mut i, &inline, flag)?;
+                credits = Some(s.parse::<u32>().map_err(|_| {
+                    UsageError(format!("--credits needs a non-negative integer, got {s:?}"))
+                })?);
+            }
             "--json" => set_mode(&mut g, OutputMode::Json)?,
             "--ndjson" => set_mode(&mut g, OutputMode::Ndjson)?,
             "--compact" => g.compact = true,
@@ -388,6 +427,101 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
                 }
             }
         }
+        "stream" => {
+            reject_ndjson(&g, "stream")?;
+            let Some(sub) = rest.first() else {
+                return Err(UsageError(format!(
+                    "stream needs a subcommand: {}",
+                    STREAM_SUBS.join(" | ")
+                )));
+            };
+            let sub_label = format!("stream {sub}");
+            match sub.as_str() {
+                "push" => {
+                    if rest.len() > 2 {
+                        return Err(UsageError(format!(
+                            "stream push takes one target, got extra: {}",
+                            rest[2..].join(" ")
+                        )));
+                    }
+                    let target = rest.get(1).ok_or_else(|| {
+                        UsageError(
+                            "stream push needs a target: keys | key:0-14 | dial (S6)".to_string(),
+                        )
+                    })?;
+                    let target = crate::stream::parse_target(target).map_err(UsageError)?;
+                    match (&file, &dir) {
+                        (Some(_), Some(_)) => {
+                            return Err(UsageError(
+                                "stream push takes either --file <f> or --dir <d>, not both"
+                                    .to_string(),
+                            ))
+                        }
+                        (None, None) => {
+                            return Err(UsageError(
+                                "stream push needs a source: --file <frame> or --dir <dir> --fps N"
+                                    .to_string(),
+                            ))
+                        }
+                        _ => {}
+                    }
+                    if let (Some(d), None) = (&dir, fps) {
+                        return Err(UsageError(format!(
+                            "--dir {} needs --fps N (1-30) for the animation rate",
+                            d.display()
+                        )));
+                    }
+                    if let Some(f) = fps {
+                        if !(1..=30).contains(&f) {
+                            return Err(UsageError(format!(
+                                "--fps must be in 1..=30 (contract cap 30 fps), got {f}"
+                            )));
+                        }
+                    }
+                    if let Some(c) = credits {
+                        if !(1..=1024).contains(&c) {
+                            return Err(UsageError(format!(
+                                "--credits must be in 1..=1024, got {c}"
+                            )));
+                        }
+                    }
+                    Command::StreamPush {
+                        target,
+                        file,
+                        dir,
+                        fps,
+                        loop_,
+                        credits,
+                    }
+                }
+                "stats" | "stop" => {
+                    reject_push_flags(&file, &dir, fps, loop_, credits, &sub_label)?;
+                    if rest.len() > 2 {
+                        return Err(UsageError(format!(
+                            "stream {sub} takes one target, got extra: {}",
+                            rest[2..].join(" ")
+                        )));
+                    }
+                    let target = rest.get(1).ok_or_else(|| {
+                        UsageError(format!(
+                            "stream {sub} needs a target: keys | key:0-14 | dial (S6)"
+                        ))
+                    })?;
+                    let target = crate::stream::parse_target(target).map_err(UsageError)?;
+                    if sub.as_str() == "stats" {
+                        Command::StreamStats { target }
+                    } else {
+                        Command::StreamStop { target }
+                    }
+                }
+                other => {
+                    return Err(UsageError(format!(
+                        "unknown stream subcommand '{other}' (valid: {})",
+                        STREAM_SUBS.join(", ")
+                    )))
+                }
+            }
+        }
         "migrate" => {
             return Err(UsageError(
                 "there is no 'migrate' verb — porting of old apps is manual and ticket-driven (docs/70-porting-notes.md)"
@@ -422,6 +556,23 @@ fn reject_ndjson(g: &Global, verb: &str) -> Result<(), UsageError> {
     if g.mode == OutputMode::Ndjson {
         return Err(UsageError(format!(
             "--ndjson is only valid for streaming verbs (watch); '{verb}' takes --json"
+        )));
+    }
+    Ok(())
+}
+
+/// `stream stats|stop` take no push-source flags.
+fn reject_push_flags(
+    file: &Option<PathBuf>,
+    dir: &Option<PathBuf>,
+    fps: Option<u32>,
+    loop_: bool,
+    credits: Option<u32>,
+    label: &str,
+) -> Result<(), UsageError> {
+    if file.is_some() || dir.is_some() || fps.is_some() || loop_ || credits.is_some() {
+        return Err(UsageError(format!(
+            "'{label}' takes no --file/--dir/--fps/--loop/--credits (push-only flags)"
         )));
     }
     Ok(())
@@ -463,6 +614,16 @@ fn help_command(positionals: &[String]) -> Result<Command, UsageError> {
                 DAEMON_SUBS.join(", ")
             ))),
         },
+        "stream" => match positionals.get(1).map(String::as_str) {
+            None => Ok(Command::Help("stream")),
+            Some("push") => Ok(Command::Help("stream push")),
+            Some("stats") => Ok(Command::Help("stream stats")),
+            Some("stop") => Ok(Command::Help("stream stop")),
+            Some(other) => Err(UsageError(format!(
+                "unknown stream subcommand '{other}' (valid: {})",
+                STREAM_SUBS.join(", ")
+            ))),
+        },
         v if VERBS.contains(&v) => Ok(Command::Help(match v {
             "get" => "get",
             "set" => "set",
@@ -472,6 +633,7 @@ fn help_command(positionals: &[String]) -> Result<Command, UsageError> {
             "status" => "status",
             "bind" => "bind",
             "unbind" => "unbind",
+            "stream" => "stream",
             _ => "top",
         })),
         "migrate" => Err(UsageError(
@@ -823,5 +985,161 @@ mod tests {
             parse_inline_value("{\"kind\":\"icon\",\"name\":\"tabler:bolt\"}"),
             json!({"kind":"icon","name":"tabler:bolt"})
         );
+    }
+
+    #[test]
+    fn parses_stream_verbs() {
+        let (c, _) = parse_ok(&["stream", "push", "key:0", "--file", "examples/key.png"]);
+        assert_eq!(
+            c,
+            Command::StreamPush {
+                target: "key:0".into(),
+                file: Some(PathBuf::from("examples/key.png")),
+                dir: None,
+                fps: None,
+                loop_: false,
+                credits: None,
+            }
+        );
+        let (c, _) = parse_ok(&[
+            "stream",
+            "push",
+            "keys",
+            "--dir",
+            "frames/",
+            "--fps",
+            "30",
+            "--loop",
+            "--credits",
+            "64",
+            "--json",
+        ]);
+        assert_eq!(
+            c,
+            Command::StreamPush {
+                target: "keys".into(),
+                file: None,
+                dir: Some(PathBuf::from("frames/")),
+                fps: Some(30),
+                loop_: true,
+                credits: Some(64),
+            }
+        );
+        // --fps= form
+        let (c, _) = parse_ok(&["stream", "push", "dial", "--dir=/tmp/f", "--fps=12"]);
+        assert_eq!(
+            c,
+            Command::StreamPush {
+                target: "dial".into(),
+                file: None,
+                dir: Some(PathBuf::from("/tmp/f")),
+                fps: Some(12),
+                loop_: false,
+                credits: None,
+            }
+        );
+        let (c, _) = parse_ok(&["stream", "stats", "keys", "--json"]);
+        assert_eq!(
+            c,
+            Command::StreamStats {
+                target: "keys".into()
+            }
+        );
+        let (c, _) = parse_ok(&["stream", "stop", "dial"]);
+        assert_eq!(
+            c,
+            Command::StreamStop {
+                target: "dial".into()
+            }
+        );
+    }
+
+    #[test]
+    fn stream_target_vocabulary_is_s6() {
+        for t in ["keys", "dial", "key:0", "key:7", "key:14"] {
+            let (c, _) = parse_ok(&["stream", "stats", t]);
+            assert_eq!(c, Command::StreamStats { target: t.into() });
+        }
+        // panel/screen are not targets (S6); neither are out-of-range or malformed keys
+        for bad in [
+            "panel", "screen", "key:15", "key:-1", "key:99", "keys2", "KEY:0", "key:x", "",
+        ] {
+            let e = parse_err(&["stream", "push", bad, "--file", "f"]);
+            assert!(e.contains("invalid stream target"), "{bad}: {e}");
+            assert!(e.contains("keys | key:0-14 | dial"), "{bad}: {e}");
+        }
+    }
+
+    #[test]
+    fn stream_push_source_and_rate_validation() {
+        // needs a source
+        assert!(parse_err(&["stream", "push", "keys"]).contains("needs a source"));
+        // not both
+        assert!(
+            parse_err(&["stream", "push", "keys", "--file", "a", "--dir", "b", "--fps", "10"])
+                .contains("not both")
+        );
+        // --dir needs --fps
+        assert!(parse_err(&["stream", "push", "keys", "--dir", "frames/"]).contains("--fps"));
+        // fps bounds (contract cap 30)
+        assert!(
+            parse_err(&["stream", "push", "keys", "--dir", "d", "--fps", "0"]).contains("1..=30")
+        );
+        assert!(
+            parse_err(&["stream", "push", "keys", "--dir", "d", "--fps", "31"]).contains("1..=30")
+        );
+        assert!(
+            parse_err(&["stream", "push", "keys", "--file", "f", "--fps", "x"])
+                .contains("--fps needs")
+        );
+        // credits bounds
+        assert!(
+            parse_err(&["stream", "push", "keys", "--file", "f", "--credits", "0"])
+                .contains("1..=1024")
+        );
+        assert!(
+            parse_err(&["stream", "push", "keys", "--file", "f", "--credits", "1025"])
+                .contains("1..=1024")
+        );
+        // extra positionals
+        assert!(
+            parse_err(&["stream", "push", "keys", "extra", "--file", "f"]).contains("got extra")
+        );
+        assert!(parse_err(&["stream", "stats", "keys", "extra"]).contains("got extra"));
+        // stats/stop reject push-only flags
+        assert!(parse_err(&["stream", "stats", "keys", "--file", "f"]).contains("push-only flags"));
+        assert!(parse_err(&["stream", "stop", "keys", "--loop"]).contains("push-only flags"));
+        assert!(parse_err(&["stream", "stop", "keys", "--fps", "30"]).contains("push-only flags"));
+        // missing target / subcommand
+        assert!(parse_err(&["stream", "push"]).contains("needs a target"));
+        assert!(parse_err(&["stream", "stats"]).contains("needs a target"));
+        assert!(parse_err(&["stream"]).contains("needs a subcommand"));
+        assert!(parse_err(&["stream", "frobnicate", "keys"]).contains("unknown stream subcommand"));
+        // --ndjson is refused for the whole stream group
+        for v in [
+            vec!["stream", "push", "keys", "--file", "f", "--ndjson"],
+            vec!["stream", "stats", "keys", "--ndjson"],
+            vec!["stream", "stop", "keys", "--ndjson"],
+        ] {
+            assert!(parse_err(&v).contains("--ndjson is only valid"), "{v:?}");
+        }
+    }
+
+    #[test]
+    fn help_at_every_stream_level() {
+        assert_eq!(parse_ok(&["stream", "--help"]).0, Command::Help("stream"));
+        assert_eq!(
+            parse_ok(&["stream", "push", "--help"]).0,
+            Command::Help("stream push")
+        );
+        assert_eq!(
+            parse_ok(&["stream", "stats", "--help"]).0,
+            Command::Help("stream stats")
+        );
+        assert_eq!(
+            parse_ok(&["stream", "stop", "--help"]).0,
+            Command::Help("stream stop")
+        );
+        assert!(parse_err(&["stream", "bogus", "--help"]).contains("unknown stream subcommand"));
     }
 }

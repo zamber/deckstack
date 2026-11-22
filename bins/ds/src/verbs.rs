@@ -56,6 +56,16 @@ pub fn run(cmd: Command, g: &Global) -> Result<i32, Failure> {
         Command::Unbind { id, topic } => {
             crate::unbind::verb_unbind(g, id.as_deref(), topic.as_deref())
         }
+        Command::StreamPush {
+            target,
+            file,
+            dir,
+            fps,
+            loop_,
+            credits,
+        } => crate::stream::verb_push(g, &target, file, dir, fps, loop_, credits),
+        Command::StreamStats { target } => crate::stream::verb_stats(g, &target),
+        Command::StreamStop { target } => crate::stream::verb_stop(g, &target),
         Command::Help(_) | Command::Version => Ok(0), // handled in main
     }
 }
