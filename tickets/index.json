@@ -2270,5 +2270,93 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-092",
+    "title": "tickets.py add-touch: extend a ticket's touches without hand-editing metadata",
+    "state": "ready",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "tools/tickets.py",
+      "docs/AGENT-WORKFLOW.md",
+      "tickets/README.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "python3 tools/tickets.py add-touch DS-XXX --add <path> appends the path to touches, syncs generated files and validates",
+      "the command refuses duplicates, unknown tickets and doing-ticket collisions with another doing ticket",
+      "docs/AGENT-WORKFLOW.md documents it and removes the hand-edit workaround"
+    ],
+    "verification": [
+      "python3 tools/tickets.py add-touch DS-092 --add docs/AGENT-WORKFLOW.md",
+      "python3 tools/tickets.py validate",
+      "sh tools/check.sh"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-093",
+    "title": "fixture gate: fix the validate.js `not` short-circuit that lets a response without ok pass",
+    "state": "ready",
+    "phase": 0,
+    "lane": "test",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "tests/fixtures/validate.js",
+      "tests/fixtures/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "a fixture response missing `ok` fails the gate with a precise message",
+      "the existing fixture corpus still prints ALL CHECKS PASSED",
+      "a regression fixture covers the short-circuit case"
+    ],
+    "verification": [
+      "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-094",
+    "title": "run-log evidence backfill for the rows flagged by the independent review",
+    "state": "ready",
+    "phase": 0,
+    "lane": "docs",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "docs/run-log.tsv"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "the start, policy, both pivot rows and the 16:23:03Z merge row carry a concrete command or hash in evidence",
+      "no other row is reworded and the TSV stays parseable",
+      "docs/reviews/2026-11-22-independent-review.md findings map to rows one by one"
+    ],
+    "verification": [
+      "python3 -c 'import csv;rows=list(csv.reader(open(\"docs/run-log.tsv\"),delimiter=\"\\t\"));print(len(rows))'",
+      "sh tools/check.sh"
+    ],
+    "blocks": []
   }
 ]
