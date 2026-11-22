@@ -91,6 +91,7 @@ python3 tools/tickets.py recover       # dangling doing/review tickets (branch/w
 python3 tools/tickets.py validate      # board gate (also: generated files in sync)
 python3 tools/tickets.py sync          # regenerate BOARD.md/GRAPH.md/index.json
 python3 tools/tickets.py check-touches DS-XXX --diff main...ticket/DS-XXX   # diff within touches? (globs/dirs/new:)
+python3 tools/tickets.py add-touch DS-XXX --add <path> [--add ...]   # extend touches when scope must change (lock + validate + sync; refuses duplicates, invalid entries, doing-ticket collisions)
 python3 tools/tickets.py show DS-XXX --json   # full metadata, machine-readable
 python3 tools/tickets.py field DS-XXX state   # one field
 ```
@@ -99,7 +100,9 @@ python3 tools/tickets.py field DS-XXX state   # one field
 
 - `touches` is the ownership list; `tools/tickets.py claim` (and `wt.sh new`) refuse a
   claim that overlaps a doing ticket's `touches` (`validate` also reports it as a
-  `file collision` error).
+  `file collision` error). If scope must change mid-flight, extend `touches` through the
+  tool — `python3 tools/tickets.py add-touch DS-XXX --add <path>` — never by hand-editing
+  the ticket's metadata block.
 - Contracts (`schemas/`, `docs/contracts/`) are high-contention: one ticket at a time.
 - `.worktrees/` and `.review.git/` are gitignored; `prs/<id>.md` records are committed.
 - Rebase conflicts in `pr.sh merge` auto-resolve only for the generated/workflow paths

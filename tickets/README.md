@@ -54,7 +54,9 @@ sh tools/pr.sh submit DS-XXX                                # writes prs/DS-XXX.
 ```
 
 One ticket = one PR = one worktree. Never commit to `main` directly; never edit files
-outside your ticket's `touches` (update the ticket first if scope must change).
+outside your ticket's `touches` (if scope must change, extend them through the tool first:
+`python3 tools/tickets.py add-touch DS-XXX --add <path>` — never hand-edit the metadata
+block).
 `tools/wt.sh`, `tools/pr.sh`, `tools/setup-review-remote.sh`, and `prs/` land via DS-002.
 
 ## Recovery after a dead worker
@@ -97,6 +99,7 @@ overlap, sequence the tickets or split one. `new:` marks a path that does not ex
 ```sh
 python3 tools/tickets.py sync       # regenerate index.json/BOARD.md/GRAPH.md; auto-promote ready
 python3 tools/tickets.py validate   # must print OK; CI gate via tools/check.sh (DS-003)
+python3 tools/tickets.py add-touch DS-XXX --add <path> [--add …]   # extend touches when scope must change (lock + validate + sync; refuses duplicates, invalid entries, doing-ticket collisions)
 python3 tools/tickets.py state DS-XXX <state> [--owner …] [--reason …]
 python3 tools/tickets.py show DS-XXX
 ```
