@@ -67,7 +67,7 @@ graph TD
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
   DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::doing
-  DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::doing
+  DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::review
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::ready
   DS001 --> DS006
   DS005 --> DS006
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (1): DS-011(done)
-- **test** (9): DS-018(ready), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog), DS-093(doing)
+- **test** (9): DS-018(ready), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog), DS-093(review)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
