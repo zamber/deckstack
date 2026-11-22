@@ -1,0 +1,24 @@
+# deckstack umbrella workspace — virtual manifest (docs/50-repo-topology.md §1).
+#
+# Crates live under crates/; the CLI/sender binaries under bins/ join the members
+# glob when bins/ first exists (cargo rejects an empty "bins/*" glob, so it is not
+# listed yet — phase 1 adds it together with the first bin).
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+
+# Workspace lints: keep `cargo clippy --workspace -- -D warnings` meaningful without
+# fighting stubs. Only the default (correctness/style/complexity/perf) groups are
+# denied — no pedantic/restriction soup. Crates opt in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

@@ -1,0 +1,11 @@
+[package]
+name = "ds-client"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Client library shared by the ds CLI, ds-focus, ds-mcp and agents (ADR-002)."
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true

@@ -1,0 +1,3 @@
+# Project rustfmt defaults (boring). See docs/50-repo-topology.md; set by DS-004.
+max_width = 100
+edition = "2021"

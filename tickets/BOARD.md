@@ -8,7 +8,7 @@ Generated: 2026-11-22 - 59 tickets.
 | DS-001 | done | 0 | workflow | M | autolith/run-50951 | - | Ticket board tool: tools/tickets.py (parse, validate, sync, board/graph/index) |
 | DS-002 | done | 0 | workflow | M | autolith/run-4004342966 | - | Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold |
 | DS-003 | done | 0 | ci | M | autolith/run-4004342966 | - | Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml |
-| DS-004 | doing | 0 | build | S | vibe/DS-004 | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
+| DS-004 | review | 0 | build | S | vibe/DS-004 | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
 | DS-005 | done | 0 | workflow | S | autolith/run-4004342966 | - | Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist |
 | DS-006 | done | 0 | workflow | M | autolith/run-4004342966 | DS-001, DS-005 | Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented |
 | DS-010 | backlog | 1 | protocol | M | - | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |

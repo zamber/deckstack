@@ -1,0 +1,3 @@
+# Project clippy defaults (boring — no pedantic/restriction lint soup).
+# Keep msrv in sync with rust-version in the root Cargo.toml.
+msrv = "1.85"
