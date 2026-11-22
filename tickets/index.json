@@ -1083,7 +1083,7 @@
   {
     "id": "DS-032",
     "title": "ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits",
-    "state": "doing",
+    "state": "review",
     "phase": 3,
     "lane": "cli",
     "size": "M",
@@ -1105,7 +1105,7 @@
     "worktree": ".worktrees/DS-032",
     "pr": "prs/DS-032.md",
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "ds stream push <target> --file f (one frame), --dir d --fps N (animation from a directory), --loop; target in keys|key:N|dial only (no panel/screen synonyms, S6)",
       "ds stream stats <target> --json prints the /telemetry/streams/<target> stats object (no rev); ds stream stop <target> stops the producer",

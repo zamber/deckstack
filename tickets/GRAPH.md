@@ -35,7 +35,7 @@ graph TD
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
-  DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::doing
+  DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::review
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
@@ -193,7 +193,7 @@ Critical path length: 10 tickets.
 - **bench** (1): DS-033(backlog)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
-- **cli** (2): DS-016(done), DS-032(doing)
+- **cli** (2): DS-016(done), DS-032(review)
 - **daemon** (3): DS-015(done), DS-024(ready), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
 - **docs** (2): DS-064(backlog), DS-094(done)
