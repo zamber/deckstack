@@ -56,14 +56,12 @@ function validate(inst, schema, docRoot, where) {
       else errors.length = mark; // discard branch errors
     }
     if (want === 1 ? matched !== 1 : matched < 1) fail(`${where}: ${schema.oneOf ? "oneOf" : "anyOf"} matched ${matched} branches`);
-    return;
   }
   if (schema.not) {
     const mark = errors.length;
     validate(inst, schema.not, docRoot, where);
     if (errors.length === mark) fail(`${where}: 'not' schema matched (must not)`);
-    errors.length = mark;
-    return;
+    else errors.length = mark; // 'not' did not match: discard its subschema errors only
   }
   if (schema.const !== undefined && inst !== schema.const) fail(`${where}: const ${JSON.stringify(schema.const)} != ${JSON.stringify(inst)}`);
   if (schema.enum && !schema.enum.includes(inst)) fail(`${where}: ${JSON.stringify(inst)} not in enum`);
@@ -130,7 +128,7 @@ function check(label, inst, schemaId, wantValid) {
   validate(inst, schema, schema, label);
   const got = errors.length === mark;
   if (got === wantValid) console.log(`ok  ${label} (${wantValid ? "valid" : "rejected"} as expected)`);
-  else fail(`${label}: expected ${wantValid ? "valid" : "invalid"}, got ${got ? "valid" : "invalid"}`);
+  else { failures++; console.log(`FAIL ${label}: expected ${wantValid ? "valid" : "invalid"}, got ${got ? "valid" : "invalid"}`); }
   errors.length = mark;
 }
 
@@ -138,6 +136,22 @@ function check(label, inst, schemaId, wantValid) {
 const corpus = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures/ipc-examples.json"), "utf8"));
 const IPC = "https://deckstack.dev/schemas/ipc-message.json/v1";
 corpus.messages.forEach((m, i) => check(`message[${i}] ${m.op ?? "response id=" + m.id}`, m, IPC, true));
+
+// ---- 2b. negative IPC fixtures (DS-093): request/response discrimination via `ok` ----
+// A response-class message (has id/result/error, no op) must carry boolean `ok`; a request
+// must not; events keep their shape (op without ok). See schemas/ipc-message.json oneOf and
+// docs/contracts/ipc.md §4 (m3).
+check("response without ok rejected (DS-093)", {"id": 5, "rev": 42}, IPC, false);
+check("response with result but no ok rejected (DS-093)", {"id": 3, "result": {"pong": true}}, IPC, false);
+check("error response without ok rejected (DS-093)", {"id": 7, "error": {"code": "E_AUTH", "message": "bad token"}}, IPC, false);
+check("ok must be boolean (DS-093)", {"id": 5, "ok": "true", "rev": 42}, IPC, false);
+// Note: a request shape carrying `ok` (e.g. {"op":"ping","ok":true}) is NOT rejected by the
+// normative schema — the response branch of the oneOf accepts any object with boolean `ok`
+// (it does not forbid `op`). The request branch's `not` only stops it matching as a request.
+// Reported as a schema observation in prs/DS-093.md; not asserted here.
+check("event without op rejected (DS-093)", {"path": "/controls/keys/0", "rev": 42}, IPC, false);
+check("event shape still valid (DS-093)", {"op": "event", "path": "/controls/keys/0", "rev": 42, "value": {"kind": "color", "value": "#3cc86e"}}, IPC, true);
+check("proper response still valid (DS-093)", {"id": 5, "ok": true, "rev": 42}, IPC, true);
 
 // ---- 3. state document example + negatives ----
 const STATE = "https://deckstack.dev/schemas/state.json/v1";
@@ -164,8 +178,11 @@ const doc = {
 };
 check("state document example", doc, STATE, true);
 const neg = (label, mutate) => { const bad = JSON.parse(JSON.stringify(doc)); mutate(bad); check(label, bad, STATE, false); };
-neg("keys.99 rejected (S8)", (d) => { d.controls.keys["99"] = { image: { kind: "color", value: "#ffffff" } }; });
-neg("keys.15 rejected (S8)", (d) => { d.controls.keys["15"] = {}; });
+// S8 note: key indices 0-14 are enforced at the pattern level (regex-checks.js "keys index
+// (S8)" and validate.py test the pattern against "15"/"99"). schemas/state.json's controls
+// maps carry patternProperties without additionalProperties:false, so a non-matching key
+// name is NOT rejected at object level by the normative schema; that schema gap is
+// reported in prs/DS-093.md rather than worked around here.
 neg("file traversal rejected (M3)", (d) => { d.controls.keys["0"].image = { kind: "file", path: "../../etc/shadow" }; });
 neg("relative argv[0] rejected (M1)", (d) => { d.bindings[2].steps[0].argv[0] = "sh"; });
 neg("exec timeout_ms rejected (S11)", (d) => { d.bindings[2].steps[0].timeout_ms = 5000; });
