@@ -46,7 +46,7 @@
   },
   "oneOf": [
     {"$comment": "=== requests (client -> daemon); none has 'ok' ===", "allOf": [{"$ref": "#/$defs/envelope"}], "not": {"required": ["ok"]}, "oneOf": [
-      {"properties": {"op": {"const": "hello"}, "protocol": {"const": 1}, "client": {"type": "string"}}, "required": ["op", "protocol"]},
+      {"properties": {"op": {"const": "hello"}, "protocol": {"type": "integer", "minimum": 0, "description": "Wire protocol version. The server answers E_VERSION unless protocol == 1 (docs/contracts/ipc.md §2); the schema only bounds the type so a mismatched hello can be parsed and rejected with E_VERSION rather than E_SCHEMA."}, "client": {"type": "string"}}, "required": ["op", "protocol"]},
       {"properties": {"op": {"const": "auth"}, "token": {"type": "string", "minLength": 16}, "scope": {"enum": ["read", "mutate", "admin"]}}, "required": ["op", "token"]},
       {"properties": {"op": {"const": "ping"}}},
       {"properties": {"op": {"const": "get"}, "path": {"$ref": "#/$defs/path"}, "fields": {"type": "array", "items": {"type": "string"}}}, "required": ["op", "path"]},
@@ -55,13 +55,13 @@
       {"properties": {"op": {"const": "unsubscribe"}, "path": {"$ref": "#/$defs/path"}}, "required": ["op", "path"]},
       {"properties": {"op": {"const": "emit"}, "topic": {"type": "string", "pattern": "^(deck|app)/"}, "payload": {}}, "required": ["op", "topic"]},
       {"properties": {"op": {"const": "bind"}, "binding": {"$ref": "https://deckstack.dev/schemas/binding.json/v1"}}, "required": ["op", "binding"]},
-      {"properties": {"op": {"const": "unbind"}, "id": {"type": "string", "pattern": "^b[0-9]{4,}$"}}, "required": ["op", "id"]},
-      {"properties": {"op": {"const": "plugin"}, "action": {"enum": ["list", "invoke", "install", "remove"]}, "id": {"type": "string"}, "args": {}}, "required": ["op", "action"]},
+      {"properties": {"op": {"const": "unbind"}, "binding": {"type": "string", "pattern": "^b[0-9]{4,}$", "description": "Binding id to remove. Named 'binding' (not 'id') because the envelope's 'id' is the integer correlation id; both must be able to coexist on one request."}, "topic": {"type": "string", "pattern": "^(deck|app)/", "description": "Alternative: remove by topic (ds unbind --topic)."}}, "required": ["op"], "anyOf": [{"required": ["binding"]}, {"required": ["topic"]}]},
+      {"properties": {"op": {"const": "plugin"}, "action": {"enum": ["list", "invoke", "install", "remove"]}, "plugin": {"type": "string", "description": "Plugin id. Named 'plugin' (not 'id') because the envelope's 'id' is the integer correlation id; both must be able to coexist on one request."}, "args": {}}, "required": ["op", "action"]},
       {"properties": {"op": {"const": "stream-open"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}, "credits": {"type": "integer", "minimum": 1, "maximum": 1024}}, "required": ["op", "target"], "description": "B1/S14: control-plane op that authorizes the client to push DSF1 binary frames for 'target' on the stream socket; the daemon replies with the credit budget. ds stream push = stream-open + binary frames, NOT an NDJSON op."},
       {"properties": {"op": {"const": "stream-stats"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}}, "required": ["op", "target"], "description": "B1: reads /telemetry/streams/<target> (non-durable, no rev bump, S1)."},
       {"properties": {"op": {"const": "stream-stop"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}}, "required": ["op", "target"], "description": "B1: drains and closes a stream target; waiting frame dropped, counted."},
       {"properties": {"op": {"const": "daemon"}, "action": {"enum": ["status", "stop", "reload"]}, "device": {"type": "string"}}, "required": ["op", "action"]},
-      {"properties": {"op": {"const": "token"}, "action": {"enum": ["list", "issue", "revoke"]}, "scope": {"enum": ["read", "mutate", "admin"]}, "id": {"type": "string"}}, "required": ["op", "action"]},
+      {"properties": {"op": {"const": "token"}, "action": {"enum": ["list", "issue", "revoke"]}, "scope": {"enum": ["read", "mutate", "admin"]}, "token_id": {"type": "string", "description": "Token id for 'revoke'. Named 'token_id' (not 'id') because the envelope's 'id' is the integer correlation id."}}, "required": ["op", "action"]},
       {"properties": {"op": {"const": "schema"}, "name": {"enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding"]}}, "required": ["op", "name"]}
     ]},
     {"$comment": "=== responses and async server messages (daemon -> client); all have 'ok' except events ===", "anyOf": [

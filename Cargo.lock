@@ -160,6 +160,11 @@ dependencies = [
 [[package]]
 name = "ds-client"
 version = "0.1.0"
+dependencies = [
+ "ds-ipc",
+ "serde_json",
+ "tempfile",
+]
 
 [[package]]
 name = "ds-daemon"
@@ -178,6 +183,12 @@ dependencies = [
 [[package]]
 name = "ds-ipc"
 version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
 
 [[package]]
 name = "ds-protocol"

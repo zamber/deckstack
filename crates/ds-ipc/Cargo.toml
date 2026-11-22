@@ -6,6 +6,18 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 description = "IPC framing and auth: NDJSON control endpoint, binary DSF1 stream endpoint, token with instant revocation (docs/contracts/ipc.md)."
 
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# JSON Schema (draft 2020-12) validation of every control message against
+# schemas/ipc-message.json, embedded at compile time. Default features (HTTP
+# resolution) are off: the external $ref to binding.json is served from the
+# embedded copy by a local retriever, so no network code is pulled in.
+jsonschema = { version = "0.63", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
 workspace = true
