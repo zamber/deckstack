@@ -44,6 +44,7 @@ rebase_in_progress || {
 
 MAX_ITER=20
 iter=0
+resolved_tickets=0
 TMP=$(mktemp -d) || { echo "resolve-rebase: mktemp failed" >&2; exit 4; }
 trap 'rm -rf "$TMP"' EXIT
 
@@ -85,7 +86,10 @@ while rebase_in_progress; do
       echo "resolve-rebase: checkout --ours failed for $p" >&2
       exit 4
     }
-    case "$p" in Cargo.lock) lock=1 ;; esac
+    case "$p" in
+      Cargo.lock) lock=1 ;;
+      tickets/*) resolved_tickets=1 ;;
+    esac
   done < "$TMP/unmerged"
 
   if [ "$lock" -eq 1 ]; then
@@ -113,6 +117,16 @@ while rebase_in_progress; do
   # a new conflict makes this exit nonzero; the loop picks it up on the next pass
   GIT_EDITOR=true git -C "$WT" rebase --continue >/dev/null 2>&1 || true
 done
+
+# The board files were taken from main, but the replayed commits still carry the
+# branch's generated copies, so BOARD/GRAPH/index can end up stale against the
+# ticket files. Normalize once the rebase is done.
+if [ "$resolved_tickets" -eq 1 ] && [ -f "$WT/tools/tickets.py" ]; then
+  (cd "$WT" && python3 tools/tickets.py sync >/dev/null) || {
+    echo "resolve-rebase: tickets.py sync failed in $WT — generated board may be stale" >&2
+    exit 4
+  }
+fi
 
 echo "resolve-rebase: rebase finished in $WT"
 exit 0
