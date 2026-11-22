@@ -130,7 +130,7 @@
   {
     "id": "DS-004",
     "title": "Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config",
-    "state": "doing",
+    "state": "review",
     "phase": 0,
     "lane": "build",
     "size": "S",
