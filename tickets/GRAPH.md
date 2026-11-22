@@ -40,19 +40,19 @@ graph TD
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
-  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::review
-  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::backlog
+  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
+  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::ready
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
-  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::backlog
+  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::ready
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::backlog
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::backlog
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::backlog
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::backlog
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
-  DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::backlog
-  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::backlog
-  DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::backlog
+  DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::ready
+  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::ready
+  DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::ready
   DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::backlog
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::backlog
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
@@ -205,11 +205,11 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(review), DS-042(backlog), DS-044(backlog)
+- **router** (4): DS-040(done), DS-041(done), DS-042(ready), DS-044(ready)
 - **security** (2): DS-043(backlog), DS-081(backlog)
-- **senders** (2): DS-060(backlog), DS-061(backlog)
+- **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(ready)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(ready), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(ready), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
@@ -224,4 +224,9 @@ Critical path length: 10 tickets.
 - DS-030 - JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests (lane frames)
 - DS-031 - Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap (lane frames)
 - DS-032 - ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits (lane cli)
+- DS-042 - Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation (lane router)
+- DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
+- DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
+- DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
+- DS-062 - CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors (lane test)
 - DS-096 - state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) (lane state)

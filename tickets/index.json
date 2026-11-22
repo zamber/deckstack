@@ -1284,7 +1284,7 @@
   {
     "id": "DS-041",
     "title": "Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation",
-    "state": "review",
+    "state": "done",
     "phase": 4,
     "lane": "router",
     "size": "M",
@@ -1308,9 +1308,9 @@
       "bins/ds/src/cli.rs",
       "docs/contracts/actions.md"
     ],
-    "branch": "ticket/DS-041",
-    "worktree": ".worktrees/DS-041",
-    "pr": "prs/DS-041.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -1338,7 +1338,7 @@
   {
     "id": "DS-042",
     "title": "Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation",
-    "state": "backlog",
+    "state": "ready",
     "phase": 4,
     "lane": "router",
     "size": "L",
@@ -1425,7 +1425,7 @@
   {
     "id": "DS-044",
     "title": "Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 4,
     "lane": "router",
     "size": "M",
@@ -1701,7 +1701,7 @@
   {
     "id": "DS-060",
     "title": "ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "senders",
     "size": "M",
@@ -1742,7 +1742,7 @@
   {
     "id": "DS-061",
     "title": "ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "senders",
     "size": "M",
@@ -1783,7 +1783,7 @@
   {
     "id": "DS-062",
     "title": "CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "test",
     "size": "M",

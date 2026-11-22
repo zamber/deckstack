@@ -38,19 +38,19 @@ Generated: 2026-11-22 - 65 tickets.
 | DS-034 | backlog | 3 | frames | M | - | DS-030, DS-032 | Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits |
 | DS-035 | backlog | 3 | vdev | M | - | DS-017, DS-032 | vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn |
 | DS-040 | done | 4 | router | L | vibe/DS-040 | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
-| DS-041 | review | 4 | router | M | vibe/DS-041 | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
-| DS-042 | backlog | 4 | router | L | - | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
+| DS-041 | done | 4 | router | M | vibe/DS-041 | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
+| DS-042 | ready | 4 | router | L | - | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
 | DS-043 | backlog | 4 | security | L | - | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
-| DS-044 | backlog | 4 | router | M | - | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
+| DS-044 | ready | 4 | router | M | - | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
 | DS-045 | backlog | 4 | test | L | - | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
 | DS-050 | backlog | 5 | plugins | L | - | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
 | DS-051 | backlog | 5 | plugins | M | - | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | backlog | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
 | DS-053 | backlog | 5 | test | M | - | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
 | DS-054 | backlog | 5 | plugins | M | - | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
-| DS-060 | backlog | 6 | senders | M | - | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |
-| DS-061 | backlog | 6 | senders | M | - | DS-040, DS-041 | ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) |
-| DS-062 | backlog | 6 | test | M | - | DS-016, DS-040, DS-041 | CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors |
+| DS-060 | ready | 6 | senders | M | - | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |
+| DS-061 | ready | 6 | senders | M | - | DS-040, DS-041 | ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) |
+| DS-062 | ready | 6 | test | M | - | DS-016, DS-040, DS-041 | CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors |
 | DS-063 | backlog | 6 | agents | S | - | DS-060, DS-061, DS-062 | Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples |
 | DS-064 | backlog | 6 | docs | M | - | DS-060, DS-061, DS-062 | Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting |
 | DS-070 | backlog | 7 | integrations | L | - | DS-050, DS-052, DS-054 | lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes |
