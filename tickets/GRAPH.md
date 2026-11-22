@@ -6,7 +6,7 @@ Generated: 2026-11-22 - 58 tickets, DAG (no cycles; enforced by validate).
 
 ```mermaid
 graph TD
-  DS000["DS-000 Workflow smoke: add docs/workflow-smoke.md through the wo..."]:::doing
+  DS000["DS-000 Workflow smoke: add docs/workflow-smoke.md through the wo..."]:::done
   DS001["DS-001 Ticket board tool: tools/tickets.py (parse, validate, syn..."]:::done
   DS002["DS-002 Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setu..."]:::ready
   DS003["DS-003 Check/bootstrap/CI skeleton: tools/check.sh, packaging/bo..."]:::ready
@@ -204,7 +204,7 @@ Critical path length: 10 tickets.
 - **vdev** (2): DS-017(backlog), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
-- **workflow** (5): DS-000(doing), DS-001(done), DS-002(ready), DS-005(ready), DS-006(backlog)
+- **workflow** (5): DS-000(done), DS-001(done), DS-002(ready), DS-005(ready), DS-006(backlog)
 
 ## Ready set (state=ready, deps done - claimable now)
 

@@ -4,7 +4,7 @@ Generated: 2026-11-22 - 58 tickets.
 
 | id | state | phase | lane | size | owner | deps | title |
 |---|---|---|---|---|---|---|---|
-| DS-000 | doing | 0 | workflow | S | autolith/run-4004342966 | - | Workflow smoke: add docs/workflow-smoke.md through the worktree/PR flow |
+| DS-000 | done | 0 | workflow | S | autolith/run-4004342966 | - | Workflow smoke: add docs/workflow-smoke.md through the worktree/PR flow |
 | DS-001 | done | 0 | workflow | M | autolith/run-50951 | - | Ticket board tool: tools/tickets.py (parse, validate, sync, board/graph/index) |
 | DS-002 | ready | 0 | workflow | M | - | - | Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold |
 | DS-003 | ready | 0 | ci | M | - | - | Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml |
