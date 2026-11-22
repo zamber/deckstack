@@ -19,8 +19,10 @@
 //! One test function on purpose: the steps open the same physical devices, so they must not
 //! run on parallel test threads.
 
+use std::sync::Mutex;
 use std::time::Duration;
 
+use ds_device::handshake::{self, HandshakeConfig};
 use ds_device::hid::{self, HidTransport};
 use ds_device::{DeviceUri, Transport};
 use ds_protocol::{Query, SoftwareMode};
@@ -28,6 +30,10 @@ use mh_device::ModuleId;
 
 /// How long a feature read may take (the modules answer in ~45–48 ms on hardware).
 const QUERY_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The hw tests open the same physical devices, so they must not run on parallel test
+/// threads (one lock for the whole binary).
+static HW_LOCK: Mutex<()> = Mutex::new(());
 
 fn hw_enabled() -> bool {
     std::env::var("DS_HARDWARE").as_deref() == Ok("1")
@@ -39,6 +45,7 @@ fn hw_smoke_enumerate_open_read_close() {
         eprintln!("SKIP: DS_HARDWARE is not 1 — hardware smoke disabled (CI stays hardware-free)");
         return;
     }
+    let _guard = HW_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
     // 1. enumerate the connected MasterHub modules
     let modules = match hid::enumerate() {
@@ -153,4 +160,125 @@ fn read_one_feature_report(transport: &HidTransport, id: &ModuleId) {
             feature_id
         ),
     }
+}
+
+/// DS-022 hardware smoke: enumerate the deck, run the software-mode handshake + module
+/// init on every connected module through the safe post-init transport (no read before the
+/// handshake — asserted by the unit tests), read one module state back, and close cleanly.
+///
+/// ```sh
+/// DS_HARDWARE=1 cargo test -p ds-device --test hid hw_smoke_handshake_init_read_state_close -- --nocapture
+/// ```
+///
+/// Without `DS_HARDWARE=1`, or without a deck attached (or without the permissions the udev
+/// rule of DS-025 grants), every step prints a clear SKIP and the test still passes.
+#[test]
+fn hw_smoke_handshake_init_read_state_close() {
+    if !hw_enabled() {
+        eprintln!(
+            "SKIP: DS_HARDWARE is not 1 — DS-022 handshake smoke disabled (CI stays hardware-free)"
+        );
+        return;
+    }
+    let _guard = HW_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    // 1. enumerate the connected MasterHub modules (VID 0x2516)
+    let modules = match hid::enumerate() {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("SKIP: enumeration failed: {e}");
+            return;
+        }
+    };
+    if modules.is_empty() {
+        eprintln!("SKIP: no MasterHub module (VID 0x2516) enumerated — no deck attached");
+        return;
+    }
+    println!("enumerated {} MasterHub module(s):", modules.len());
+    for m in &modules {
+        println!(
+            "  {:8} 2516:{:04x}  path {}  serial {:?}",
+            m.info.kind.name(),
+            m.info.pid,
+            m.path.to_string_lossy(),
+            m.serial
+        );
+    }
+    // the deck this smoke expects (the DS-021 machine): knobs, rollers, keys, dial, base
+    for (pid, name) in [
+        (0x0202u16, "knobs"),
+        (0x0204, "rollers"),
+        (0x01FE, "keys"),
+        (0x0206, "dial"),
+        (0x01F6, "base"),
+    ] {
+        let present = modules.iter().any(|m| m.info.pid == pid);
+        println!(
+            "  {} 2516:{pid:04x} ({name})",
+            if present { "present:" } else { "absent: " }
+        );
+    }
+
+    // 2. open the whole deck through the `hid:` URI
+    let uri = DeviceUri::parse("hid:").unwrap();
+    let transport = match hid::open_uri(&uri) {
+        Ok(t) => t,
+        Err(e) => {
+            println!("SKIP hid: open failed: {e} (no deck attached, or permissions — DS-025)");
+            return;
+        }
+    };
+    let mut ids = transport.modules();
+    ids.sort();
+    println!("hid: opened {} module(s): {:?}", ids.len(), ids);
+
+    // 3. software-mode handshake + module init on every module (writes are the handshake
+    //    reports themselves, sent through the guarded path; reads only after the handshake)
+    let init = match handshake::InitTransport::init(&transport, &ids, HandshakeConfig::default()) {
+        Ok(init) => init,
+        Err(e) => {
+            let _ = transport.close();
+            panic!("DS-022 handshake/init failed on the real deck: {e}");
+        }
+    };
+    for id in &ids {
+        let st = init.state(id).expect("an initialized module has state");
+        println!(
+            "  handshaken {:8} pid {:#06x} serial {}  firmware {:?}",
+            st.id.kind.name(),
+            st.info.pid,
+            st.id.serial,
+            st.firmware
+        );
+    }
+
+    // 4. read one module state back through the safe post-init query path
+    let first = &ids[0];
+    let state = init.state(first).unwrap();
+    let feature_id = ds_protocol::query_id(state.mode, Query::Firmware).unwrap();
+    let answer = init
+        .query(first, Query::Firmware)
+        .expect("state read after the handshake");
+    println!(
+        "  read back {}: feature {feature_id:#04x} -> {} bytes, firmware {:?}",
+        first.kind.name(),
+        answer.len(),
+        ds_protocol::parse_firmware(&answer)
+    );
+    if first.kind.needs_software_mode() {
+        // a screen module: the backlight read is only allowed after the handshake
+        let answer = init.query(first, Query::Backlight).expect("backlight read");
+        println!(
+            "  read back {}: backlight feature -> {}%",
+            first.kind.name(),
+            ds_protocol::parse_percent(&answer).unwrap_or(0)
+        );
+    }
+
+    // 5. close cleanly
+    transport.close().expect("close");
+    println!(
+        "hw smoke (DS-022): handshake + init green on {} module(s), one module state read back, closed cleanly",
+        ids.len()
+    );
 }

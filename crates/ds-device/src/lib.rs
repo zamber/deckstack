@@ -18,25 +18,33 @@
 //!   lengths, input tag).
 //! - [`chunks`] — reassembly of chunked image pushes with sha256 verification.
 //! - [`rate`] — host-side write throttling (token bucket; LED cap default 30/s).
+//! - [`handshake`] — the software-mode handshake and module init (DS-022): the required
+//!   report sequence before any read on keys/dial, a type-state wrapper that refuses reads
+//!   before the handshake completed, and the [`handshake::safe`] report builders (images,
+//!   LED/backlight — never backlight 0 — brightness in range), every one through the
+//!   forbidden-command guard.
 //!
-//! Out of scope here (later tickets): handshake/safe builders on the wire (DS-022), hot-plug
-//! (DS-023), guard/handback (DS-024), udev rules (DS-025), and ds-vdev itself (DS-017).
+//! Out of scope here (later tickets): hot-plug (DS-023), guard/handback (DS-024), udev rules
+//! (DS-025), and ds-vdev itself (DS-017).
 //!
 //! ```no_run
 //! use ds_device::{DeviceUri, Transport};
-//! use ds_protocol::ModuleKind;
+//! use ds_protocol::{ModuleKind, Query};
 //!
 //! let uri = DeviceUri::parse("virtual:/tmp/vdev.sock").unwrap();
 //! let dev = ds_device::open(&uri).unwrap();
 //! let keys = ds_device::vtransport::virtual_module_id(ModuleKind::Keys);
-//! let (handshake, _mode) = ds_protocol::enter_software_mode(ModuleKind::Keys).unwrap();
-//! dev.send(&keys, &handshake).unwrap(); // 03 3A 01, padded to 32 B
-//! let ev = dev.recv(std::time::Duration::from_secs(1)).unwrap();
+//! // DS-022: handshake first — reads are refused until it completed
+//! let module = ds_device::handshake::pending(&*dev, keys, Default::default())
+//!     .handshake()
+//!     .unwrap();
+//! let firmware = module.query(Query::Firmware).unwrap();
 //! ```
 
 pub mod chunks;
 pub mod error;
 pub mod frame;
+pub mod handshake;
 pub mod hid;
 pub mod module;
 pub mod rate;
@@ -47,6 +55,10 @@ pub mod vtransport;
 
 pub use chunks::{Reassembled, Reassembler, ReassemblyError};
 pub use error::{Error, Result};
+pub use handshake::{
+    pending, Handshake, HandshakeConfig, InitModule, InitTransport, ModuleState, PendingModule,
+    Phase,
+};
 pub use transport::{DeviceEvent, Transport};
 pub use uri::DeviceUri;
 pub use vtransport::VirtualTransport;
