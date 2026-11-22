@@ -44,6 +44,15 @@ top-level paths:
 Targets everywhere are the unified vocabulary `keys | key:<0-14> | dial` (S6) — no
 `panel`/`screen` synonyms.
 
+**Index ranges (S8, enforced at object level).** The deck layout fixes the control
+indices, and `schemas/state.json` closes every indexed map with
+`additionalProperties: false`, so an out-of-range index is rejected by the normative
+schema itself, not only by the write path: `/controls/keys` accepts exactly `"0"`–`"14"`
+(15 keys — `"15"` and `"99"` do not match), `/controls/knobs` exactly `"0"`–`"2"`,
+`/controls/faders` exactly `"0"`–`"4"`, `/controls/rollers` exactly `"0"`–`"1"`, and
+`/controls/dial` is a single control, not a map. `/streams` and `/telemetry/streams`
+accept only the target vocabulary `keys | dial | key:<0-14>`.
+
 **Identity across hot-plug:** `/devices/<serial>` — serial read at connect
 (`upstream/crates/mh-device/src/hub.rs:241-245`). Control paths hang off the *kind slot*
 (`keys`, `dial`, `knobs.0`), not the serial; when a module with a known serial

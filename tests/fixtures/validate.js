@@ -178,11 +178,18 @@ const doc = {
 };
 check("state document example", doc, STATE, true);
 const neg = (label, mutate) => { const bad = JSON.parse(JSON.stringify(doc)); mutate(bad); check(label, bad, STATE, false); };
-// S8 note: key indices 0-14 are enforced at the pattern level (regex-checks.js "keys index
-// (S8)" and validate.py test the pattern against "15"/"99"). schemas/state.json's controls
-// maps carry patternProperties without additionalProperties:false, so a non-matching key
-// name is NOT rejected at object level by the normative schema; that schema gap is
-// reported in prs/DS-093.md rather than worked around here.
+// S8: key/knob/fader/roller indices are enforced at OBJECT level — the controls maps in
+// schemas/state.json carry additionalProperties:false on top of the pattern, so a
+// non-matching index ("15", "99", "3" for knobs, …) is rejected by the normative schema
+// itself (gap found by DS-093, closed by DS-096).
+neg("keys.15 rejected at object level (S8)", (d) => { d.controls.keys["15"] = { label: "x" }; });
+neg("keys.99 rejected at object level (S8)", (d) => { d.controls.keys["99"] = { label: "x" }; });
+neg("knobs.3 rejected at object level (S8)", (d) => { d.controls.knobs["3"] = { led: { mode: "off", color: "#000000", brightness: 0 } }; });
+neg("faders.5 rejected at object level (S8)", (d) => { d.controls.faders["5"] = { value: 50 }; });
+neg("rollers.2 rejected at object level (S8)", (d) => { d.controls.rollers["2"] = { value: 50 }; });
+neg("streams target 'panel' rejected at object level (S6/S8)", (d) => { d.streams["panel"] = { queue_depth: 2 }; });
+neg("telemetry target 'key:15' rejected at object level (S6/S8)", (d) => { d.telemetry.streams["key:15"] = { sent: 1 }; });
+neg("unknown control kind rejected at object level (S8)", (d) => { d.controls["m0-base"] = {}; });
 neg("file traversal rejected (M3)", (d) => { d.controls.keys["0"].image = { kind: "file", path: "../../etc/shadow" }; });
 neg("relative argv[0] rejected (M1)", (d) => { d.bindings[2].steps[0].argv[0] = "sh"; });
 neg("exec timeout_ms rejected (S11)", (d) => { d.bindings[2].steps[0].timeout_ms = 5000; });
