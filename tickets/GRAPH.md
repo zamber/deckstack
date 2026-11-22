@@ -28,7 +28,7 @@ graph TD
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::done
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::ready
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::ready
-  DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::ready
+  DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::doing
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::backlog
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
@@ -200,7 +200,7 @@ Critical path length: 10 tickets.
 - **frames** (3): DS-030(doing), DS-031(ready), DS-034(backlog)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
-- **packaging** (3): DS-019(done), DS-025(ready), DS-083(backlog)
+- **packaging** (3): DS-019(done), DS-025(doing), DS-083(backlog)
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
@@ -219,7 +219,6 @@ Critical path length: 10 tickets.
 
 - DS-023 - Hot-plug rescan, reconnect, re-push, unresponsive-device handling (lane device)
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
-- DS-025 - udev rules, device permissions, install docs (Linux) (lane packaging)
 - DS-029 - Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape (lane test)
 - DS-031 - Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap (lane frames)
 - DS-032 - ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits (lane cli)
