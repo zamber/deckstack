@@ -22,7 +22,7 @@ Generated: 2026-11-22 - 64 tickets.
 | DS-018 | done | 1 | test | L | vibe/DS-018 | DS-003, DS-012 | Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants |
 | DS-019 | done | 1 | packaging | M | vibe/DS-019 | DS-015 | systemd user unit + daemon lifecycle runbook |
 | DS-020 | done | 1 | test | L | vibe/DS-020 | DS-015, DS-016, DS-017, DS-018 | End-to-end walking skeleton: one key image -> vdev reassembled sha; query-under-load bench skeleton |
-| DS-021 | ready | 2 | device | L | - | DS-020 | Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads |
+| DS-021 | doing | 2 | device | L | vibe/DS-021 | DS-020 | Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads |
 | DS-022 | backlog | 2 | device | M | - | DS-021 | Software-mode handshake, module init, safe builders on real hardware |
 | DS-023 | backlog | 2 | device | M | - | DS-022 | Hot-plug rescan, reconnect, re-push, unresponsive-device handling |
 | DS-024 | backlog | 2 | daemon | M | - | DS-022 | Guard/handback: clean device state on daemon exit, SIGTERM, crash |
