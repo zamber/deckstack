@@ -240,11 +240,11 @@
   {
     "id": "DS-010",
     "title": "ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable)",
-    "state": "ready",
+    "state": "doing",
     "phase": 1,
     "lane": "protocol",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-010",
     "depends_on": [
       "DS-004"
     ],
@@ -252,9 +252,9 @@
       "new:crates/ds-protocol/",
       "new:tests/protocol/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-010",
+    "worktree": ".worktrees/DS-010",
+    "pr": "prs/DS-010.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [

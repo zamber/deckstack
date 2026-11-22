@@ -11,7 +11,7 @@ Generated: 2026-11-22 - 59 tickets.
 | DS-004 | done | 0 | build | S | vibe/DS-004 | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
 | DS-005 | done | 0 | workflow | S | autolith/run-4004342966 | - | Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist |
 | DS-006 | done | 0 | workflow | M | autolith/run-4004342966 | DS-001, DS-005 | Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented |
-| DS-010 | ready | 1 | protocol | M | - | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
+| DS-010 | doing | 1 | protocol | M | vibe/DS-010 | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
 | DS-011 | ready | 1 | state | L | - | DS-004 | ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation |
 | DS-012 | ready | 1 | ipc | L | - | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
 | DS-013 | ready | 1 | ipc | L | - | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |

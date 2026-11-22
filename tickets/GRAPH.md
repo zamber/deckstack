@@ -13,7 +13,7 @@ graph TD
   DS004["DS-004 Cargo workspace skeleton: virtual manifest, crate stubs, ..."]:::done
   DS005["DS-005 Steward role: agents/deckstack-steward.md, tools/steward...."]:::done
   DS006["DS-006 Agent steering validation: AGENTS.md commands actually wo..."]:::done
-  DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::ready
+  DS010["DS-010 ds-protocol: re-export mh-protocol builders + safety test..."]:::doing
   DS011["DS-011 ds-state: document, paths, rev/transactions, persistence,..."]:::ready
   DS012["DS-012 ds-ipc control plane: Unix socket, NDJSON, hello/auth, sc..."]:::ready
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::ready
@@ -196,7 +196,7 @@ Critical path length: 10 tickets.
 - **platforms** (2): DS-072(backlog), DS-073(backlog)
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
-- **protocol** (1): DS-010(ready)
+- **protocol** (1): DS-010(doing)
 - **router** (4): DS-040(backlog), DS-041(backlog), DS-042(backlog), DS-044(backlog)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
@@ -209,7 +209,6 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-010 - ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) (lane protocol)
 - DS-011 - ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation (lane state)
 - DS-012 - ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate (lane ipc)
 - DS-013 - ds-ipc frame plane: DSF1 stream socket, credits/acks, limits (lane ipc)
