@@ -986,7 +986,7 @@
   {
     "id": "DS-030",
     "title": "JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests",
-    "state": "doing",
+    "state": "review",
     "phase": 3,
     "lane": "frames",
     "size": "M",
