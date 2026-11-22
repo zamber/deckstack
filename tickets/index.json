@@ -130,7 +130,7 @@
   {
     "id": "DS-004",
     "title": "Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config",
-    "state": "review",
+    "state": "done",
     "phase": 0,
     "lane": "build",
     "size": "S",
@@ -145,9 +145,9 @@
       "new:LICENSE",
       "new:NOTICE"
     ],
-    "branch": "ticket/DS-004",
-    "worktree": ".worktrees/DS-004",
-    "pr": "prs/DS-004.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -240,7 +240,7 @@
   {
     "id": "DS-010",
     "title": "ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "protocol",
     "size": "M",
@@ -272,7 +272,7 @@
   {
     "id": "DS-011",
     "title": "ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "state",
     "size": "L",
@@ -308,7 +308,7 @@
   {
     "id": "DS-012",
     "title": "ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "ipc",
     "size": "L",
@@ -348,7 +348,7 @@
   {
     "id": "DS-013",
     "title": "ds-ipc frame plane: DSF1 stream socket, credits/acks, limits",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "ipc",
     "size": "L",
@@ -387,7 +387,7 @@
   {
     "id": "DS-014",
     "title": "ds-device: virtual transport and report codec (device-agnostic driver core)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "device",
     "size": "M",

@@ -8,14 +8,14 @@ Generated: 2026-11-22 - 59 tickets.
 | DS-001 | done | 0 | workflow | M | autolith/run-50951 | - | Ticket board tool: tools/tickets.py (parse, validate, sync, board/graph/index) |
 | DS-002 | done | 0 | workflow | M | autolith/run-4004342966 | - | Worktree/PR scripts: tools/wt.sh, tools/pr.sh, tools/setup-review-remote.sh, prs/ scaffold |
 | DS-003 | done | 0 | ci | M | autolith/run-4004342966 | - | Check/bootstrap/CI skeleton: tools/check.sh, packaging/bootstrap.sh, .github/workflows/ci.yml |
-| DS-004 | review | 0 | build | S | vibe/DS-004 | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
+| DS-004 | done | 0 | build | S | vibe/DS-004 | - | Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config |
 | DS-005 | done | 0 | workflow | S | autolith/run-4004342966 | - | Steward role: agents/deckstack-steward.md, tools/steward.sh, review checklist |
 | DS-006 | done | 0 | workflow | M | autolith/run-4004342966 | DS-001, DS-005 | Agent steering validation: AGENTS.md commands actually work; CLI self-description contract documented |
-| DS-010 | backlog | 1 | protocol | M | - | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
-| DS-011 | backlog | 1 | state | L | - | DS-004 | ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation |
-| DS-012 | backlog | 1 | ipc | L | - | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
-| DS-013 | backlog | 1 | ipc | L | - | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
-| DS-014 | backlog | 1 | device | M | - | DS-004 | ds-device: virtual transport and report codec (device-agnostic driver core) |
+| DS-010 | ready | 1 | protocol | M | - | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
+| DS-011 | ready | 1 | state | L | - | DS-004 | ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation |
+| DS-012 | ready | 1 | ipc | L | - | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
+| DS-013 | ready | 1 | ipc | L | - | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
+| DS-014 | ready | 1 | device | M | - | DS-004 | ds-device: virtual transport and report codec (device-agnostic driver core) |
 | DS-015 | backlog | 1 | daemon | L | - | DS-011, DS-012, DS-014 | ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs |
 | DS-016 | backlog | 1 | cli | L | - | DS-012 | ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes |
 | DS-017 | backlog | 1 | vdev | L | - | DS-014 | ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl |
