@@ -71,8 +71,8 @@ child process, translates to the ds wire protocol: manifest generated from
 JSON Schema), `invoke/adjust/set` → effects, `watch/watch_states` → subscriptions, plus
 `sdk.http` for network. **Guarantees:** process isolation, lifecycle, wire contract,
 resource limits, host-mediated network. **Does not guarantee:** engine internals
-(`ctx.deck` depth — OPEN C1), in-process state sharing, timing. Port list from
-`ds migrate import` (docs/70-migration.md).
+(`ctx.deck` depth — OPEN C1), in-process state sharing, timing. Old-app plugins are ported
+manually, ticket-driven, post-alpha (`docs/70-porting-notes.md`) — nothing is imported.
 
 ## 7. Example plugin (Python, ~40 lines)
 

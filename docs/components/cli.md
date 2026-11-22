@@ -9,7 +9,8 @@ Stateless one-shot client of the daemon (R1). Full grammar contract: `docs/contr
   package wrapping the same protocol) is provided later for composition, but the CLI
   itself is Rust.
 - **Public surface:** `ds <group> <verb> [args] [--json|--ndjson|--watch]`; groups:
-  `get set bind emit watch events stream plugin daemon token schema describe test migrate`.
+  `get set bind emit watch events stream plugin daemon token schema describe`
+  (no `test`, no `migrate` — scope deltas 2 and S10).
   `--help` on every level; `ds schema <name>` prints the JSON Schema from `schemas/`;
   `ds describe <path>` prints the schema + current value + allowed verbs.
 - **Invariants:**

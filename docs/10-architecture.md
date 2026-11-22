@@ -6,15 +6,15 @@ Contracts referenced here are normative in `docs/contracts/*` and `schemas/*`.
 ## 1. Process model
 
 ```
-┌─ user session ─────────────────────────────────────────────────────────────┐
+┌─ user session (Linux alpha) ───────────────────────────────────────────────┐
 │                                                                            │
-│  ds (CLI, one-shot or `ds watch`)      ds-focus   ds-mcp   ds-web  agents   │
-│     │  NDJSON over Unix socket          │          │        │               │
-│     └──────────────┐  ┌─────────────────┘          │        │               │
-│                    ▼  ▼ WS/HTTP 127.0.0.1 (opt-in)  │        │               │
+│  ds (CLI, one-shot or `ds watch`)      ds-focus   ds-mcp   agents/debug     │
+│     │  NDJSON over Unix socket          │          │        │  (WS/HTTP     │
+│     └──────────────┐  ┌─────────────────┘          │        │   adapter)    │
+│                    ▼  ▼                            │        │               │
 │              ┌─────────────┐   ┌─────────────────────┘        │               │
 │              │ ds-daemon   │◄──┘  (all clients are peers;     │               │
-│              │  ┌────────┐ │     none is privileged)          │               │
+│              │  ┌────────┐ │     none is privileged; no UI)    │               │
 │              │  │ state  │ │◄──────┐                            │               │
 │              │  │ router │ │───────┼── bindings resolve to     │               │
 │              │  │ frame  │─┼──┐    │    set/emit/plugin/exec   │               │
@@ -35,8 +35,12 @@ Contracts referenced here are normative in `docs/contracts/*` and `schemas/*`.
 
 One daemon. The CLI is stateless: each invocation connects, authenticates, issues one
 request (or opens a subscription with `watch`), prints, exits (R1). Every client — CLI,
-web UI, MCP bridge, focus sender — is an unprivileged peer speaking the same protocol;
-"UI state is not privileged" (R7).
+MCP bridge, focus sender, agent/debug client over the WS/HTTP adapter — is an unprivileged
+peer speaking the same protocol; there is **no UI and no privileged UI state** in alpha
+(R7 + scope delta 4; post-alpha note: a thin debug/web client could later sit on the
+adapter, but nothing opinionated is planned). **Empty state at start** (scope delta 3):
+the daemon starts from a fresh, empty state document — no presets, layouts, profiles or
+sample decks are shipped anywhere in the repo; all behaviour is built via the CLI/API.
 
 ## 2. Control plane vs frame plane
 

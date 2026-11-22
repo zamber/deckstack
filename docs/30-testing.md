@@ -73,14 +73,18 @@ experiment would settle it).
 per target + liveness, LED write, replug ≤ 5 s (`upstream/PROTOCOL.md:172-177`),
 forbidden refusal, guard handback. Self-hosted Bazzite device, nightly + on tag.
 
-## 8. CI matrix (S15/M6/M7 honesty)
+## 8. CI matrix (alpha = Linux only; S15/M6/M7 honesty)
 
 | Job | OS | Runs | Claims |
 |---|---|---|---|
-| test | Linux ubuntu-latest | schema/fixtures + unit + contract + conformance + acceptance + bench gates | Linux fully tested (virtual) |
-| windows | windows-latest | schema + unit + conformance over the **named pipe** incl. p99 budget + pipe ACL test if two accounts available | Windows = "supported shape, conformance green on pipe, **perf gate passes on CI VM but no hardware deck attached — untested on real hardware until phase 2**" (M6) |
-| macos | macos-latest | schema + unit + build only | macOS = **untested, not claimed**; hidapi exclusive-open risk OPEN O8 (M7) |
-| hardware | self-hosted Bazzite + deck | smoke suite | Linux hardware |
+| test | Linux ubuntu-latest | schema/fixtures + unit + contract + conformance + acceptance + bench gates | Linux alpha fully tested (virtual) |
+| hardware | self-hosted Bazzite + deck + webcam | smoke suite + `deckstack-verify check` on ≥1 key and the panel (`docs/90-verification.md`) | Linux hardware, camera-verified |
+
+No Windows/macOS CI gate exists in alpha (scope delta 1): those platforms are TODO
+sections in `docs/40-platforms.md` §2–§3 — "do not start until Linux alpha is stable".
+When a port starts, its gate is: Windows — conformance over the named pipe incl. p99
+budget + second-account ACL test (O5/T12), then a VM with a deck; macOS — build+unit
+runner, then a runner with a deck (O8).
 
 m11: LED rate cap default 30/s is interim; soak (OPEN O2) must land **before phase 3
 exit** (docs/60-roadmap.md).

@@ -25,7 +25,9 @@ ds describe <path>
 | `plugin` | `ds plugin list\|invoke <id.action> [args]\|install <dir>\|remove <id>\|logs <id>` |
 | `daemon` | `ds daemon start [--device virtual:PATH\|auto] [--foreground]\|stop\|status\|restart` (m9) |
 | `token` | `ds token list\|issue --scope read\|mutate\|admin\|revoke <id>` |
-| `migrate` | `ds migrate import [--from ~/.config/hubdeck] [--dry-run]` |
+
+There is deliberately **no `migrate` verb** (scope delta 2): `ds migrate …` exits 1.
+Porting of old-app behaviour is manual and ticket-driven (`docs/70-porting-notes.md`).
 
 `ds-vdevctl` (part of the ds-vdev binary, test/CI tool) replaces the old test-only verb:
 `ds-vdevctl --socket /tmp/vdev.sock frames <target>` → sha256 + bytes;

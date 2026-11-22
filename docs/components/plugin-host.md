@@ -36,7 +36,7 @@ Contract: `docs/contracts/plugins.md`; manifest schema: `schemas/plugin-manifest
   protocol. Guarantees: process isolation, lifecycle, wire contract, resource limits.
   Does NOT guarantee: deep compatibility with engine internals (`ctx.deck` internals,
   in-process state sharing) — those plugins are ported, and the porting list is a
-  migration artifact (`docs/70-migration.md`).
+  porting list is produced per ticket post-alpha (`docs/70-porting-notes.md`).
 - **Dependencies:** ds-daemon internals, `schemas/plugin-manifest.json`, `jsonschema`.
 - **Test command:** `cargo test -p ds-daemon::plugins` + conformance
   `tests/conformance/plugins/` (crash, fork-bomb, oversized effect, cap violation —

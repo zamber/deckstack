@@ -2,71 +2,84 @@
 
 A ground-up, CLI-first replacement base for the MasterHub/HubDeck controller stack
 (Cooler Master MasterHub + key/dial/fader/knob/roller modules). Governing intent:
-[`BRIEF.md`](BRIEF.md) (requirements R1–R12). Evidence about the two existing
-implementations: [`docs/discovery/`](docs/discovery/) (read-only dossier; path prefixes
-`hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`).
+[`BRIEF.md`](BRIEF.md) (requirements R1–R12 + Scope amendment 2026-11-22). **Scope is
+normative in [`docs/00-scope.md`](docs/00-scope.md)**: alpha is Linux-only, starts from an
+empty state (no presets/sample decks), has no migration/import and no web UI, and treats
+agent steering as first-class. Evidence about the two existing implementations:
+[`docs/discovery/`](docs/discovery/) (read-only; prefixes `hubdeck/` = `~/repos/hubdeck`,
+`upstream/` = `~/repos/hubdeck-upstream`).
 
-**Status: planning.** This repo contains documents, schemas and examples only — no
-working software. Nothing here edits the two hub repos.
+**Status: planning, alpha scope.** Documents, schemas and examples only — no working
+software yet. Nothing here edits the two hub repos.
 
 ## How to read this repo
 
 | You are… | Start at |
 |---|---|
-| A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton (`sh packaging/bootstrap.sh`, `sh tests/fixtures/validate.sh`) → [docs/60-roadmap.md](docs/60-roadmap.md) |
-| Reviewing a load-bearing choice | [PLAN.md](PLAN.md) decision table → the ADR it names in [docs/adr/](docs/adr/) → [docs/decision-log.tsv](docs/decision-log.tsv) |
-| Implementing a component | [docs/components/](docs/components/) (one file per component) |
-| Implementing a wire format | [docs/contracts/](docs/contracts/) + [schemas/](schemas/) (the schemas are the contract) |
+| An agent picking up a ticket | [AGENTS.md](AGENTS.md) → [docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md) → your ticket |
+| A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton → [docs/60-roadmap.md](docs/60-roadmap.md) |
+| Checking what is in/out of alpha | [docs/00-scope.md](docs/00-scope.md) (one hop from here and from PLAN) |
+| Reviewing a load-bearing choice | PLAN.md decision table → the ADR in [docs/adr/](docs/adr/) → [docs/decision-log.tsv](docs/decision-log.tsv) |
+| Implementing a component | [docs/components/](docs/components/) |
+| Implementing a wire format | [docs/contracts/](docs/contracts/) + [schemas/](schemas/) + [tests/fixtures/](tests/fixtures/) |
+| Verifying on hardware | [docs/90-verification.md](docs/90-verification.md) (camera oracle) |
 | Auditing safety | [docs/20-security.md](docs/20-security.md) |
 | Wondering what is unverified | [docs/open-questions.md](docs/open-questions.md) |
 
-Reading order for full context: `BRIEF.md` → `docs/discovery/10..50` → `PLAN.md` →
-`docs/10-architecture.md` → contracts → components → ADRs.
+Reading order for full context: `BRIEF.md` → `docs/00-scope.md` → `docs/discovery/10..50` →
+`PLAN.md` → `docs/10-architecture.md` → contracts → components → ADRs.
 
-## Repo topology (summary — details in docs/50-repo-topology.md)
+## Repo topology (summary — details + `repos.toml` in docs/50-repo-topology.md)
 
 ```
-~/repos/deckstack/            umbrella monorepo; components released per-crate via git subtree split
-├── BRIEF.md                  governing intent (R1-R12) — do not edit
-├── README.md                 this file (index)
-├── PLAN.md                   one-page entry point
+~/repos/deckstack/            umbrella monorepo = the alpha core (contracts + crates + CLI + vdev + plugin host + conformance + docs)
+├── BRIEF.md                  governing intent (R1-R12) + scope amendment — protected
+├── AGENTS.md                 agent operational entry point
+├── README.md  PLAN.md        this index / one-page plan
+├── repos.toml                explicit repo boundaries (umbrella + separate publish targets)
+├── skills/deckstack/SKILL.md agent orientation skill
 ├── docs/
-│   ├── discovery/            cited facts about hubdeck + hubdeck-upstream — do not edit
-│   ├── reviews/              adversarial review + response (fixed/rebutted/deferred per id)
-│   ├── decision-log.tsv      one row per material decision (id, decision, alternatives, why, evidence)
+│   ├── 00-scope.md           normative alpha scope + invariants — read first
+│   ├── discovery/            cited facts about hubdeck + hubdeck-upstream — protected
+│   ├── reviews/              adversarial review + response — protected
+│   ├── AGENT-WORKFLOW.md     tickets/worktrees/PRs long protocol
+│   ├── decision-log.tsv      one row per material decision
 │   ├── open-questions.md     OPEN items + contradictions, each with a resolving experiment
 │   ├── 10-architecture.md    process model, planes, ownership, recovery
-│   ├── components/*.md       one doc per component
+│   ├── components/*.md       one doc per component (no web UI in alpha)
 │   ├── contracts/*.md        state / ipc / cli / streaming / actions / plugins
-│   ├── 20-security.md  30-testing.md  40-platforms.md
-│   ├── 50-repo-topology.md  60-roadmap.md  70-migration.md
-│   └── adr/NNN-*.md          architecture decision records (referenced from PLAN.md)
-├── schemas/                  JSON Schemas: state, ipc-message, stream-frame (DSF1 binary), plugin-manifest, binding
-├── tests/fixtures/           validate.sh/validate.js (node, no network) + validate.py (jsonschema) + ipc-examples.json + regex-checks.js
+│   ├── 20-security.md  30-testing.md  40-platforms.md (Linux alpha; Win/macOS TODO)
+│   ├── 50-repo-topology.md  60-roadmap.md (alpha phases 0-6 + backlog)
+│   ├── 70-porting-notes.md   post-alpha manual porting (no importer)
+│   ├── 80-integrations.md    lights.lan as a plugin (post-alpha)
+│   ├── 90-verification.md    camera verification harness (deckstack-verify)
+│   └── adr/NNN-*.md          decision records (referenced from PLAN.md)
+├── schemas/                  JSON Schemas: state, ipc-message, stream-frame, plugin-manifest, binding
+├── tests/fixtures/           validate.sh/validate.js/validate.py + ipc-examples.json + regex-checks.js
 └── packaging/                bootstrap.sh, release.sh, systemd unit, udev rules, NOTICE.md
 ```
 
-Planned runtime layout (phase 1 onward, not present yet): crates `ds-protocol`,
-`ds-device`, `ds-state`, `ds-ipc`, `ds-daemon`, `ds` (CLI), `ds-vdev`, plus sender
-binaries `ds-focus`, `ds-mcp`, `ds-web`. See `docs/50-repo-topology.md`.
+Separate publish targets (none exists as a separate repo yet — `repos.toml` marks status):
+`deckstack-schemas` (subtree split of `schemas/`), `deckstack-verify` (camera harness,
+`tools/verify/`), `deckstack-plugin-py` (PyPI, `plugins-py/`), `deckstack-lights`
+(post-alpha, own repo).
+
+Planned runtime crates: `ds-protocol`, `ds-device`, `ds-state`, `ds-ipc`, `ds-daemon`,
+`ds` (CLI), `ds-vdev` (+`ds-vdevctl`), `ds-focus`, `ds-mcp`, `ds-bench`, `ds-plugin-sdk`.
+No `ds-web` in alpha.
 
 ## Glossary
 
 - **daemon (`ds-daemon`)** — the single long-lived process owning all runtime state and
   hardware I/O (R1).
-- **control plane** — the NDJSON request/response + subscription channel (JSON state).
-- **frame plane** — the binary stream channel carrying encoded frames to screens; never
-  part of JSON state (R5).
-- **state** — the single JSON document addressed by paths like `/controls/keys/0`
-  (R2); every mutation bumps a global `rev`.
-- **binding** — data at `/bindings/<control>/<gesture>` mapping an input event to a
-  list of steps (R3/R4).
-- **virtual device (`ds-vdev`)** — a software HID-level fake of the MasterHub used by CI
-  (R10), modelled on `hubdeck/tests/fakes/virtual_hub.py`.
-- **sender** — any ordinary external program that emits events into the daemon via the
-  CLI/API (window watcher, cron, webhooks) (R4).
-- **plugin** — a separate OS process declaring actions in a manifest, talking newline-JSON
-  to the daemon's plugin host (R6).
-- **capability token** — per-install token with scopes `read|mutate|admin`; per-plugin
-  grants are a separate, smaller set (R8).
+- **control plane / frame plane** — NDJSON JSON state channel vs binary DSF1 frame stream;
+  frames never enter state or bump `rev`.
+- **state** — the single JSON document addressed by paths like `/controls/keys/0` (R2).
+- **binding** — an element of the `/bindings` array mapping a topic to steps (R3/R4).
+- **virtual device (`ds-vdev`)** — HID-report-level fake of the MasterHub for CI (R10).
+- **sender** — an external program emitting events via the CLI (window watcher, cron) (R4).
+- **plugin** — a separate OS process with a manifest, talking newline-JSON to the daemon.
+- **capability token** — per-install token with scopes `read|mutate|admin`; plugins get
+  smaller capability grants (R8).
+- **camera oracle** — webcam verification of pixels on the live deck (`docs/90-verification.md`).
 - Citations like `upstream/PROTOCOL.md:244` refer to `~/repos/hubdeck-upstream/PROTOCOL.md:244`.

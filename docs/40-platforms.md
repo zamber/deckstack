@@ -1,18 +1,23 @@
 # 40 — Platforms
 
-R9. Design: D12. Linux (Bazzite/Fedora, KDE/Wayland) is primary. The core assumes nothing
-POSIX: all OS specifics live behind `ds-platform` / `ds-ipc`. **Honesty rule (S15/M6/M7):
-we do not claim a platform is supported until its gate has actually run.**
+R9 + scope delta 1: **alpha is Linux only** (Bazzite/Fedora, KDE Plasma on Wayland first).
+Windows and macOS are **not implemented in alpha** — they are TODO sections below with
+exactly what to implement, where the shim goes, what must be tested, and the rule: **do
+not start until Linux alpha is stable**. The `ds-platform`/`ds-ipc` shims stay in the core
+so the ports are additive, not refactors.
 
-## 0. Support status (S15)
+## 0. Support status (authoritative for alpha)
 
-| Platform | Status claim |
+| Platform | Status |
 |---|---|
-| Linux (Bazzite/KDE/Wayland) | primary; fully tested virtually in CI, hardware smoke on self-hosted deck |
-| Windows | **supported shape, untested on hardware**: named-pipe transport is exercised by the conformance suite on the Windows CI VM (incl. the p99 budget, M6), pipe ACL per S5; real-deck behaviour gated in phase 2 (OPEN O5). Not claimed met before that |
-| macOS | **untested, not phase 1–2**: CI builds + unit tests only; exclusive hidapi opens (OPEN O8) and SET_IDLE roller fix are known requirements, not verified here |
+| Linux (Bazzite/KDE/Wayland) | **alpha target**; vdev-tested in CI, hardware smoke + camera (`docs/90-verification.md`) on the self-hosted deck |
+| Windows | **TODO, not in alpha**; build-only or no CI gate; see §2 |
+| macOS | **TODO, not in alpha**; no CI gate; see §3 |
 
-## 1. Linux (primary — Bazzite, KDE Plasma on Wayland)
+No alpha phase exit criterion or CI gate mentions Windows or macOS (`docs/60-roadmap.md`,
+`docs/30-testing.md` §8).
+
+## 1. Linux alpha (Bazzite, KDE Plasma on Wayland)
 
 | Need | Mechanism | Status / evidence |
 |---|---|---|
@@ -25,37 +30,41 @@ we do not claim a platform is supported until its gate has actually run.**
 | Audio | stays external (`Unsupported` in Python app) | `hubdeck/.../platforms/linux/__init__.py:8-9` |
 | Permissions | udev rules; systemd unit hardening (NoNewPrivileges, ProtectSystem=strict, PrivateTmp) | packaging/ |
 
-## 2. Windows (supported shape; hardware gate in phase 2 — S15/M6)
+## 2. Windows — TODO (do not start until Linux alpha is stable)
 
-| Need | Mechanism | Evidence |
-|---|---|---|
-| IPC | named pipe `\\.\pipe\deckstack-<user>` + `-stream`, same framings via ds-ipc; **ACL `D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>)`** (S5/T12); token dir/files ACL user+SYSTEM | R7; upstream has no pipes (discovery/50 O3); pipe perf OPEN O5, CI conformance asserts p99 on VM |
-| HID | hidapi winhid; per-report-type handle memory; overlapped writes, second handle, DEPTH=8 | `hubdeck/.../device/hid.py:199-231`; `upstream/crates/mh-device/src/overlapped.rs:21-23` |
-| Hot-plug | `CM_Register_Notification`; wedged module → `pnputil /restart-device` | `upstream/crates/mh-device/src/notify.rs`; `upstream/PROTOCOL.md:192-197` |
-| Focus | WinEvent hook + 250 ms poll, in external ds-focus | `upstream/.../engine/foreground.rs:14-155` |
-| Key injection | SendInput | planned |
-| Plugins | job object `KILL_ON_JOB_CLOSE`, `CREATE_NO_WINDOW` | `upstream/.../engine/plugins.rs:180-205` |
-| UIPI | detection + refusal | `upstream/.../engine/elevated.rs` |
-| Packaging | single exe / MSI (wixl precedent `hubdeck/packaging/windows/hubdeck.wxs`); start via `ds daemon start` (Task Scheduler or sc) | planned |
-| Shell glue | PowerShell examples, cli.md §6 | R9 |
+**Where the shim goes:** `ds-ipc` (named pipe `\\.\pipe\deckstack-<user>` + `-stream`,
+same NDJSON/DSF1 framings; ACL SDDL `D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>)`, S5/T12);
+`ds-platform` (WinEvent focus hook, SendInput, job objects, UIPI).
+**What to implement:** hidapi winhid with per-report-type handle memory
+(`hubdeck/.../device/hid.py:199-231`), overlapped writes DEPTH=8 on a second handle
+(`upstream/crates/mh-device/src/overlapped.rs:21-23`), `CM_Register_Notification`
+(`upstream/crates/mh-device/src/notify.rs`), `pnputil /restart-device` for wedged modules
+(`upstream/PROTOCOL.md:192-197`), plugin job object `KILL_ON_JOB_CLOSE`
+(`upstream/.../engine/plugins.rs:180-205`), PowerShell glue examples (cli.md §6), MSI/single-exe
+packaging.
+**What must be tested:** pipe throughput incl. p99 budget under 32 fps frame load on a VM
+(OPEN O5), pipe/file ACL with a second local account (T12), full conformance suite over the
+pipe, hardware smoke on a Windows VM with the deck. **Evidence gaps:** upstream has no
+named pipes at all (grep-verified, discovery/50 O3).
 
-## 3. macOS (untested — not claimed, M7/O8)
+## 3. macOS — TODO (do not start until Linux alpha is stable)
 
-| Need | Mechanism | Evidence |
-|---|---|---|
-| HID | hidapi darwin, **exclusive opens** — second daemon refuses with a clear error | `hubdeck/docs/masterhub-protocol.md:36-37` |
-| Rollers | SET_IDLE at connect | `upstream/crates/mh-device/src/recover.rs:15-18` |
-| Pipelined writes | second device object, 8 in flight | `upstream/.../pictures_macos.m`; `upstream/PROTOCOL.md:248-258` |
-| Backlight-0 brick | never 0 on dial | `upstream/PROTOCOL.md:61` |
-| Focus | NSWorkspace + AX in ds-focus | `hubdeck/.../platforms/macos/focus.py:27-141` |
+**Where the shim goes:** `ds-platform` (NSWorkspace+AX focus, app bundle), ds-device macOS
+paths. **What to implement:** exclusive hidapi opens with a clear "busy" error (OPEN O8,
+`hubdeck/docs/masterhub-protocol.md:36-37`), SET_IDLE at connect for rollers
+(`upstream/crates/mh-device/src/recover.rs:15-18`; `upstream/PROTOCOL.md:40`), pipelined
+pictures on a second device object DEPTH=8 (`upstream/.../pictures_macos.m`;
+`upstream/PROTOCOL.md:248-258`), never backlight-0 on the dial (`upstream/PROTOCOL.md:61`).
+**What must be tested:** full conformance on a macOS runner, hardware smoke with a deck,
+roller input after SET_IDLE.
 
 ## 4. Deliberately external (never in core)
 
 Window watching (ds-focus), media (MPRIS), audio, cron/webhooks/git hooks, video decode
-(ffmpeg), UI (ds-web).
+(ffmpeg), any UI.
 
 ## 5. Untested (explicit)
 
 Pure Wayland non-KDE focus (O1) · two same-kind screen modules (O3) · fader LED soak (O2) ·
-hidraw vs libusb (O4) · Windows pipe on real hardware (O5) · Landlock fs+net on target
-kernel (O6/O11) · **all of macOS** (O8) · Linux audio.
+hidraw vs libusb (O4) · **Windows pipe on real hardware (O5)** · Landlock fs+net on target
+kernel (O6/O11) · **all of macOS (O8)** · Linux audio.

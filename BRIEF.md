@@ -163,3 +163,34 @@ R12. **Repo topology.** The project lives in its own top-level directory,
 - A competent coder can implement phase 1 from the plan without asking questions.
 - The plan is written for agents: short sections, explicit contracts, examples
   with real commands and real payloads.
+
+---
+
+## Scope amendment 2026-11-22
+
+Owner steering received after the initial plan. R1-R12 above are unchanged; this section
+records where the plan's scope narrows. The normative scope document is
+[`docs/00-scope.md`](docs/00-scope.md). Summary of the deltas:
+
+1. **Alpha is Linux only** (Bazzite/Fedora, KDE Wayland first). Windows/macOS are design
+   TODOs in `docs/40-platforms.md`, not alpha deliverables; the `ds-platform`/`ds-ipc`
+   shims stay so they can be added later.
+2. **No cross-implementation compatibility**: no export/import, no migration from the
+   Python or Rust apps, no `ds migrate`. See `docs/70-porting-notes.md` (selective,
+   ticket-driven manual porting later).
+3. **No pre-baked presets, layouts, profiles or sample deck**: the daemon starts from an
+   empty state; behaviour is built from the CLI. Invariant in `docs/00-scope.md`.
+4. **No web UI in alpha** (not a planned deliverable): `ds-web` removed; the WS/HTTP
+   transport remains a generic adapter for agents/debug clients only.
+5. **Agent steering is first-class**: `AGENTS.md`, `docs/AGENT-WORKFLOW.md`,
+   `skills/deckstack/SKILL.md`; the CLI self-description contract (`ds schema`,
+   `ds describe`, `--help`, stable exit codes, machine-readable output) is normative.
+6. **Camera verification is part of the plan**: `docs/90-verification.md`; phase-2
+   hardware exit includes camera-verified key + panel.
+7. **lights.lan is reimplemented, not imported**: `docs/80-integrations.md` (post-alpha).
+8. **Repo boundaries explicit**: umbrella monorepo for the alpha core; `repos.toml`;
+   `deckstack-verify`, `deckstack-lights`, `deckstack-plugin-py` published separately.
+9. **Worktree/PR workflow is part of the plan**: `docs/50-repo-topology.md` §worktrees,
+   `docs/AGENT-WORKFLOW.md`.
+10. **Roadmap renumbered**: alpha phases 0-6; post-alpha backlog (lights, Windows, macOS,
+    web/debug UI, selective porting). See `docs/60-roadmap.md` and `PLAN.md`.

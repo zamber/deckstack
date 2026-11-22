@@ -13,8 +13,8 @@ via `sh tests/fixtures/validate.sh`. Design: ADR-003, D04. R1/R7/R8. Fixes B1/B2
 | Unix domain socket | `$XDG_RUNTIME_DIR/deckstack/daemon.sock` (fallback `~/.local/state/deckstack/daemon.sock`); dir 0700, socket 0600 | all NDJSON control ops |
 | Frame stream socket | `<dir>/stream.sock` | DSF1 binary frames + `DSctl\n` NDJSON stream control |
 | Windows named pipe | `\\.\pipe\deckstack-<user>` (+ `…-stream`), ACL below | same two planes |
-| WebSocket (opt-in adapter) | `ws://127.0.0.1:<port>/ws`, port in `<dir>/http.port`; `Authorization: Bearer <token>` + `Host: 127.0.0.1\|localhost` (T7) | JSON text frames = control; binary frames = DSF1 |
-| HTTP (opt-in adapter, same port) | `GET/POST /api/<op>` | simple request/response, 1 MiB body cap |
+| WebSocket (opt-in adapter) | `ws://127.0.0.1:<port>/ws`, port in `<dir>/http.port`; `Authorization: Bearer <token>` + `Host: 127.0.0.1\|localhost` (T7) | JSON text frames = control; binary frames = DSF1. **Generic adapter for agents/debug clients only — no UI in alpha** (scope delta 4; post-alpha note: a thin debug/web client could use this later) |
+| HTTP (opt-in adapter, same port) | `GET/POST /api/<op>` only; `/` returns 404 | simple request/response, 1 MiB body cap |
 
 Windows pipe ACL (S5): the pipe is created with an explicit security descriptor
 `D:P(A;;GA;;;SY)(A;;GA;;;<current-user-sid>)` (SYSTEM + owning user only, via
@@ -27,7 +27,7 @@ broad ACEs). Test: a second local user's connect attempt fails with access denie
 
 | CLI verb | Transport | Wire |
 |---|---|---|
-| `get set bind unbind emit watch events plugin daemon token schema migrate` | control socket | NDJSON request/response |
+| `get set bind unbind emit watch events plugin daemon token schema` | control socket | NDJSON request/response (no `migrate` op exists — scope delta 2) |
 | `stream stats` / `stream stop` | control socket | NDJSON ops `stream-stats` / `stream-stop` |
 | `stream push` | control socket **then** stream socket | `stream-open {target, credits}` (NDJSON) authorizes; frames are DSF1 binary on stream.sock; acks are `DSctl\n` NDJSON `stream-ack`/`stream-nack`/`stream-credit` |
 
