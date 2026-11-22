@@ -66,7 +66,7 @@ graph TD
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
-  DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::review
+  DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::done
   DS093["DS-093 fixture gate: fix the validate.js `not` short-circuit tha..."]:::done
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::ready
   DS001 --> DS006
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
-- **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(review)
+- **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
