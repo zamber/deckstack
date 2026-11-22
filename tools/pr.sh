@@ -120,6 +120,7 @@ body_section() { # file heading
 
 run_checks() { # worktree-root -> writes $TMP/checks.txt, returns check status
   wt=$1
+  local wt rc
   rc=1
   if [ -f "$wt/tools/check.sh" ]; then
     # R03: check.sh validates the tree it is given (arg 1), i.e. this worktree — not main
