@@ -16,7 +16,7 @@ run is ticket DS-090 (`prs/DS-090.md`, `prs/DS-090.review.md`, artifact
 | R05 | fixed | `tools/pr.sh submit` resolves `git rev-parse --git-common-dir`, requires `pwd == <main>/.worktrees/<id>` plus branch `ticket/<id>` | from main: rc=1 "submit must run inside …/.worktrees/DS-004", board untouched; positive case proven by DS-090 submit inside `.worktrees/DS-090` |
 | R06 | fixed (already atomic; proven) | `tools/tickets.py cmd_claim` holds `Lock(exclusive=True)` (flock on `tickets/.lock`) across the collision check, write and sync — no code change needed | two concurrent `claim DS-902` attempts: one rc=0, the other rc=1 ("is doing, must be ready to claim"); ticket file has exactly one `owner`, state `doing`, `tickets.py validate` OK |
 | R07 | fixed | `tools/pr.sh fill_line` replaced sed substitution with a Python `str.replace`, value passed via environment (safe for `|`, `&`, `\`, newlines) | DS-090 owner `worker-smoke\|R07&R08\CMT` flows through `fill_line {{OWNER}}` into `prs/DS-090.md` verbatim; review `--request-changes` reason containing a newline + `|`/`&`/`\` written verbatim into `prs/DS-090.review.md` |
-| R08 | fixed | `tools/pr.sh` and `tools/wt.sh` `vibe_commit` and the merge message now pipe via `git commit -F -` / `git merge -F -` (no here-doc delimiter) | DS-090 claim coordination commit message contains `| & \ CMT` (via the owner) and lands intact; worker commit body contains `CMT`/`EOF` lines; DS-090 merge message built with `printf … | git merge -F -` |
+| R08 | fixed | `tools/pr.sh` and `tools/wt.sh` `vibe_commit` use `git commit -F -` (no here-doc delimiter); the merge message is built in a variable and passed with `git merge -m` (the earlier `-F -` was invalid; fixed in `bc6ff8b`) | DS-090 claim/commit messages contain `| & \ CMT`/`EOF` and land intact; the DS-090 merge commit `fa37db3` carries the generated message |
 | R09 | fixed | `tools/pr.sh list` uses `tickets.py list --state review --json true` parsed with `python3 json` | with DS-902 in `review`: `pr.sh list` printed the DS-902 row (owner/branch/verdict); also exercised during the DS-090 smoke |
 
 ## Notes
@@ -29,6 +29,15 @@ run is ticket DS-090 (`prs/DS-090.md`, `prs/DS-090.review.md`, artifact
 - Steward-only enforcement is `DS_STEWARD=1` (declaration exported by `tools/steward.sh`) plus
   the reviewer≠owner check; a worker following the docs cannot approve its own PR and is told
   to hand off to the steward.
+
+## Post-review fixes found by the end-to-end run
+
+The first DS-090 merge exposed two script bugs that the review could not see; both are fixed on `main`:
+
+- `tools/pr.sh` `run_checks` now returns the gate status (`2871137`) and declares `local wt rc` (`81339f8`). Without the locals it clobbered the caller's `wt`, so merge cleanup looked for `$ROOT/$ROOT/.worktrees/DS-090` and failed after a successful merge. Review and merge now abort on a failed gate and leave the worktree intact for inspection.
+- `git merge` has no `-F`; the merge message is built in a variable and passed with `-m` (`bc6ff8b`). The invalid `-F -` was the first DS-090 merge failure.
+
+DS-090 proof: merge commit `fa37db3`, ticket `done`, artifacts `docs/workflow-hardening-smoke.md`, `prs/DS-090.md`, `prs/DS-090.review.md`. Worktree/branch cleanup was completed manually after the path bug; the fix is in the script. `review` remote main is at `81339f8`; `tickets.py validate` reports 59 tickets, 7 done, 1 ready; `tools/check.sh` reports ALL GREEN; the tree is clean and only the main worktree remains.
 
 ## Path
 
