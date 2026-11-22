@@ -83,3 +83,9 @@ stale-grep clean for your area, no stale worktrees/branches left behind.
 
 Status, what works, what is not done, next step, proving command — the same shape as the
 run report. Under 400 words.
+
+## Rules and enforcement
+
+| Rule | Enforced by |
+|---|---|
+| Workflow-owned coordination files are not feature diff. | `tests/tools/test_check_touches.py` via `tools/check.sh` |

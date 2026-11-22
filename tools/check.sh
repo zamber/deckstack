@@ -42,6 +42,18 @@ else
   printf '%s\n' "$out" | sed 's/^/    /'
 fi
 
+echo "-- always: ticket tool unit tests"
+if [ -d tests/tools ]; then
+  if out=$(python3 -m unittest discover -s tests/tools -p 'test_*.py' 2>&1); then
+    pass "ticket tool unit tests"
+    printf '%s\n' "$out" | tail -n 3 | sed 's/^/    /'
+  else
+    bad "ticket tool unit tests"; printf '%s\n' "$out" | tail -n 30 | sed 's/^/    /'
+  fi
+else
+  echo "SKIP  no tests/tools yet"
+fi
+
 echo "-- conditional: cargo workspace (runs once Cargo.toml exists, DS-004)"
 if [ -f Cargo.toml ]; then
   if cargo fmt --check >/dev/null 2>&1; then pass "cargo fmt --check"; else bad "cargo fmt --check"; cargo fmt --check 2>&1 | head -n 20 | sed 's/^/    /'; fi

@@ -133,6 +133,34 @@ def touch_entry_matches(path, entry):
     return False
 
 
+COORDINATION_FILES = frozenset({
+    "tickets/BOARD.md",
+    "tickets/GRAPH.md",
+    "tickets/index.json",
+})
+
+
+def is_coordination_file(path, ticket_id):
+    """True for workflow-owned files: own ticket metadata, own PR records, generated board."""
+    path = path.replace("\\", "/")
+    if path in COORDINATION_FILES:
+        return True
+    return path in {
+        f"tickets/{ticket_id}.md",
+        f"prs/{ticket_id}.md",
+        f"prs/{ticket_id}.review.md",
+    }
+
+
+def outside_touches(files, touches, ticket_id):
+    """Changed files outside the ticket's touches, ignoring workflow-owned files."""
+    return [
+        f for f in files
+        if not is_coordination_file(f, ticket_id)
+        and not any(touch_entry_matches(f, e) for e in touches)
+    ]
+
+
 def blocks_of(tickets):
     blocks = {tid: [] for tid in tickets}
     for tid, t in tickets.items():
@@ -711,7 +739,7 @@ def cmd_check_touches(args):
         print(f"error: git diff --name-only {rng}: {r.stderr.strip()}", file=sys.stderr)
         return 2
     files = [f for f in r.stdout.splitlines() if f]
-    outside = [f for f in files if not any(touch_entry_matches(f, e) for e in touches)]
+    outside = outside_touches(files, touches, args.id)
     if outside:
         print(f"OUTSIDE TOUCHES for {args.id} (diff {rng}):")
         for f in outside:
