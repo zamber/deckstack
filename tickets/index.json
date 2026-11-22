@@ -676,7 +676,9 @@
     ],
     "touches": [
       "new:crates/ds-device/src/hid/",
-      "new:tests/hw/"
+      "new:tests/hw/",
+      "crates/ds-device/src/lib.rs",
+      "crates/ds-device/Cargo.toml"
     ],
     "branch": null,
     "worktree": null,
@@ -1243,7 +1245,9 @@
       "new:crates/ds-daemon/src/router/topics.rs",
       "docs/contracts/actions.md",
       "docs/components/event-router.md",
-      "new:tests/conformance/events/"
+      "new:tests/conformance/events/",
+      "crates/ds-daemon/src/lib.rs",
+      "crates/ds-daemon/Cargo.toml"
     ],
     "branch": null,
     "worktree": null,
