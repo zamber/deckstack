@@ -424,7 +424,7 @@
   {
     "id": "DS-015",
     "title": "ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "daemon",
     "size": "L",
