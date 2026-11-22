@@ -20,7 +20,7 @@ graph TD
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::done
   DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::ready
   DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::ready
-  DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::doing
+  DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::review
   DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::ready
   DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::backlog
   DS020["DS-020 End-to-end walking skeleton: one key image -> vdev reasse..."]:::backlog
@@ -203,7 +203,7 @@ Critical path length: 10 tickets.
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (1): DS-011(done)
 - **test** (8): DS-018(ready), DS-020(backlog), DS-026(backlog), DS-029(backlog), DS-045(backlog), DS-053(backlog), DS-062(backlog), DS-080(backlog)
-- **vdev** (2): DS-017(doing), DS-035(backlog)
+- **vdev** (2): DS-017(review), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
 - **workflow** (7): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done)

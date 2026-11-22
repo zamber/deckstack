@@ -210,6 +210,30 @@ dependencies = [
 [[package]]
 name = "ds-vdev"
 version = "0.1.0"
+dependencies = [
+ "ds-device",
+ "ds-protocol",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "ds-vdev-bin"
+version = "0.1.0"
+dependencies = [
+ "ds-protocol",
+ "ds-vdev",
+]
+
+[[package]]
+name = "ds-vdevctl-bin"
+version = "0.1.0"
+dependencies = [
+ "ds-vdev",
+ "serde_json",
+]
 
 [[package]]
 name = "email_address"

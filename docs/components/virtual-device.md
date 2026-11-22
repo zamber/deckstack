@@ -20,11 +20,13 @@ so the real `ds-device` code path (chunking, framing, safety) runs unchanged.
   assert the daemon never emits them.
 - **Public surface:** `ds-vdev --socket /tmp/vdev.sock [--modules keys,dial,m0]
   [--inject events.ndjson] [--throttle-kbps N] [--drop-after N]`. Inspection is the
-  **`ds-vdevctl` subcommands of the same binary** (m10/S10 — there is no test-only verb in
+  separate **`ds-vdevctl` binary** (m10/S10 — there is no test-only verb in
   the production `ds` CLI): `ds-vdevctl --socket S frames <target>` → sha256 + bytes of
   each reassembled frame (the golden-frame oracle); `ds-vdevctl … writes` → full report
   log (bytes, chunk index, timestamps, per-write return counts); `ds-vdevctl … inject
-  events.ndjson` → scripted input with timestamps.
+  events.ndjson` → scripted input with timestamps; `ds-vdevctl … reports` → the module
+  reports of the deck layout; `ds-vdevctl … throttle <kbps|off> [drop-after|off]` →
+  runtime throttle knobs. Targets for `frames`: `panel`, `key:N` (N < 15), `dial`.
 - **Failure modes / knobs:** `--throttle-kbps` simulates the ~2.1 MB/s device cap
   (`upstream/PROTOCOL.md:265`) to prove backpressure; `--drop-after` simulates
   hot-unplug; `--inject` replays input events with timestamps.
@@ -62,3 +64,26 @@ u32 LE body_len | u8 kind | u16 LE pid | payload[body_len - 3]
   (payload = UTF-8 message, e.g. a refused forbidden report).
 - One ack per write/feature-set, one answer per feature-get; input reports arrive
   asynchronously and may interleave with acks/answers. The host matches them by `pid`.
+
+## Control socket (normative for ds-vdevctl ↔ ds-vdev)
+
+`pid = 0` is reserved for CLOSE on the device socket, so inspection/control cannot ride it.
+Instead `ds-vdev` also binds a sibling line-based control socket at `<socket>.ctl` (DS-017).
+One request per connection — a single line — answered with `OK`, then zero or more body
+lines, then a line containing only `.`; failures are a single line `ERR <message>`.
+Requests (first word = command):
+
+```
+ping
+frames [target]            # target: panel | key:N | dial; body: "<target> <sha256> <bytes>B seq=<n>"
+reports                    # one line per served module (pid, report lengths, tags, state)
+writes [n]                 # last n report log entries (seq, pid, kind, len, refused, at_ms)
+throttle <kbps|off> [drop-after|off]
+inject <event-json>        # one ndjson event (see below), broadcast as an 0x81 INPUT frame
+```
+
+`--inject events.ndjson` / `ds-vdevctl inject` replay scripts of one JSON object per line,
+`{"module": "keys", "keys": [0, 3], "at_ms": 120}` (also `faders`, `knob`/`knob_delta`,
+`knob_press`/`pressed`, `roller`/`roller_delta`, `dial_delta`, `dial_pressed`,
+`orientation`); the hub encodes each into the module's raw input report
+(`01 <tag> <len u16 LE> <payload…>`, 64 B) and broadcasts it to every connected host.
