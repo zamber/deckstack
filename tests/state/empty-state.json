@@ -1,0 +1,11 @@
+{
+  "meta": { "version": 1, "rev": 0, "protocol": 1 },
+  "devices": {},
+  "controls": {},
+  "bindings": [],
+  "plugins": {},
+  "streams": {},
+  "settings": {},
+  "policy": {},
+  "telemetry": {}
+}

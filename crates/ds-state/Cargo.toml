@@ -9,3 +9,15 @@ description = "State document, revisions, transactions and subscriptions (schema
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
 workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# JSON Schema (draft 2020-12) validation of the state document against schemas/*.json.
+# Default features (reqwest/rustls HTTP resolution) are off: external $refs
+# (https://deckstack.dev/schemas/*.json/vN) are served from the schemas embedded at
+# compile time by a local retriever, so no network code is pulled in.
+jsonschema = { version = "0.63", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
