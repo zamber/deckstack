@@ -546,7 +546,7 @@
   {
     "id": "DS-018",
     "title": "Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants",
-    "state": "doing",
+    "state": "review",
     "phase": 1,
     "lane": "test",
     "size": "L",
