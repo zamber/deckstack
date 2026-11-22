@@ -14,7 +14,7 @@ Generated: 2026-11-22 - 60 tickets.
 | DS-010 | done | 1 | protocol | M | vibe/DS-010 | DS-004 | ds-protocol: re-export mh-protocol builders + safety tests (forbidden commands unrepresentable) |
 | DS-011 | done | 1 | state | L | vibe/DS-011 | DS-004 | ds-state: document, paths, rev/transactions, persistence, telemetry split, schema validation |
 | DS-012 | done | 1 | ipc | L | vibe/DS-012 | DS-004 | ds-ipc control plane: Unix socket, NDJSON, hello/auth, scopes, errors, limits, client crate |
-| DS-013 | review | 1 | ipc | L | vibe/DS-013 | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
+| DS-013 | done | 1 | ipc | L | vibe/DS-013 | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
 | DS-014 | done | 1 | device | M | vibe/DS-014 | DS-004 | ds-device: virtual transport and report codec (device-agnostic driver core) |
 | DS-015 | ready | 1 | daemon | L | - | DS-011, DS-012, DS-014 | ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs |
 | DS-016 | ready | 1 | cli | L | - | DS-012 | ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes |
