@@ -2198,5 +2198,39 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-090",
+    "title": "Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes",
+    "state": "ready",
+    "phase": 0,
+    "lane": "workflow",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "new:docs/workflow-hardening-smoke.md",
+      "new:prs/DS-090.md",
+      "tickets/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/workflow-hardening-smoke.md exists on main after the PR merge",
+      "python3 tools/tickets.py show DS-090 reports state done",
+      "prs/DS-090.review.md exists on main with verdict approved",
+      "git ls-remote review refs/heads/main equals local main (R01 verified push)",
+      "git worktree list shows only the main worktree and git branch -a has no ticket/DS-090"
+    ],
+    "verification": [
+      "python3 tools/tickets.py validate",
+      "sh tools/check.sh",
+      "git ls-remote review refs/heads/main && git rev-parse main",
+      "git worktree list && git branch -a"
+    ],
+    "blocks": []
   }
 ]
