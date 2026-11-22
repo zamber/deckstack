@@ -64,7 +64,7 @@ graph TD
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::backlog
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
-  DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::ready
+  DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -205,9 +205,8 @@ Critical path length: 10 tickets.
 - **vdev** (2): DS-017(backlog), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
-- **workflow** (6): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(ready)
+- **workflow** (6): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(doing)
 
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-004 - Cargo workspace skeleton: virtual manifest, crate stubs, LICENSE/NOTICE, rustfmt/clippy config (lane build)
-- DS-090 - Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes (lane workflow)

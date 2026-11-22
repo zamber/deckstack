@@ -2202,20 +2202,20 @@
   {
     "id": "DS-090",
     "title": "Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes",
-    "state": "ready",
+    "state": "doing",
     "phase": 0,
     "lane": "workflow",
     "size": "S",
-    "owner": null,
+    "owner": "worker-smoke|R07&R08\\CMT",
     "depends_on": [],
     "touches": [
       "new:docs/workflow-hardening-smoke.md",
       "new:prs/DS-090.md",
       "tickets/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-090",
+    "worktree": ".worktrees/DS-090",
+    "pr": "prs/DS-090.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
