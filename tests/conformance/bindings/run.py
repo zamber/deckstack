@@ -19,6 +19,15 @@ docs/contracts/state.md §2, docs/contracts/cli.md §1):
         (and any) `when` fires nothing: the topic event is published, no state changes
     090 raw IPC bind/unbind round trip (placeholder id in the request, result.id assigned)
     100 binding ids are never reused after an unbind
+    110 DS-042: bind -> trigger (key inject) -> set/set/emit steps execute in order
+        (watch shows first/second in order, one rev bump per set, emit visible on /app/*)
+    120 DS-042: `when` on a payload field gates the binding (eq 3 fires, eq 9 does not)
+    130 DS-042: a schema-invalid set value is rejected (E_SCHEMA binding-error event)
+        without touching state (E_PATH on read, no rev bump)
+    140 DS-042: a self-emitting binding hits the emit recursion cap (depth 10) with a
+        clear binding-error event; the daemon stays healthy afterwards
+    150 DS-042: a plugin step fails closed (E_CAP stub until DS-050) with a
+        binding-error event and the remaining steps still run
 
 Usage:
     python3 tests/conformance/bindings/run.py [--verbose]
@@ -647,6 +656,185 @@ class Bindings(unittest.TestCase):
         bid2 = self.jout(p)["result"]["id"]
         self.assertNotEqual(bid2, bid, "an unbound id must never be re-allocated")
         self.assertGreater(int(bid2[1:]), int(bid[1:]), "ids are monotonic")
+
+    # ---- DS-042: step execution + when evaluation (black box) ---------------
+
+    def test_110_bind_trigger_runs_set_emit_steps_in_order(self):
+        # bind keys.2/down: set label "first", set label "second", emit app/demo/order
+        p = self.bind(
+            "deck/control/keys.2/down",
+            'set /controls/keys/2/label "first"',
+            'set /controls/keys/2/label "second"',
+            'emit app/demo/order {"n": 1}',
+        )
+        bid = self.jout(p)["result"]["id"]
+        rev0 = self.rev()
+        # watch the two committed label changes (order observable on the wire)
+        watch = subprocess.Popen(
+            [str(self.stack.bins / "ds"), "--socket", str(self.stack.sock),
+             "--data-dir", str(self.stack.data),
+             "watch", "/controls/keys/2", "--ndjson", "--max-events", "2"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env={**os.environ, "DS_DAEMON_BIN": str(self.stack.bins / "ds-daemon")},
+        )
+        # IPC subscriptions for the emitted topic and for system error events
+        sub = self.conn()
+        try:
+            r = sub.rpc({"id": 2, "op": "subscribe", "path": "/app/*"})
+            self.assertEqual(r["ok"], True, r)
+            time.sleep(1.0)
+            self.assertIsNone(watch.poll(), "watch exited before the trigger")
+            inj = self.stack.inject([{"module": "keys", "keys": [2]}])
+            self.assertEqual(inj.returncode, 0, inj.stderr)
+            # the two set steps committed in binding order: "first" then "second"
+            out, err = watch.communicate(timeout=EVENT_TIMEOUT_S)
+            self.assertEqual(watch.returncode, 0, "watch rc=%d stderr=%s" % (watch.returncode, err))
+            lines = [l for l in out.splitlines() if l.strip()]
+            self.assertEqual(len(lines), 2, "two set steps -> two events: %r" % out)
+            evs = [json.loads(l) for l in lines]
+            self.assertEqual([e["value"] for e in evs], ["first", "second"],
+                             "steps must run sequentially in binding order: %r" % evs)
+            self.assertEqual([e["path"] for e in evs],
+                             ["/controls/keys/2/label", "/controls/keys/2/label"])
+            self.assertEqual(evs[1]["rev"] - evs[0]["rev"], 1, "one rev bump per set step")
+            # final state carries the LAST step's value; exactly two rev bumps happened
+            self.assertEqual(self.get_json("/controls/keys/2/label")["value"], "second")
+            deadline = time.monotonic() + EVENT_TIMEOUT_S
+            while self.rev() < rev0 + 2 and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertEqual(self.rev(), rev0 + 2, "two set steps = exactly two rev bumps")
+            # the emit step published app/demo/order on the bus with its payload
+            ev = self.next_event(sub, want_topic="app/demo/order")
+            self.assertEqual(ev["payload"], {"n": 1})
+            # the binding itself is still stored verbatim
+            stored = self.get_json("/bindings/%s" % bid)["value"]
+            self.assertEqual([s["do"] for s in stored["steps"]], ["set", "set", "emit"])
+        finally:
+            if watch.poll() is None:
+                watch.kill()
+                watch.communicate(timeout=KILL_TIMEOUT_S)
+            sub.close()
+
+    def test_120_when_on_payload_gates_the_binding(self):
+        # matching payload field fires; a non-matching one does not (S7)
+        p = self.bind("deck/control/keys.3/down",
+                      'set /controls/keys/3/label "matched"',
+                      when='{"payload":"key","op":"eq","value":3}')
+        bid_ok = self.jout(p)["result"]["id"]
+        p = self.bind("deck/control/keys.3/down",
+                      'set /controls/keys/3/label "wrong"',
+                      when='{"payload":"key","op":"eq","value":9}')
+        bid_no = self.jout(p)["result"]["id"]
+        rev0 = self.rev()
+        inj = self.stack.inject([{"module": "keys", "keys": [3]}])
+        self.assertEqual(inj.returncode, 0, inj.stderr)
+        deadline = time.monotonic() + EVENT_TIMEOUT_S
+        while time.monotonic() < deadline:
+            p = self.stack.ds("get", "/controls/keys/3/label", "--json")
+            if p.returncode == 0:
+                break
+            time.sleep(0.05)
+        self.assertEqual(self.jout(p)["value"], "matched",
+                         "only the binding whose when matches may fire")
+        self.assertEqual(self.rev(), rev0 + 1, "exactly one set step ran")
+        # the non-matching binding is still stored, untouched
+        stored = self.get_json("/bindings/%s" % bid_no)["value"]
+        self.assertEqual(stored["when"], {"payload": "key", "op": "eq", "value": 9})
+        self.assertEqual(stored["id"], bid_no)
+        self.assertNotEqual(bid_ok, bid_no)
+
+    def test_130_schema_invalid_set_step_is_rejected_without_touching_state(self):
+        # brightness must be an integer 1..=100 (schemas/state.json); "high" is invalid
+        p = self.bind("deck/control/keys.4/down",
+                      'set /controls/keys/4/brightness "high"')
+        bid = self.jout(p)["result"]["id"]
+        rev0 = self.rev()
+        sub = self.conn()
+        try:
+            r = sub.rpc({"id": 2, "op": "subscribe", "path": "/deck/system/*"})
+            self.assertEqual(r["ok"], True, r)
+            time.sleep(0.5)
+            inj = self.stack.inject([{"module": "keys", "keys": [4]}])
+            self.assertEqual(inj.returncode, 0, inj.stderr)
+            ev = self.next_event(sub, want_topic="deck/system/binding-error")
+            self.assertEqual(ev["payload"]["binding"], bid)
+            self.assertEqual(ev["payload"]["step"], 0)
+            self.assertEqual(ev["payload"]["error"]["code"], "E_SCHEMA")
+            # state untouched: the path was never written and rev did not move
+            p = self.stack.ds("get", "/controls/keys/4/brightness", "--json")
+            self.assertEqual(p.returncode, 2, "schema-invalid set must not touch state: %s" % p.stderr)
+            self.assertEqual(json.loads(p.stderr)["error"]["code"], "E_PATH")
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                if self.rev() != rev0:
+                    self.fail("a rejected set step must not bump rev")
+                time.sleep(0.05)
+        finally:
+            sub.close()
+
+    def test_140_emit_loop_hits_the_depth_cap_and_the_daemon_stays_healthy(self):
+        # a self-emitting binding must be capped at depth 10 with a clear error event
+        p = self.bind("app/demo/loop", 'emit app/demo/loop {}')
+        bid = self.jout(p)["result"]["id"]
+        sub = self.conn()
+        ctl = self.conn()
+        try:
+            r = sub.rpc({"id": 2, "op": "subscribe", "path": "/deck/system/*"})
+            self.assertEqual(r["ok"], True, r)
+            time.sleep(0.5)
+            r = ctl.rpc({"id": 3, "op": "emit", "topic": "app/demo/loop", "payload": {}})
+            self.assertEqual(r["ok"], True, r)
+            ev = self.next_event(sub, want_topic="deck/system/binding-error")
+            self.assertEqual(ev["payload"]["binding"], bid)
+            self.assertEqual(ev["payload"]["step"], 0)
+            self.assertEqual(ev["payload"]["error"]["code"], "E_LIMIT")
+            self.assertIn("cap 10", ev["payload"]["error"]["message"])
+            self.assertEqual(ev["payload"]["depth"], 9, "depth 9 dispatches, its emit is refused")
+            # the daemon is still healthy: status answers and a set still commits
+            p = self.stack.ds("daemon", "status", "--json")
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertTrue(self.jout(p)["running"])
+            r0 = self.rev()
+            p = self.stack.ds("set", "/controls/keys/5/label", "--json", json.dumps("still-alive"))
+            self.assertEqual(p.returncode, 0, p.stderr)
+            env = self.jout(p)
+            self.assertEqual(env["rev"], r0 + 1)
+            self.assertEqual(self.get_json("/controls/keys/5/label")["value"], "still-alive")
+        finally:
+            sub.close()
+            ctl.close()
+
+    def test_150_plugin_step_stub_fails_closed_with_binding_error(self):
+        # until DS-050 the plugin step returns a typed error and the router survives;
+        # remaining steps still run
+        p = self.bind("deck/control/keys.6/down",
+                      'plugin demo.bump {"by":1}',
+                      'set /controls/keys/6/label "after-plugin"')
+        bid = self.jout(p)["result"]["id"]
+        rev0 = self.rev()
+        sub = self.conn()
+        try:
+            r = sub.rpc({"id": 2, "op": "subscribe", "path": "/deck/system/*"})
+            self.assertEqual(r["ok"], True, r)
+            time.sleep(0.5)
+            inj = self.stack.inject([{"module": "keys", "keys": [6]}])
+            self.assertEqual(inj.returncode, 0, inj.stderr)
+            ev = self.next_event(sub, want_topic="deck/system/binding-error")
+            self.assertEqual(ev["payload"]["binding"], bid)
+            self.assertEqual(ev["payload"]["step"], 0)
+            self.assertEqual(ev["payload"]["error"]["code"], "E_CAP")
+            self.assertIn("DS-050", ev["payload"]["error"]["message"])
+            # the remaining step still ran (failing step does not abort the binding)
+            deadline = time.monotonic() + EVENT_TIMEOUT_S
+            while time.monotonic() < deadline:
+                p = self.stack.ds("get", "/controls/keys/6/label", "--json")
+                if p.returncode == 0:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(self.jout(p)["value"], "after-plugin")
+            self.assertEqual(self.rev(), rev0 + 1)
+        finally:
+            sub.close()
 
 
 class LineResult(unittest.TextTestResult):

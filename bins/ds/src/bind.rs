@@ -36,8 +36,13 @@ pub fn verb_bind(
     when: Option<&str>,
 ) -> Result<i32, Failure> {
     let mut steps = Vec::with_capacity(dos.len());
-    for d in dos {
-        steps.push(parse_step(d)?);
+    for (i, d) in dos.iter().enumerate() {
+        let step = parse_step(d)?;
+        // Validate the step shape client-side against the SAME normative vocabulary the
+        // daemon enforces (the embedded schemas/binding.json via the IPC request schema —
+        // no second parser): a code-ish or malformed step exits 1 before connecting.
+        validate_step(&step).map_err(|e| Failure::Usage(format!("--do #{}: {e}", i + 1)))?;
+        steps.push(step);
     }
     let mut binding = json!({
         "id": BINDING_ID_PLACEHOLDER,
@@ -74,6 +79,25 @@ pub fn verb_bind(
         _ => println!("ok rev={rev} id={id}"),
     }
     Ok(0)
+}
+
+/// Validate one parsed step against `schemas/binding.json` — the same embedded schema the
+/// daemon validates the `bind` request with (`ds_ipc::message::validate_request`), so the
+/// CLI and the daemon accept exactly the same closed vocabulary
+/// (set/emit/plugin/exec/sleep; no code fields). The step is wrapped in a minimal probe
+/// binding; this adds no parser of its own, it reuses the normative schema.
+fn validate_step(step: &Value) -> Result<(), String> {
+    let probe = json!({
+        "op": "bind",
+        "binding": {
+            "id": BINDING_ID_PLACEHOLDER,
+            "topic": "deck/probe/x",
+            "steps": [step],
+        }
+    });
+    ds_ipc::message::validate_request(&probe)
+        .map_err(|e| format!("step {step} violates schemas/binding.json: {}", e.message))?;
+    Ok(())
 }
 
 /// Parse one `--do` step string into a step object (JSON form or shorthand).
@@ -244,5 +268,30 @@ mod tests {
         assert!(parse_step("sleep abc").is_err());
         assert!(parse_step("exec").is_err());
         assert!(parse_step("emit").is_err());
+    }
+
+    #[test]
+    fn validate_step_uses_the_normative_binding_schema() {
+        // every vocabulary step validates
+        assert!(validate_step(&json!({"do": "sleep", "ms": 5})).is_ok());
+        assert!(
+            validate_step(&json!({"do": "set", "path": "/controls/keys/1/image",
+            "value": {"kind": "color", "value": "#ff0000"}}))
+            .is_ok()
+        );
+        assert!(validate_step(&json!({"do": "emit", "topic": "app/demo/x"})).is_ok());
+        assert!(validate_step(&json!({"do": "plugin", "id": "demo", "action": "bump"})).is_ok());
+        assert!(validate_step(&json!({"do": "exec", "argv": ["/usr/bin/true"]})).is_ok());
+        // code-ish step rejected (R8/T2) with the schema in the message
+        let err = validate_step(&json!({"do": "eval", "code": "1"})).unwrap_err();
+        assert!(err.contains("binding.json"), "{err}");
+        // exec with a relative argv[0] rejected (M1/S3)
+        assert!(validate_step(&json!({"do": "exec", "argv": ["sh", "-c", "x"]})).is_err());
+        // sleep bounds (schemas/binding.json: 1..=60000)
+        assert!(validate_step(&json!({"do": "sleep", "ms": 0})).is_err());
+        assert!(validate_step(&json!({"do": "sleep", "ms": 60_001})).is_err());
+        // unknown verb / non-object
+        assert!(validate_step(&json!({"do": "restart"})).is_err());
+        assert!(validate_step(&json!(42)).is_err());
     }
 }
