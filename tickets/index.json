@@ -811,7 +811,7 @@
   {
     "id": "DS-025",
     "title": "udev rules, device permissions, install docs (Linux)",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "packaging",
     "size": "S",
@@ -823,9 +823,9 @@
       "new:packaging/udev/99-deckstack.rules",
       "docs/40-platforms.md"
     ],
-    "branch": "ticket/DS-025",
-    "worktree": ".worktrees/DS-025",
-    "pr": "prs/DS-025.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
