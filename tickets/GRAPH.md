@@ -40,7 +40,7 @@ graph TD
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
-  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::ready
+  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::doing
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::backlog
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::backlog
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(ready), DS-042(backlog), DS-044(backlog)
+- **router** (4): DS-040(done), DS-041(doing), DS-042(backlog), DS-044(backlog)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (2): DS-011(done), DS-096(ready)
@@ -221,5 +221,4 @@ Critical path length: 10 tickets.
 - DS-030 - JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests (lane frames)
 - DS-031 - Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap (lane frames)
 - DS-032 - ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits (lane cli)
-- DS-041 - Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation (lane router)
 - DS-096 - state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) (lane state)
