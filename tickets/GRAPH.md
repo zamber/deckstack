@@ -32,7 +32,7 @@ graph TD
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::backlog
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
-  DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::ready
+  DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::doing
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::doing
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::ready
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::doing
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(ready), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(doing), DS-045(backlog), DS-053(backlog), DS-062(ready), DS-080(backlog), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(backlog)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(backlog)
@@ -219,7 +219,6 @@ Critical path length: 10 tickets.
 
 - DS-023 - Hot-plug rescan, reconnect, re-push, unresponsive-device handling (lane device)
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
-- DS-029 - Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape (lane test)
 - DS-031 - Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap (lane frames)
 - DS-042 - Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation (lane router)
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
