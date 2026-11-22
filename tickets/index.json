@@ -985,11 +985,11 @@
   {
     "id": "DS-030",
     "title": "JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests",
-    "state": "ready",
+    "state": "doing",
     "phase": 3,
     "lane": "frames",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-030",
     "depends_on": [
       "DS-013",
       "DS-020"
@@ -1002,9 +1002,9 @@
       "crates/ds-daemon/src/lib.rs",
       "crates/ds-daemon/Cargo.toml"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-030",
+    "worktree": ".worktrees/DS-030",
+    "pr": "prs/DS-030.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
