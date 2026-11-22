@@ -19,7 +19,7 @@ graph TD
   DS013["DS-013 ds-ipc frame plane: DSF1 stream socket, credits/acks, limits"]:::done
   DS014["DS-014 ds-device: virtual transport and report codec (device-agn..."]:::done
   DS015["DS-015 ds-daemon skeleton: state task, IPC server, device task, ..."]:::done
-  DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::review
+  DS016["DS-016 ds CLI: get/set/watch/schema/describe/daemon/status; outp..."]:::done
   DS017["DS-017 ds-vdev: virtual hub (module reports, chunk reassembly, i..."]:::done
   DS018["DS-018 Black-box conformance harness (pytest): CLI/IPC/state; em..."]:::ready
   DS019["DS-019 systemd user unit + daemon lifecycle runbook"]:::ready
@@ -39,8 +39,8 @@ graph TD
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::backlog
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::backlog
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
-  DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::backlog
-  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::backlog
+  DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::ready
+  DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::ready
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::backlog
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::backlog
@@ -189,7 +189,7 @@ Critical path length: 10 tickets.
 - **bench** (1): DS-033(backlog)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
-- **cli** (2): DS-016(review), DS-032(backlog)
+- **cli** (2): DS-016(done), DS-032(backlog)
 - **daemon** (2): DS-015(done), DS-024(backlog)
 - **device** (4): DS-014(done), DS-021(backlog), DS-022(backlog), DS-023(backlog)
 - **docs** (2): DS-064(backlog), DS-094(ready)
@@ -201,7 +201,7 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(backlog), DS-041(backlog), DS-042(backlog), DS-044(backlog)
+- **router** (4): DS-040(ready), DS-041(ready), DS-042(backlog), DS-044(backlog)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(backlog), DS-061(backlog)
 - **state** (1): DS-011(done)
@@ -215,4 +215,6 @@ Critical path length: 10 tickets.
 
 - DS-018 - Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants (lane test)
 - DS-019 - systemd user unit + daemon lifecycle runbook (lane packaging)
+- DS-040 - Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering (lane router)
+- DS-041 - Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation (lane router)
 - DS-094 - run-log evidence backfill for the rows flagged by the independent review (lane docs)

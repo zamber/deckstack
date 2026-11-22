@@ -17,7 +17,7 @@ Generated: 2026-11-22 - 63 tickets.
 | DS-013 | done | 1 | ipc | L | vibe/DS-013 | DS-004 | ds-ipc frame plane: DSF1 stream socket, credits/acks, limits |
 | DS-014 | done | 1 | device | M | vibe/DS-014 | DS-004 | ds-device: virtual transport and report codec (device-agnostic driver core) |
 | DS-015 | done | 1 | daemon | L | vibe/DS-015 | DS-011, DS-012, DS-014 | ds-daemon skeleton: state task, IPC server, device task, lifecycle, token, logs |
-| DS-016 | review | 1 | cli | L | vibe/DS-016 | DS-012 | ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes |
+| DS-016 | done | 1 | cli | L | vibe/DS-016 | DS-012 | ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes |
 | DS-017 | done | 1 | vdev | L | vibe/DS-017 | DS-014 | ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl |
 | DS-018 | ready | 1 | test | L | - | DS-003, DS-012 | Black-box conformance harness (pytest): CLI/IPC/state; empty-state and no-migrate invariants |
 | DS-019 | ready | 1 | packaging | M | - | DS-015 | systemd user unit + daemon lifecycle runbook |
@@ -37,8 +37,8 @@ Generated: 2026-11-22 - 63 tickets.
 | DS-033 | backlog | 3 | bench | M | - | DS-031, DS-032 | Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak |
 | DS-034 | backlog | 3 | frames | M | - | DS-030, DS-032 | Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits |
 | DS-035 | backlog | 3 | vdev | M | - | DS-017, DS-032 | vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn |
-| DS-040 | backlog | 4 | router | L | - | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
-| DS-041 | backlog | 4 | router | M | - | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
+| DS-040 | ready | 4 | router | L | - | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
+| DS-041 | ready | 4 | router | M | - | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
 | DS-042 | backlog | 4 | router | L | - | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
 | DS-043 | backlog | 4 | security | L | - | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | backlog | 4 | router | M | - | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |

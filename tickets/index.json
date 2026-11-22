@@ -465,7 +465,7 @@
   {
     "id": "DS-016",
     "title": "ds CLI: get/set/watch/schema/describe/daemon/status; output modes and exit codes",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "cli",
     "size": "L",
@@ -479,9 +479,9 @@
       "docs/contracts/cli.md",
       "docs/components/cli.md"
     ],
-    "branch": "ticket/DS-016",
-    "worktree": ".worktrees/DS-016",
-    "pr": "prs/DS-016.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -1225,7 +1225,7 @@
   {
     "id": "DS-040",
     "title": "Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering",
-    "state": "backlog",
+    "state": "ready",
     "phase": 4,
     "lane": "router",
     "size": "L",
@@ -1273,7 +1273,7 @@
   {
     "id": "DS-041",
     "title": "Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation",
-    "state": "backlog",
+    "state": "ready",
     "phase": 4,
     "lane": "router",
     "size": "M",
