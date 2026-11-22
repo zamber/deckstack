@@ -340,7 +340,8 @@
     "blocks": [
       "DS-015",
       "DS-016",
-      "DS-018"
+      "DS-018",
+      "DS-080"
     ]
   },
   {
@@ -375,7 +376,12 @@
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
-    "blocks": []
+    "blocks": [
+      "DS-030",
+      "DS-031",
+      "DS-032",
+      "DS-074"
+    ]
   },
   {
     "id": "DS-014",
@@ -447,7 +453,10 @@
     ],
     "blocks": [
       "DS-019",
-      "DS-020"
+      "DS-020",
+      "DS-031",
+      "DS-040",
+      "DS-041"
     ]
   },
   {
@@ -483,7 +492,11 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": [
-      "DS-020"
+      "DS-020",
+      "DS-032",
+      "DS-040",
+      "DS-041",
+      "DS-062"
     ]
   },
   {
@@ -520,7 +533,9 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": [
-      "DS-020"
+      "DS-020",
+      "DS-035",
+      "DS-040"
     ]
   },
   {
@@ -556,7 +571,8 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": [
-      "DS-020"
+      "DS-020",
+      "DS-080"
     ]
   },
   {
@@ -589,7 +605,9 @@
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
-    "blocks": []
+    "blocks": [
+      "DS-083"
+    ]
   },
   {
     "id": "DS-020",
@@ -629,7 +647,13 @@
     ],
     "blocks": [
       "DS-021",
-      "DS-025"
+      "DS-025",
+      "DS-030",
+      "DS-031",
+      "DS-032",
+      "DS-072",
+      "DS-073",
+      "DS-082"
     ]
   },
   {
@@ -805,7 +829,9 @@
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
-    "blocks": []
+    "blocks": [
+      "DS-083"
+    ]
   },
   {
     "id": "DS-026",
@@ -840,7 +866,9 @@
     ],
     "blocks": [
       "DS-027",
-      "DS-028"
+      "DS-028",
+      "DS-072",
+      "DS-073"
     ]
   },
   {
@@ -937,6 +965,1235 @@
     "verification": [
       "python tests/conformance/run.py -k safety (exit 0)",
       "DS_HARDWARE=1 python tests/hw/smoke.py forbidden-command step",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-081"
+    ]
+  },
+  {
+    "id": "DS-030",
+    "title": "JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "frames",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-013",
+      "DS-020"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/frames/encode.rs",
+      "new:crates/ds-daemon/src/frames/chunk.rs",
+      "schemas/stream-frame.json",
+      "new:tests/golden/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "wire input PNG/JPEG/GIF (<=16 MB, <=4096x4096 decode) is re-encoded to baseline JPEG, standard Huffman tables, 4:4:4, q80 panel keys / q90 key:N / q85 dial per docs/contracts/streaming.md section 2",
+      "optimized-Huffman JPEG input is rejected with E_FORMAT and the frame is dropped (counted), never forwarded",
+      "chunk encoder emits 02 <cmd> <chunk u16 LE> <len u16 LE> <index> <last> <<=312 B> in 320 B reports; ds-vdev reassembles and the sha256 matches tests/golden/ fixtures"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon frames::encode frames::chunk (unit: all target sizes, E_FORMAT cases, chunk round-trip)",
+      "raw DSF1 push on stream.sock against ds-vdev: ds-vdevctl frames <target> sha256 == tests/golden/<target>.sha256",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-034"
+    ]
+  },
+  {
+    "id": "DS-031",
+    "title": "Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "frames",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-013",
+      "DS-015",
+      "DS-020"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/frames/service.rs",
+      "new:crates/ds-daemon/src/frames/writer.rs",
+      "new:crates/ds-daemon/src/frames/telemetry.rs",
+      "docs/contracts/streaming.md",
+      "docs/components/frame-service.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "per target (keys | key:N | dial) a queue of 1 in-flight + 1 waiting frame; a newer frame replaces only the waiting one and increments telemetry.dropped; the in-flight frame is never dropped or timed out",
+      "one writer thread per target owns the HID handle; no lock is held across HID I/O and writer threads share no lock with the state task (control-plane independence is structural)",
+      "frame pushes update no durable state and never bump rev; stats are sampled <= 1 Hz into non-durable /telemetry/streams/<target>; total frame-queue memory <= 256 MiB with oldest-waiting dropped beyond, counted",
+      "stream-open/stream-ack/stream-nack/stream-credit on the DSF1 socket per docs/contracts/ipc.md section 2/5; excess producer frames get stream-nack + E_LIMIT"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon frames::service (queue replacement, drop counting, memory cap, ack/nack sequences)",
+      "32 fps x 60 s push on throttled ds-vdev: rev delta == 0, /controls subscription events == 0, dropped == sent - accepted (S1 assertion, details in DS-033)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-033",
+      "DS-080"
+    ]
+  },
+  {
+    "id": "DS-032",
+    "title": "ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "cli",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-013",
+      "DS-016",
+      "DS-020"
+    ],
+    "touches": [
+      "new:bins/ds/src/stream/",
+      "docs/contracts/cli.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds stream push <target> --file f (one frame), --dir d --fps N (animation from a directory), --loop; target in keys|key:N|dial only (no panel/screen synonyms, S6)",
+      "ds stream stats <target> --json prints the /telemetry/streams/<target> stats object (no rev); ds stream stop <target> stops the producer",
+      "push uses control socket stream-open then DSF1 on stream.sock (never a plain NDJSON op), respects stream-credit budgets; --json/--ndjson and exit codes 0-8 follow docs/contracts/cli.md",
+      "video decode stays external: ffmpeg -i v.mp4 frames/%04d.png && ds stream push keys --dir frames/ --fps 30 (core never links ffmpeg, R4)"
+    ],
+    "verification": [
+      "cargo test -p ds-cli (arg parsing, target vocabulary, output shaping)",
+      "scripted smoke on ds-vdev: push one frame -> ds-vdevctl frames <target> sha matches golden (DS-030 fixtures); stats --json shape; stop; bad target -> exit 1; --json on streaming output -> exit 1 where applicable",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-033",
+      "DS-034",
+      "DS-035",
+      "DS-074"
+    ]
+  },
+  {
+    "id": "DS-033",
+    "title": "Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "bench",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-031",
+      "DS-032"
+    ],
+    "touches": [
+      "new:crates/ds-bench/",
+      "docs/30-testing.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "cargo bench -p ds-bench -- stream-32fps-query-p99: 32 fps panel push for 60 s on throttled ds-vdev sustains, rev delta == 0, /controls subscription events == 0, dropped == sent - accepted, control get p99 <= 10 ms (p50 <= 2 ms)",
+      "frame-push-no-state-churn (S1) and stream-throughput (>= 32 fps accepted on throttled vdev) benches exist with the docs/30-testing.md section 5 budgets",
+      "memory soak: 10 min at max rate, RSS growth < 100 MB; harness sensitivity check: throttled vdev (40 ms/writes) blows up p99 (> 100 ms) on a synchronous-write build, proving the harness detects the engine.py:1325-1341 stall pattern",
+      "phase-3 exit items observable: golden frames green; hardware 24 fps panel push is covered by DS-026 smoke extension, LED soak (OPEN O2) tracked here as a blocker note until resolved"
+    ],
+    "verification": [
+      "cargo bench -p ds-bench (all stream benches exit 0 within budgets)",
+      "bench output pasted into prs/DS-033.md with the vdev throttle settings used",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-082"
+    ]
+  },
+  {
+    "id": "DS-034",
+    "title": "Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "frames",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-030",
+      "DS-032"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/frames/animate.rs",
+      "new:tests/conformance/streaming/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "GIF and directory animations decode to <= 300 frames at <= 30 fps, min frame 0.02 s; over-limit input is rejected with E_FORMAT/E_LIMIT and never reaches the device",
+      "loop flag flows through DSF1 meta (schemas/stream-frame.json) and ds stream push --loop; each frame is still queued latest-frame-wins with no rev churn (S1)",
+      "conformance cases: valid 30 fps dir animation pushes all frames (vdev sha per frame); 301-frame input refused; 40 fps input refused; GIF with --loop works on dial"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon frames::animate",
+      "python tests/conformance/run.py -k streaming (exit 0)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-035",
+    "title": "vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn",
+    "state": "backlog",
+    "phase": 3,
+    "lane": "vdev",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-017",
+      "DS-032"
+    ],
+    "touches": [
+      "new:crates/ds-vdev/src/throttle.rs",
+      "new:tests/bench/backpressure.rs",
+      "docs/components/virtual-device.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-vdev --throttle-kbps simulates the ~2.1 MB/s device ceiling (upstream/PROTOCOL.md:265) and --drop-after simulates hot-unplug; both are deterministic and documented",
+      "under throttle, ds stream push gets stream-nack/E_LIMIT on credit exhaustion and the CLI exits 5 without spinning; queued frames are dropped+counted per DS-031 policy and the in-flight frame is always sent whole (reassembled vdev sha intact)",
+      "bench backpressure.rs: at 32 fps against throttled vdev, dropped == sent - accepted and control-plane get p99 stays <= 10 ms"
+    ],
+    "verification": [
+      "cargo test -p ds-vdev throttle",
+      "cargo bench -p ds-bench -- backpressure (or tests/bench/backpressure.rs run) within budget",
+      "scripted smoke: throttle on, push 60 s, stats show dropped>0, in-flight frame sha intact via ds-vdevctl frames",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-040",
+    "title": "Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "router",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-015",
+      "DS-016",
+      "DS-017"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/router/mod.rs",
+      "new:crates/ds-daemon/src/router/bus.rs",
+      "new:crates/ds-daemon/src/router/topics.rs",
+      "docs/contracts/actions.md",
+      "docs/components/event-router.md",
+      "new:tests/conformance/events/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "event bus inside ds-daemon with topics deck/control/<control>/<gesture>, deck/device/<serial>/<event>, deck/system/<event>, app/<sender>/<topic>; events {topic, ts_ms, payload, rev}",
+      "device input reports from ds-vdev inject (DS-017) and real HID (phase 2) are decoded into deck/control/* events; ds emit app/<topic> <payload> publishes external events",
+      "router lookup: exact topic match, then <prefix>/* wildcard bindings, all matches in /bindings array order; dispatch p99 <= 5 ms budget instrumented (bench lands in DS-045)",
+      "ds events --ndjson streams live events; --json on it exits 1 (S9)"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon router",
+      "python tests/conformance/run.py -k events (inject key-down on vdev -> event observed on ds events --ndjson; emit -> watch)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-044",
+      "DS-060",
+      "DS-061",
+      "DS-062"
+    ]
+  },
+  {
+    "id": "DS-041",
+    "title": "Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "router",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-015",
+      "DS-016"
+    ],
+    "touches": [
+      "schemas/binding.json",
+      "new:crates/ds-state/src/bindings.rs",
+      "new:bins/ds/src/bind.rs",
+      "new:bins/ds/src/unbind.rs",
+      "new:tests/conformance/bindings/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "/bindings is an array of schemas/binding.json objects with daemon-assigned unique ids b0001...; ds bind <topic> --do '<step>' [--do ...] [--when '<cond>'] appends and prints the id as JSON; ds unbind <id> | --topic <topic> removes",
+      "ds get /bindings lists all, ds get /bindings/<id> reads one, ds watch /bindings --ndjson streams changes (S2: topics stay inside the topic field, never path segments)",
+      "validation: schema-enforced (binding.json); code-ish steps like {\"do\":\"eval\"} are rejected (T2 negative fixture); duplicate id impossible; unbind of unknown id -> exit 2 E_PATH"
+    ],
+    "verification": [
+      "cargo test -p ds-state bindings (array ops, id assignment, schema validation)",
+      "python tests/conformance/run.py -k bindings",
+      "sh tests/fixtures/validate.sh (binding.json fixtures incl. negative cases)",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-042",
+      "DS-044",
+      "DS-060",
+      "DS-061",
+      "DS-062",
+      "DS-071"
+    ]
+  },
+  {
+    "id": "DS-042",
+    "title": "Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "router",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-041"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/router/steps.rs",
+      "new:crates/ds-daemon/src/router/when.rs",
+      "schemas/binding.json"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "steps run sequentially in binding order: set (schema-validated against schemas/state.json), emit (re-enters the router), plugin (invoke by id.action \u2014 stubbed E_CAP/E_PATH until DS-050 lands), exec (delegates to DS-043 policy), sleep (ms)",
+      "when evaluates against state (path) or the event payload (payload field, S7); missing path -> exists:false; ops eq/ne/gt/lt/geq/leq/exists at minimum per binding.json",
+      "emit-triggered recursion capped at depth 10 (precedent hubdeck engine.py:1088-1112); a step failure raises deck/system/binding-error and remaining steps still run",
+      "set/emit step execution p99 <= 10 ms instrumented; schema-invalid step values rejected without touching state"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon router::steps router::when",
+      "python tests/conformance/run.py -k bindings -k actions",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-043",
+      "DS-045",
+      "DS-050",
+      "DS-051",
+      "DS-052"
+    ]
+  },
+  {
+    "id": "DS-043",
+    "title": "Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "security",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-042"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/policy/",
+      "schemas/state.json",
+      "docs/20-security.md",
+      "new:tests/conformance/exec/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "exec steps are fire-and-forget (S11): spawn via execve (never a shell), argv[0] absolute (schema prefixItems ^/) AND in /policy/exec/allow AND NOT in /policy/exec/deny; deny is pre-seeded with /bin/sh /bin/bash /bin/dash /bin/zsh /usr/bin/env /usr/bin/python3 ...",
+      "binding exec additionally requires admin scope + allow_exec:true on the binding; cwd confined at runtime to /policy/fs/roots + /tmp; rlimits cpu 10 s (SIGKILL), nproc 64, nofile 64, as 1 GiB; env scrubbed (no token); pid tracked",
+      "every exec logged + emitted as deck/system/exec {argv, pid, rev}; conformance: [\"/bin/sh\",\"-c\",\"touch /tmp/pwn\"] -> E_CAP exit 4 and no file created; relative argv[0] -> E_SCHEMA; /usr/bin/env x -> E_CAP; allowed absolute binary runs and audit event appears"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon policy",
+      "python tests/conformance/run.py -k exec",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-050",
+      "DS-051",
+      "DS-052",
+      "DS-081"
+    ]
+  },
+  {
+    "id": "DS-044",
+    "title": "Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7)",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "router",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-040",
+      "DS-041"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/router/ingest.rs",
+      "new:tests/conformance/focus_ingest/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "on app/focus/changed the router writes the payload into /focus {app, title, pid, at_rev} and dispatches matching bindings in ONE state transaction \u2014 a when on path /focus/app sees the new value in the same dispatch (S7)",
+      "conformance: ds-focus --inject (or ds emit app/focus/changed) with a binding conditioned on /focus/app -> the binding fires on the new value; a second binding reading /focus via get after the event sees at_rev == dispatch rev",
+      "failure atomicity: if any binding step in the ingest transaction fails, /focus still updates (event ingest is not rolled back by step errors) \u2014 assert the exact semantics chosen and document them in docs/contracts/actions.md if ambiguous"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon router::ingest",
+      "python tests/conformance/run.py -k focus",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-045"
+    ]
+  },
+  {
+    "id": "DS-045",
+    "title": "Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s)",
+    "state": "backlog",
+    "phase": 4,
+    "lane": "test",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-042",
+      "DS-044"
+    ],
+    "touches": [
+      "new:tests/conformance/actions/",
+      "new:tests/bench/actions.rs"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "chain A (actions.md section 6): ds bind deck/control/keys.0/down --do 'plugin demo.bump {\"by\":1}'; inject key-down on ds-vdev -> label+colour change observed within 2 s, rev bumped per effect \u2014 plugin step runs against the DS-050 host if landed, else against a conformance stub plugin speaking the plugins.md wire protocol (record which in the PR)",
+      "chain B: ds emit app/focus/changed (or ds-focus --inject once DS-060 lands) -> binding with when on payload AND a binding with when on /focus/app both fire atomically (S7) -> /controls/keys/3/image recoloured",
+      "event latency bench: injected key events while streaming 32 fps: event->dispatch p99 <= 5 ms; set/emit step p99 <= 10 ms (actions.md section 5 budgets)"
+    ],
+    "verification": [
+      "python tests/conformance/run.py -k actions (chains A and B, exit 0)",
+      "tests/bench/actions.rs event-latency numbers within budget (output in prs/DS-045.md)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-082"
+    ]
+  },
+  {
+    "id": "DS-050",
+    "title": "Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle",
+    "state": "backlog",
+    "phase": 5,
+    "lane": "plugins",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-042",
+      "DS-043"
+    ],
+    "touches": [
+      "new:crates/ds-daemon/src/plugins/",
+      "schemas/plugin-manifest.json",
+      "docs/contracts/plugins.md",
+      "docs/components/plugin-host.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "one OS process per plugin from ~/.local/share/deckstack/plugins/<id>/, command = argv array (never a shell), newline-JSON over stdio, stderr -> daemon log; handshake hello{protocol:1, plugin_token, caps, roots, limits} -> register{id, manifest} -> events/invokes",
+      "manifest validated against schemas/plugin-manifest.json before use; mismatch -> E_SCHEMA + kill; action args validated against params JSON Schema before invoke; effects validated against the state schema subset before touching state (invalid -> rejected + counted in /plugins/<id>/stats.violations)",
+      "rlimits (cpu_s 10, nproc 64, nofile 64, as_mb 1024), Landlock fs on Linux >= 6.7 where available (OPEN O6) else wrapper-enforced prefix checks; plugin_token per plugin; cap grants enforced per request/effect (state.read|state.write|device.write|exec|net:<glob>|fs:<root>|emit) with E_CAP",
+      "invoke timeout 2 s -> degraded (stops receiving events), second consecutive -> restart; watchdog kill+respawn <= 3 per 10 min; daemon exit kills all plugin processes (process group); ds plugin list|invoke|install|remove|logs verbs work"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon plugins",
+      "python tests/conformance/run.py -k plugins (install example, invoke, effects applied, crash -> respawn visible in ds plugin list)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-053",
+      "DS-054",
+      "DS-070"
+    ]
+  },
+  {
+    "id": "DS-051",
+    "title": "Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests",
+    "state": "backlog",
+    "phase": 5,
+    "lane": "plugins",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-042",
+      "DS-043"
+    ],
+    "touches": [
+      "new:crates/ds-plugin-sdk/",
+      "new:tests/contract/plugins/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "crates/ds-plugin-sdk implements the plugins.md section 8 wire protocol for Rust plugins: serve(manifest), action registration with params JSON Schema, effect builders set/emit/log, get/set_state requests, sdk.http() (host-mediated net, S4), event iteration",
+      "cargo test -p ds-plugin-sdk: handshake, register with manifest round-trip, invoke->effects, request/reply, malformed message handling (protocol violations never panic the host)",
+      "a Rust test plugin built against the SDK runs against the DS-050 host once landed (or against a mock host speaking the same protocol in unit tests)"
+    ],
+    "verification": [
+      "cargo test -p ds-plugin-sdk",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-052",
+    "title": "ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml",
+    "state": "backlog",
+    "phase": 5,
+    "lane": "plugins",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-042",
+      "DS-043"
+    ],
+    "touches": [
+      "new:plugins-py/",
+      "repos.toml"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "plugins-py/ds_plugin_py implements plugins.md section 6/8: sdk.serve(manifest), @sdk.action(id, params=...), effect builders sdk.set/emit/log, get/set_state, sdk.http(...) host-mediated (S4), event iteration \u2014 same wire protocol as DS-051",
+      "compat wrapper runs an existing hubdeck plugin class (hubdeck plugins/base.py:112-272 interface: actions/states/values, invoke/adjust/set, watch/watch_states) in a child process and translates to the ds wire protocol; manifest generated from actions/states/values + pydantic arg models -> JSON Schema",
+      "guarantees documented honestly: process isolation, lifecycle, wire contract, resource limits, host-mediated network \u2014 NOT engine internals (ctx.deck depth, OPEN C1), in-process state sharing, timing; old plugins are ported manually post-alpha (docs/70-porting-notes.md), nothing auto-imported",
+      "repos.toml already marks deckstack-plugin-py (plugins-py/, PyPI ds-plugin-py, subtree split + wheel) \u2014 update only if reality differs; packaging metadata (pyproject) included so the wheel builds"
+    ],
+    "verification": [
+      "python -m pytest plugins-py/tests (or unittest) \u2014 protocol session against a mock host; wrapper translation tests with a fixture old-style plugin class",
+      "python -m build plugins-py (wheel builds) or pip wheel",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-053",
+      "DS-054",
+      "DS-070"
+    ]
+  },
+  {
+    "id": "DS-053",
+    "title": "Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11)",
+    "state": "backlog",
+    "phase": 5,
+    "lane": "test",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-050",
+      "DS-052"
+    ],
+    "touches": [
+      "new:tests/conformance/plugins/",
+      "docs/20-security.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "fork-bomb plugin killed by nproc rlimit, daemon healthy afterwards (T3); memory hog killed by AS limit; cap violation (state.write without grant, device.write without grant) -> E_CAP counted in /plugins/<id>/stats.violations",
+      "fs traversal: plugin requesting fs outside its fs_roots -> E_CAP (T6); oversized net URL / net to non-granted host -> E_CAP (T11); glob edges: lights.lan matches only lights.lan; *.lan matches lights.lan but NOT lan, a.b.lan, or lights.lan.evil.com \u2014 all as conformance cases against a fake lights server",
+      "invoke timeout 2 s -> plugin marked degraded and stops receiving events; second consecutive timeout -> restart (watchdog); crash -> respawn <= 3/10 min then status visible via ds plugin list"
+    ],
+    "verification": [
+      "python tests/conformance/run.py -k plugins (abuse cases, exit 0; daemon alive assertions after each)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-081"
+    ]
+  },
+  {
+    "id": "DS-054",
+    "title": "Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs",
+    "state": "backlog",
+    "phase": 5,
+    "lane": "plugins",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-050",
+      "DS-052"
+    ],
+    "touches": [
+      "new:examples/plugins/",
+      "new:packaging/plugin/",
+      "docs/contracts/plugins.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "examples/plugins/demo/ is the docs/contracts/plugins.md section 7 counter plugin (~40 lines, ds_plugin_py), installable via ds plugin install examples/plugins/demo and invocable via ds plugin invoke demo.bump '{\"by\":1}'; effects land on /controls/keys/0 label+image on vdev",
+      "plugin author docs: README in examples/plugins/ + a docs page (linked from docs/contracts/plugins.md) covering manifest fields, capabilities, limits, the wire protocol, and the wrapper's honest guarantees (plugins.md section 6)",
+      "packaging/plugin/: plugin install layout (~/.local/share/deckstack/plugins/<id>/), manifest packaging, and the subtree-split/wheel hooks so DS-083 release can publish ds-plugin-py"
+    ],
+    "verification": [
+      "ds plugin install examples/plugins/demo on vdev + ds plugin invoke demo.bump -> ds get /controls/keys/0 shows label/image changed (scripted, output in prs/DS-054.md)",
+      "python plugins-py tests still green",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-070"
+    ]
+  },
+  {
+    "id": "DS-060",
+    "title": "ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "senders",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-040",
+      "DS-041"
+    ],
+    "touches": [
+      "new:bins/ds-focus/",
+      "docs/components/focus-sender.md",
+      "new:tests/conformance/focus_sender.sh"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-focus [--backend auto|kwin|wlr|x11] [--interval 250ms] polls/hooks the session and emits app/focus/changed {\"app\",\"title\",\"pid\"} via the CLI/API after a 300 ms settle (FOCUS_SETTLE precedent); it never writes /focus directly (S7 mirror is the daemon's job, DS-044)",
+      "backends behind a ds-platform trait: KDE/Wayland -> KWin D-Bus script (proven path); other Wayland -> wlr-foreign-toplevel (ext-foreign-toplevel-v1, OPEN O1 until measured on Bazzite); X11 -> xcb; unsupported backend -> log + exit 3 listing available backends; daemon unreachable -> backoff, exit 6 after 60 s",
+      "conformance: tests/conformance/focus_sender.sh runs ds-focus --inject events.ndjson against vdev and asserts the emitted topics on ds events --ndjson; phase-6 exit: on Bazzite, focusing a window recolours the bound key <= 500 ms end-to-end (hardware/DE run, recorded in PR)"
+    ],
+    "verification": [
+      "cargo test -p ds-focus (backend selection, settle logic, emit payload shape)",
+      "sh tests/conformance/focus_sender.sh (inject -> events observed, exit 0)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-063",
+      "DS-064"
+    ]
+  },
+  {
+    "id": "DS-061",
+    "title": "ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status)",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "senders",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-040",
+      "DS-041"
+    ],
+    "touches": [
+      "new:bins/ds-mcp/",
+      "docs/components/mcp-bridge.md",
+      "new:tests/conformance/mcp.py"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "ds-mcp speaks MCP over stdio (JSON-RPC 2.0, hand-rolled): initialize + tools/list + tools/call; tool set per docs/components/mcp-bridge.md: deck_status, deck_get, deck_set, deck_bind, deck_emit, deck_watch (server->client notifications, NDJSON events), deck_stream_push, deck_plugin_list, deck_schema",
+      "each tool = one daemon request via ds-client with the token file (scope-checked daemon-side, no tool mutates without a token); results are JSON; timeout 10 s per tool call; daemon down -> E_UNREACHABLE result with the 'ds daemon start' hint; malformed -> JSON-RPC -32602",
+      "conformance: tests/conformance/mcp.py spawns ds-mcp, does initialize + tools/list + one deck_set against ds-vdev and asserts the state changed (phase-6 exit)"
+    ],
+    "verification": [
+      "cargo test -p ds-mcp (framing, tool dispatch, error mapping)",
+      "python tests/conformance/mcp.py (exit 0)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-063",
+      "DS-064"
+    ]
+  },
+  {
+    "id": "DS-062",
+    "title": "CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "test",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-016",
+      "DS-040",
+      "DS-041"
+    ],
+    "touches": [
+      "new:tests/conformance/cli/",
+      "docs/components/cli.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "conformance drives the real ds binary black-box: every verb/group (incl. phase 3-5 verbs once landed: stream, bind/unbind, emit, events, plugin, token) has --help at every level; ds schema <name> prints the schema from schemas/ and validates; ds describe <path> prints schema+value+allowed verbs",
+      "exit codes 0-8 exactly per docs/contracts/cli.md section 3 with the exact stderr shapes from section 5 (E_PATH exit 2, E_CONFLICT 3, E_AUTH/E_SCOPE/E_CAP 4, E_LIMIT 5, E_UNREACHABLE 6 with the ds daemon start hint, E_DEVICE 7, E_INTERNAL/E_VERSION 8, usage/schema incl. --json on streaming verbs exit 1)",
+      "output contract: --json exactly one object on stdout, errors to stderr; --ndjson one object per line; ds migrate exits 1; agents can discover every capability from the CLI alone (R1/R10) \u2014 a test walks ds --help recursively and asserts every advertised verb is tested"
+    ],
+    "verification": [
+      "python tests/conformance/run.py -k cli (exit 0)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-063",
+      "DS-064"
+    ]
+  },
+  {
+    "id": "DS-063",
+    "title": "Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "agents",
+    "size": "S",
+    "owner": null,
+    "depends_on": [
+      "DS-060",
+      "DS-061",
+      "DS-062"
+    ],
+    "touches": [
+      "new:clients/ds-py/",
+      "new:examples/agents/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "clients/ds-py/: a thin Python helper agents can pip-install or copy: connect via the control socket (NDJSON per ipc.md) with the token file, get/set/watch/emit/bind helpers, context manager, typed errors mapping E_* to exit-code semantics from cli.md section 3; it shells out to nothing and never reimplements daemon logic",
+      "examples/agents/: at least one runnable example agent script (e.g. focus-recolor demo using ds-focus events + a binding, or an MCP client driving ds-mcp tools/list + deck_set) that runs against vdev in conformance",
+      "helper is optional sugar: everything it does is reachable via the ds CLI alone (R1) \u2014 docs state that explicitly"
+    ],
+    "verification": [
+      "python -m pytest clients/ds-py/tests (mock + vdev-backed cases)",
+      "example agent script runs against ds-vdev end to end (output in prs/DS-063.md)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-064",
+    "title": "Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "docs",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-060",
+      "DS-061",
+      "DS-062"
+    ],
+    "touches": [
+      "new:docs/runbook.md",
+      "README.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/runbook.md covers: systemd user unit start/enable (DS-019), ds daemon start|stop|status|restart --foreground, where logs/data/token live ($XDG_RUNTIME_DIR/deckstack/ vs ~/.local/state/deckstack/, perms 0700/0600), ds token list|issue|revoke (instant revocation for new connections, T9), recovery after crash (guard handback DS-024, crash-recovered event), reading /telemetry, common failures with exact error text + exit codes (cli.md section 5), upgrade = new release + restart (no migrate \u2014 scope), uninstall",
+      "every command in the runbook is executed once against vdev and its output pasted into prs/DS-064.md (docs must not drift from reality)",
+      "README.md links the runbook from the operations/docs index"
+    ],
+    "verification": [
+      "runbook commands executed on vdev, outputs recorded (prs/DS-064.md)",
+      "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-070",
+    "title": "lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes",
+    "state": "backlog",
+    "phase": 7,
+    "lane": "integrations",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-050",
+      "DS-052",
+      "DS-054"
+    ],
+    "touches": [
+      "repos.toml",
+      "docs/80-integrations.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "the separate deckstack-lights repo (repos.toml already marks it 'to create', own repo from day one) is created from the umbrella via subtree split conventions and implements docs/80-integrations.md: manifest per schemas/plugin-manifest.json with actions like lights.set {room, light, on, brightness, color} (JSON-Schema params), capability net:lights.lan only",
+      "ALL HTTP goes through the daemon-mediated request kind:\"net\" (sdk.http) \u2014 the plugin never opens a socket; daemon checks the host glob against the grant AND /policy/net/allow_hosts (T11)",
+      "explicit IDs: room/light identifiers live in /plugins/lights/config or the plugin's own config \u2014 never hardcoded in core, never scraped from old configs; NO pre-baked scenes/presets (scope delta 3); deployment policy (e.g. only Salon rooms) is data: /policy/net/allow_hosts [\"lights.lan\"] + /plugins/lights/config/allow_rooms enforced by the plugin (D18)",
+      "tests: fake HueMux server in the lights repo's tests (precedent hubdeck/tests/fakes/ws_server.py), end-to-end through the daemon with host-glob edge cases (lights.lan.evil.com -> E_CAP); agent drive via ds plugin invoke lights.set '{...}' works"
+    ],
+    "verification": [
+      "lights repo test suite green against ds-vdev + daemon with fake HueMux (glob edge cases included)",
+      "ds plugin install of the lights plugin + one lights.set invoke recorded in the repo's PR record",
+      "sh tests/fixtures/validate.sh (manifest schema validation in the umbrella)",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-071"
+    ]
+  },
+  {
+    "id": "DS-071",
+    "title": "Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin",
+    "state": "backlog",
+    "phase": 7,
+    "lane": "porting",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-041",
+      "DS-070"
+    ],
+    "touches": [
+      "new:docs/porting/",
+      "docs/70-porting-notes.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/porting/inventory.md lists candidate old-app behaviours with path:line evidence from docs/discovery/ (per docs/70-porting-notes.md 'How a porting ticket looks'), each marked port/drop with a reason; NO import/migration/compat layer is proposed (scope delta 2, ADR-012)",
+      "one button actually ported as the worked example: a Salon deck key reimplemented as bindings (DS-041/042 vocabulary) + the lights plugin (DS-070), accepted on vdev (and hardware smoke if device-touching; camera check for pixel claims per docs/90-verification.md)",
+      "anything with {python: \u2026} code-in-config is ported as an external script behind an exec binding (DS-043 policy) or a plugin \u2014 never as code-in-config (R8)"
+    ],
+    "verification": [
+      "the ported button's acceptance runs on vdev (scripted commands in prs/DS-071.md)",
+      "sh tests/fixtures/validate.sh",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-072",
+    "title": "Windows port breakdown (TODO doc only \u2014 do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan",
+    "state": "backlog",
+    "phase": 7,
+    "lane": "platforms",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-020",
+      "DS-026"
+    ],
+    "touches": [
+      "new:docs/breakdowns/windows.md",
+      "docs/40-platforms.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/breakdowns/windows.md is a concrete, reviewable breakdown of docs/40-platforms.md section 2: ds-ipc named pipe \\\\.\\pipe\\deckstack-<user> (+ -stream) with SDDL D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>) and token-file ACLs (S5/T12); ds-platform WinEvent focus hook + SendInput + job objects + UIPI; hidapi winhid per-report-type handle memory, overlapped writes DEPTH=8 on a second handle, CM_Register_Notification, pnputil /restart-device for wedged modules; plugin job object KILL_ON_JOB_CLOSE; PowerShell glue examples; MSI/single-exe packaging",
+      "each item carries: where the shim goes, what to implement, what must be tested (pipe throughput incl. p99 under 32 fps frame load on a VM OPEN O5, second-local-account ACL test T12, full conformance over the pipe, hardware smoke on a Windows VM with the deck), and the evidence gaps (upstream has no named pipes \u2014 discovery/50 O3)",
+      "docs/40-platforms.md section 2 links the breakdown; the rule 'do not start until Linux alpha is stable' stays verbatim; NO code is written in this ticket"
+    ],
+    "verification": [
+      "docs/breakdowns/windows.md reviewed against docs/40-platforms.md section 2 and docs/20-security.md T12 (steward review in PR record)",
+      "sh tests/fixtures/validate.sh",
+      "python3 tools/tickets.py validate",
+      "stale-grep: no Windows CI gate or alpha exit criterion mentions Windows (docs/30-testing.md section 8 stays Linux-only)"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-073",
+    "title": "macOS port breakdown (TODO doc only \u2014 do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan",
+    "state": "backlog",
+    "phase": 7,
+    "lane": "platforms",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-020",
+      "DS-026"
+    ],
+    "touches": [
+      "new:docs/breakdowns/macos.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/breakdowns/macos.md is a concrete, reviewable breakdown of docs/40-platforms.md section 3: ds-platform NSWorkspace+AX focus + app bundle; ds-device macOS paths with exclusive hidapi opens and a clear busy error (OPEN O8); SET_IDLE at connect for rollers (upstream recover.rs:15-18); pipelined pictures on a second device object DEPTH=8 (pictures_macos.m); never backlight-0 the dial",
+      "each item carries: where the shim goes, what to implement, what must be tested (full conformance on a macOS runner, hardware smoke with a deck, roller input after SET_IDLE \u2014 OPEN O8), and evidence gaps",
+      "the rule 'do not start until Linux alpha is stable' is restated in the doc; NO code is written in this ticket"
+    ],
+    "verification": [
+      "docs/breakdowns/macos.md reviewed against docs/40-platforms.md section 3 (steward review in PR record)",
+      "sh tests/fixtures/validate.sh",
+      "python3 tools/tickets.py validate",
+      "stale-grep: no macOS CI gate or alpha exit criterion (docs/30-testing.md section 8 stays Linux-only)"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-074",
+    "title": "Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI",
+    "state": "backlog",
+    "phase": 7,
+    "lane": "web",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-013",
+      "DS-032"
+    ],
+    "touches": [
+      "new:bins/ds-web/",
+      "docs/contracts/ipc.md",
+      "new:tests/conformance/web/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "scope guard holds: no web UI in alpha (ADR-014, docs/00-scope.md invariant 3) \u2014 this post-alpha ticket may only ship a THIN debug client over the generic WS/HTTP adapter: GET/POST /api/<op> (1 MiB body cap) and /ws (binary frames = DSF1, text = control), 127.0.0.1 bind, Host: 127.0.0.1|localhost + bearer token on every request incl. WS upgrade (T7), 404 at /",
+      "if implemented later: bins/ds-web serves static debug assets only (state viewer, event log, frame pusher for debugging) with zero business logic \u2014 all logic stays in the daemon/CLI",
+      "conformance (when implemented): Host: evil.example -> 421; WS without token -> 401; / -> 404; one /api/set round-trip; one WS watch stream"
+    ],
+    "verification": [
+      "(when implemented) python tests/conformance/web/ exit 0",
+      "sh tests/fixtures/validate.sh",
+      "python3 tools/tickets.py validate",
+      "stale-grep: docs/00-scope.md invariant 3 unchanged; no ds-web in the alpha tree until this ticket is scheduled post-alpha"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-080",
+    "title": "Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "test",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-012",
+      "DS-018",
+      "DS-031"
+    ],
+    "touches": [
+      "new:tests/fuzz/",
+      "new:tests/limits/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "fuzz harness (tests/fuzz/) drives the control socket and stream socket with mutated corpora from tests/fixtures/ipc-examples.json + stream-frame fixtures: malformed NDJSON (truncated, wrong discriminator, ok in request), oversized lines (>1 MiB) -> close per ipc.md section 5, bad op codes, DSF1 header lies (meta_len/payload_len over caps), crc32 mismatch -> stream-nack, format lies (jpeg claiming png)",
+      "limits suite (tests/limits/): image/frame bombs \u2014 16 MB wire cap, 4096x4096 decode cap, 300-frame/30 fps animation caps, 256 MiB frame-queue cap, 64 connections, >1000 queued subscription events -> E_LIMIT close; RSS delta < 50 MB during the bomb run (T4), control p99 within budget throughout",
+      "every fuzz input gets a deterministic verdict (E_* code or clean close); the daemon stays alive and state uncorrupted after each case; corpus + crashes minimized to tests/fuzz/corpus/"
+    ],
+    "verification": [
+      "python tests/fuzz/run.py (or cargo test -p ds-fuzz) exit 0; fixed corpus replay deterministic",
+      "python tests/limits/run.py exit 0 with budgets asserted",
+      "python tests/conformance/run.py",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-081",
+    "title": "Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "security",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-029",
+      "DS-043",
+      "DS-053"
+    ],
+    "touches": [
+      "new:tests/conformance/security/",
+      "docs/20-security.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "docs/20-security.md section 2 threat table is updated so every row T1-T12 names its executable test (path + command), not prose: T1 auth/scopes (DS-012/018 cases), T2 code-in-config negative fixtures (DS-041/validate.sh), T3 plugin isolation (DS-053), T4 image bombs (DS-080), T5 exec refusal (DS-043), T6 traversal (DS-043/053 + schema fixtures), T7 adapter Host/bearer (DS-074 tests or adapter cases), T8 forbidden commands (DS-029), T9 token rotation (DS-012 conformance), T10 vendor busy-check (DS-024/smoke), T11 net glob matrix (DS-053), T12 pipe ACL (Windows-only \u2014 marked as such, tested in DS-072 phase)",
+      "tests/conformance/security/ runs the mapping end to end on vdev: a runner that executes each referenced case and prints a T1-T12 status table (green/red/skip-with-reason); exit nonzero on any red",
+      "any threat row that cannot be tested on vdev says exactly why and what hardware/CI job covers it (T12, T7-adapter, camera rows)"
+    ],
+    "verification": [
+      "python tests/conformance/security/run.py prints the full T1-T12 table green (or documented skip) and exits 0",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-082",
+    "title": "Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "ci",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-020",
+      "DS-033",
+      "DS-045"
+    ],
+    "touches": [
+      "new:crates/ds-bench/",
+      "new:.github/workflows/ci.yml",
+      "docs/30-testing.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      ".github/workflows/ci.yml Linux test job runs the bench gate: cargo bench -p ds-bench with budgets from docs/30-testing.md section 5 \u2014 query-under-load p99 <= 10 ms (p50 <= 2 ms), frame-push-no-state-churn 32 fps x 60 s rev delta 0, event-latency p99 <= 5 ms, stream-throughput >= 32 fps accepted on throttled vdev, memory soak RSS growth < 100 MB; CI fails beyond budget",
+      "bench results are uploaded as CI artifacts (JSON) and a summary is printed; the hardware job stays separate (self-hosted Bazzite, docs/30-testing.md section 8)",
+      "tools/check.sh runs the fast bench subset (or a --quick mode) so local checks stay under a few minutes; full budgets run in CI",
+      "docs/30-testing.md section 5/8 updated with the exact CI commands and artifact names"
+    ],
+    "verification": [
+      "sh tools/check.sh (fast bench subset) exit 0",
+      "CI job definition validated (actionlint or workflow dry-run if available; at minimum YAML parse + path check)",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-083"
+    ]
+  },
+  {
+    "id": "DS-083",
+    "title": "Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh",
+    "state": "backlog",
+    "phase": 6,
+    "lane": "packaging",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-019",
+      "DS-025",
+      "DS-082"
+    ],
+    "touches": [
+      "new:packaging/release/",
+      "new:packaging/linux/",
+      "new:.github/workflows/release.yml"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "packaging/release.sh implements docs/50-repo-topology.md section 4/7: per-component `git subtree split` (crates/ds-device, bins/ds, crates/ds-vdev, crates/ds-plugin-sdk, schemas/, plugins-py/) pushing release branches + version tags to the component repos; umbrella rolling main + vX.Y.Z tag",
+      "Linux artifacts per release: ds + ds-daemon (+ ds-vdev, ds-focus, ds-mcp) binaries, tar.gz + AppImage spec under packaging/linux/, systemd user unit installed by packaging (DS-019), udev rules (DS-025), NOTICE/licenses (DS-004), SHA256SUMS for every artifact; ds-plugin-py wheel built from plugins-py/ (DS-052)",
+      ".github/workflows/release.yml (tag-triggered, Linux-only) builds artifacts, runs the full gate (validate.sh + cargo test + conformance + bench gate DS-082), attaches artifacts + checksums to the GitHub release; CI stays test-only (DS-003)",
+      "install/upgrade documented in the runbook (DS-064): unpack \u2192 systemctl --user enable \u2014 no migrate (scope); uninstall = remove unit + dirs"
+    ],
+    "verification": [
+      "packaging/release.sh --dry-run prints the exact split/push/tag commands without executing (evidence in prs/DS-083.md)",
+      "a local release build: tar.gz + AppImage (or AppImage spec validated if the tool is unavailable) + SHA256SUMS verify with sha256sum -c",
+      "sh tests/fixtures/validate.sh",
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
