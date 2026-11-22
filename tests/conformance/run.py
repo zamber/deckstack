@@ -13,6 +13,12 @@ this one command machine-checks the mh-protocol safety invariants too (forbidden
 commands unrepresentable + refused with zero bytes on the wire, software-mode handshake
 before any read on keys/dial, backlight-0 never sent, no raw escape hatch in the CLI/IPC).
 
+It also registers the DS-062 CLI self-description + error-contract suite
+(tests/conformance/cli/): `--help` at every level (recursive walk with a coverage
+report), `ds schema <name>` vs schemas/, `ds describe`, exit codes 0-8 with the exact
+stderr shapes, `--json`/`--ndjson` rules, and the no-`migrate` invariant. Use
+`-k cli` to run only those cases.
+
 Usage:
     python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
 
@@ -696,6 +702,18 @@ def _safety_suite():
     return safety_suite()
 
 
+def _cli_suite():
+    """The DS-062 CLI self-description + error-contract suite (tests/conformance/cli/),
+    registered into this run so `python tests/conformance/run.py` machine-checks the
+    cli.md contract (help at every level, ds schema/describe, exit codes 0-8,
+    --json/--ndjson rules, no migrate verb) too. `-k cli` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from cli.run import cli_suite
+    return cli_suite()
+
+
 def _filter_suite(suite, patterns):
     """Keep only the tests whose id contains one of the `-k` substrings."""
     out = unittest.TestSuite()
@@ -729,6 +747,7 @@ def main():
         suite = unittest.TestSuite()
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(Conformance))
         suite.addTests(_safety_suite())
+        suite.addTests(_cli_suite())
         if patterns:
             suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,
