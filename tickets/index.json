@@ -2400,5 +2400,36 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-096",
+    "title": "state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093)",
+    "state": "ready",
+    "phase": 1,
+    "lane": "state",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "schemas/state.json",
+      "docs/contracts/state.md",
+      "tests/fixtures/validate.js"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-22",
+    "updated": "2026-11-22",
+    "acceptance": [
+      "schemas/state.json rejects controls.keys[\"15\"], controls.keys[\"99\"] and other non-matching indices at object level, not only at the pattern level",
+      "tests/fixtures/validate.js has the two S8 negatives restored (keys.99, keys.15) and the gate prints ALL CHECKS PASSED",
+      "docs/contracts/state.md states the index ranges"
+    ],
+    "verification": [
+      "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
   }
 ]
