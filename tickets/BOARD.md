@@ -58,7 +58,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-072 | backlog | 7 | platforms | M | - | DS-020, DS-026 | Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan |
 | DS-073 | backlog | 7 | platforms | M | - | DS-020, DS-026 | macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan |
 | DS-074 | ready | 7 | web | M | - | DS-013, DS-032 | Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI |
-| DS-080 | ready | 6 | test | L | - | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
+| DS-080 | doing | 6 | test | L | vibe/DS-080 | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
 | DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
 | DS-082 | backlog | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | backlog | 6 | packaging | M | - | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |

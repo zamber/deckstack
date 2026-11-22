@@ -2091,11 +2091,11 @@
   {
     "id": "DS-080",
     "title": "Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion",
-    "state": "ready",
+    "state": "doing",
     "phase": 6,
     "lane": "test",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-080",
     "depends_on": [
       "DS-012",
       "DS-018",
@@ -2105,11 +2105,11 @@
       "new:tests/fuzz/",
       "new:tests/limits/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-080",
+    "worktree": ".worktrees/DS-080",
+    "pr": "prs/DS-080.md",
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "fuzz harness (tests/fuzz/) drives the control socket and stream socket with mutated corpora from tests/fixtures/ipc-examples.json + stream-frame fixtures: malformed NDJSON (truncated, wrong discriminator, ok in request), oversized lines (>1 MiB) -> close per ipc.md section 5, bad op codes, DSF1 header lies (meta_len/payload_len over caps), crc32 mismatch -> stream-nack, format lies (jpeg claiming png)",
       "limits suite (tests/limits/): image/frame bombs \u2014 16 MB wire cap, 4096x4096 decode cap, 300-frame/30 fps animation caps, 256 MiB frame-queue cap, 64 connections, >1000 queued subscription events -> E_LIMIT close; RSS delta < 50 MB during the bomb run (T4), control p99 within budget throughout",

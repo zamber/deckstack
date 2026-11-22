@@ -60,7 +60,7 @@ graph TD
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::backlog
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
-  DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::ready
+  DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::doing
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::backlog
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(ready), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(doing), DS-080(ready), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(backlog), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(doing), DS-080(doing), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(ready)
@@ -225,4 +225,3 @@ Critical path length: 10 tickets.
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
-- DS-080 - Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion (lane test)
