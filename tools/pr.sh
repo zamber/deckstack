@@ -118,18 +118,22 @@ body_section() { # file heading
   ' "$1"
 }
 
-run_checks() { # worktree-root -> writes $TMP/checks.txt
+run_checks() { # worktree-root -> writes $TMP/checks.txt, returns check status
   wt=$1
+  rc=1
   if [ -f "$wt/tools/check.sh" ]; then
     # R03: check.sh validates the tree it is given (arg 1), i.e. this worktree — not main
     if sh "$wt/tools/check.sh" "$wt" > "$TMP/checks.log" 2>&1; then
+      rc=0
       { echo "tools/check.sh in $wt: PASS (ALL GREEN)"; echo; echo '```'; tail -n 15 "$TMP/checks.log"; echo '```'; } > "$TMP/checks.txt"
     else
+      rc=$?
       { echo "tools/check.sh in $wt: FAIL (rc!=0)"; echo; echo '```'; tail -n 25 "$TMP/checks.log"; echo '```'; } > "$TMP/checks.txt"
     fi
   else
-    echo "tools/check.sh not present in $wt (lands with DS-003) — skipped" > "$TMP/checks.txt"
+    echo "tools/check.sh not present in $wt (cannot gate) — FAIL" > "$TMP/checks.txt"
   fi
+  return "$rc"
 }
 
 ticket_block() { # id -> fills $TMP/acceptance.txt and $TMP/risks.txt from the ticket
@@ -251,7 +255,10 @@ cmd_review() {
   echo "-- full diff --"
   git diff "$MB...$ref"
 
-  run_checks "$ROOT/$wt"
+  if ! run_checks "$ROOT/$wt"; then
+    cat "$TMP/checks.txt"
+    die "tools/check.sh failed in $wt; review aborted"
+  fi
   protected=$(git diff "$MB...$ref" -- BRIEF.md docs/discovery docs/reviews | wc -l | tr -d ' ')
   # R04: real glob/dir matching against the ticket touches (fnmatch + dir prefixes,
   # 'new:' declared paths) — replaces the old literal `grep -F` filter.
@@ -345,11 +352,11 @@ cmd_merge() {
   if ! git -C "$ROOT/$wt" rebase "$MB"; then
     die "rebase conflict — worktree left intact at $wt; resolve there, then re-run: sh tools/pr.sh merge $id"
   fi
-  run_checks "$ROOT/$wt"
-  if ! sh "$ROOT/$wt/tools/check.sh" "$ROOT/$wt" >/dev/null 2>&1; then
+  if ! run_checks "$ROOT/$wt"; then
     cat "$TMP/checks.txt"
     die "tools/check.sh failed after rebase; merge aborted, worktree left intact at $wt"
   fi
+  echo "checks after rebase: PASS"
   echo "checks after rebase: PASS"
 
   # R08: message via stdin, no here-doc delimiter to break
