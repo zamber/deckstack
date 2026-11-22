@@ -7,3 +7,4 @@ node_modules/
 .worktrees/
 .review.git/
 .venv/
+tickets/.lock
