@@ -41,7 +41,7 @@ graph TD
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::backlog
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
-  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::ready
+  DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::doing
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::backlog
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::ready
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::backlog
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(done), DS-042(ready), DS-044(ready)
+- **router** (4): DS-040(done), DS-041(done), DS-042(doing), DS-044(ready)
 - **security** (2): DS-043(backlog), DS-081(backlog)
 - **senders** (2): DS-060(ready), DS-061(ready)
 - **state** (2): DS-011(done), DS-096(done)
@@ -220,7 +220,6 @@ Critical path length: 10 tickets.
 - DS-023 - Hot-plug rescan, reconnect, re-push, unresponsive-device handling (lane device)
 - DS-024 - Guard/handback: clean device state on daemon exit, SIGTERM, crash (lane daemon)
 - DS-032 - ds stream CLI: push/stats/stop verbs, --dir/--fps animation mode, --loop, ffmpeg external decode, credits (lane cli)
-- DS-042 - Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation (lane router)
 - DS-044 - Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) (lane router)
 - DS-060 - ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms (lane senders)
 - DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)

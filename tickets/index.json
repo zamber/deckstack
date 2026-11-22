@@ -1351,11 +1351,11 @@
   {
     "id": "DS-042",
     "title": "Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation",
-    "state": "ready",
+    "state": "doing",
     "phase": 4,
     "lane": "router",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-042",
     "depends_on": [
       "DS-041"
     ],
@@ -1367,9 +1367,9 @@
       "bins/ds/src/bind.rs",
       "crates/ds-daemon/src/ipc.rs"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-042",
+    "worktree": ".worktrees/DS-042",
+    "pr": "prs/DS-042.md",
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
