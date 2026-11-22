@@ -387,7 +387,7 @@
   {
     "id": "DS-014",
     "title": "ds-device: virtual transport and report codec (device-agnostic driver core)",
-    "state": "review",
+    "state": "done",
     "phase": 1,
     "lane": "device",
     "size": "M",
@@ -399,9 +399,9 @@
       "new:crates/ds-device/",
       "docs/components/virtual-device.md"
     ],
-    "branch": "ticket/DS-014",
-    "worktree": ".worktrees/DS-014",
-    "pr": "prs/DS-014.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -503,7 +503,7 @@
   {
     "id": "DS-017",
     "title": "ds-vdev: virtual hub (module reports, chunk reassembly, inject, throttle, frame sha) + ds-vdevctl",
-    "state": "backlog",
+    "state": "ready",
     "phase": 1,
     "lane": "vdev",
     "size": "L",
