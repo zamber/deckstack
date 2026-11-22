@@ -4,7 +4,20 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
-description = "Virtual MasterHub at the HID-report level for CI and development (R10). Lib for now; bin lands in phase 1."
+description = "Virtual MasterHub at the HID-report level for CI and development (R10): serves the ds-device socket protocol on a Unix socket, with chunk reassembly, module reports, inject and throttle knobs."
+
+# The server side of the socket protocol pinned in docs/components/virtual-device.md. The
+# frame codec, report view, chunk reassembler and module descriptors are single-sourced from
+# ds-device, so host and virtual device can never drift apart; ds-protocol provides the safe
+# builders and the forbidden-command guard the hub enforces. serde_json reads the --inject
+# ndjson event files.
+[dependencies]
+ds-device = { path = "../ds-device" }
+ds-protocol = { path = "../ds-protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
 
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
