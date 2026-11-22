@@ -1297,7 +1297,13 @@
       "new:crates/ds-state/src/bindings.rs",
       "new:bins/ds/src/bind.rs",
       "new:bins/ds/src/unbind.rs",
-      "new:tests/conformance/bindings/"
+      "new:tests/conformance/bindings/",
+      "crates/ds-state/src/lib.rs",
+      "bins/ds/src/main.rs",
+      "bins/ds/src/verbs.rs",
+      "bins/ds/src/help.rs",
+      "crates/ds-daemon/src/ipc.rs",
+      "crates/ds-daemon/src/state.rs"
     ],
     "branch": null,
     "worktree": null,
