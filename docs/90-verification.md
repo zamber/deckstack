@@ -23,6 +23,9 @@ substitutes for the other.
 ## Pipeline
 
 1. **Discovery**: enumerate cameras (`v4l2-ctl --list-devices` / `ffmpeg -f v4l2 -list_formats all`), pick by stable device path, record in `verify.toml`.
+   On this machine (2026-11-22): `/dev/video0` is the OBS virtual camera, not the deck; the
+   physical camera is `/dev/video2` (`AUKEY PC-W1`, with `/dev/video3` as its metadata node).
+   `ffmpeg` is installed. Record the AUKEY path in `verify.toml`; do not default to `/dev/video0`.
 2. **Calibration**: capture a reference frame with a known full-panel image (e.g. 4-quadrant
    red/green/blue/white at known key indices); compute per-region ROIs for the 15 key
    windows + panel + dial; store ROI map + white-point/gamma correction in `verify.toml`.
