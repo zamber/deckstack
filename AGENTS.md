@@ -88,4 +88,4 @@ run report. Under 400 words.
 
 | Rule | Enforced by |
 |---|---|
-| Workflow-owned coordination files are not feature diff. | `tests/tools/test_check_touches.py` via `tools/check.sh` |
+| Workflow-owned coordination files and generated `Cargo.lock` are not feature diff. | `tests/tools/test_check_touches.py` via `tools/check.sh` |

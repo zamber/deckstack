@@ -139,11 +139,15 @@ COORDINATION_FILES = frozenset({
     "tickets/index.json",
 })
 
+GENERATED_FILES = frozenset({
+    "Cargo.lock",
+})
 
-def is_coordination_file(path, ticket_id):
-    """True for workflow-owned files: own ticket metadata, own PR records, generated board."""
+
+def is_ignored_file(path, ticket_id):
+    """True for workflow-owned or generated files: own ticket metadata, PR records, board, Cargo.lock."""
     path = path.replace("\\", "/")
-    if path in COORDINATION_FILES:
+    if path in COORDINATION_FILES or path in GENERATED_FILES:
         return True
     return path in {
         f"tickets/{ticket_id}.md",
@@ -153,10 +157,10 @@ def is_coordination_file(path, ticket_id):
 
 
 def outside_touches(files, touches, ticket_id):
-    """Changed files outside the ticket's touches, ignoring workflow-owned files."""
+    """Changed files outside the ticket's touches, ignoring workflow-owned and generated files."""
     return [
         f for f in files
-        if not is_coordination_file(f, ticket_id)
+        if not is_ignored_file(f, ticket_id)
         and not any(touch_entry_matches(f, e) for e in touches)
     ]
 
