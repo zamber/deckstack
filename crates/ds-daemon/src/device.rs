@@ -3,16 +3,21 @@
 //! to the device (DS-095):
 //!
 //! - `/controls/keys/image`, `/controls/keys/<0-14>/image`, `/controls/dial/image` with a
-//!   displayable visual push **image bytes** as chunked image reports — the panel goes out
+//!   displayable visual push **image source** as chunked image reports — the panel goes out
 //!   as `02 35` (0x35), key `N` as `02 36 <index N>` (0x36), the dial as `02 45` (0x45), each
-//!   chunk `≤ 312 B` inside a 320 B output report, built by the existing ds-protocol
-//!   chunkers ([`ds_protocol::panel_image`]/[`key_image`]/[`dial_image`]) — no second
-//!   chunker exists here:
+//!   chunk `≤ 312 B` inside a 320 B output report, built by [`crate::frames::chunk`] — no
+//!   second chunker exists here:
 //!   - `{"kind":"file","path":…}` → the file's bytes, read on the device task (never under
 //!     the state lock), after the `/policy/fs/roots` confinement + 16 MiB size cap check;
 //!     a file outside the roots is refused with a logged error, never a panic;
-//!   - `{"kind":"color","value":"#rrggbb"}` → a minimal solid-colour PNG (phase-1
-//!     placeholder; see [`solid_color_png`]);
+//!   - `{"kind":"color","value":"#rrggbb"}` → a solid screen of the target's native size.
+//!
+//! Both sources are then **re-encoded to the device wire format** by [`crate::frames::encode`]
+//! (baseline JPEG, standard Huffman tables, 4:4:4, q80 panel / q90 key:N / q85 dial —
+//! DS-030, `docs/contracts/streaming.md` §2) and chunked by [`crate::frames::chunk`].
+//! An input the encoder refuses (unsupported container, progressive or optimized-Huffman
+//! JPEG, over the decode caps) fails the push with `E_FORMAT` and is dropped (counted),
+//! never forwarded.
 //! - `/controls/{knobs,faders,rollers}/<n>/led` color → `led_color` (feature report), paced
 //!   by the LED rate cap.
 //!
@@ -38,7 +43,7 @@ use ds_device::rate::{RateLimiter, DEFAULT_LED_RATE_PER_S};
 use ds_device::transport::{DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
 use ds_device::vtransport::virtual_module_id;
-use ds_protocol::{LedTarget, ModuleKind, Report};
+use ds_protocol::{LedTarget, ModuleKind};
 use serde_json::Value;
 use std::fs;
 use std::io::Read;
@@ -72,12 +77,6 @@ pub const MAX_IMAGE_FILE_BYTES: usize = 16 * 1024 * 1024;
 /// dropped mid-sequence (streaming.md §3).
 pub const IMAGE_WRITE_RATE_PER_S: u32 = 6562;
 
-/// Placeholder dimensions of the solid-colour PNG encoded for `kind:color` visuals. Phase 1
-/// sends a small fixed-size image; the per-target wire format (72×72 / 480×272 / 240×240
-/// baseline JPEG 4:4:4, DS-030) replaces it in phase 3.
-pub const COLOR_IMAGE_WIDTH: u32 = 8;
-pub const COLOR_IMAGE_HEIGHT: u32 = 8;
-
 /// One state change the device task should apply.
 #[derive(Debug, Clone)]
 pub enum DevicePush {
@@ -106,13 +105,13 @@ impl ImageTarget {
         }
     }
 
-    /// Chunk `bytes` into image reports for this target with the existing ds-protocol
-    /// builders (output reports of `out_len` bytes, ≤ 312 B payload per chunk).
-    pub fn reports(self, bytes: &[u8], out_len: usize) -> Vec<Report> {
+    /// The same target in the frame plane's vocabulary (`crate::frames::FrameTarget`):
+    /// wire command, index, quality and native screen size for the encode step.
+    pub fn frame_target(self) -> crate::frames::FrameTarget {
         match self {
-            ImageTarget::Panel => ds_protocol::panel_image(bytes, out_len),
-            ImageTarget::Key(index) => ds_protocol::key_image(index, bytes, out_len),
-            ImageTarget::Dial => ds_protocol::dial_image(bytes, out_len),
+            ImageTarget::Panel => crate::frames::FrameTarget::Panel,
+            ImageTarget::Key(n) => crate::frames::FrameTarget::Key(n),
+            ImageTarget::Dial => crate::frames::FrameTarget::Dial,
         }
     }
 }
@@ -323,23 +322,27 @@ pub fn read_image_file(path: &str) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
-/// Resolve an image source to the bytes to push. Runs on the device task's thread — never
-/// under the state lock.
-fn resolve_image(source: &ImageSource) -> Result<Vec<u8>, String> {
+/// Encode one image source to the device wire format (baseline JPEG, standard Huffman,
+/// 4:4:4, target quality — DS-030) for `target`. Runs on the device task's thread — never
+/// under the state lock; an `E_FORMAT` refusal is an `Err` (logged and dropped by the
+/// caller, never forwarded).
+fn encode_image(target: ImageTarget, source: &ImageSource) -> Result<Vec<u8>, String> {
+    let ft = target.frame_target();
     match source {
-        ImageSource::Color { rgb } => {
-            Ok(solid_color_png(*rgb, COLOR_IMAGE_WIDTH, COLOR_IMAGE_HEIGHT))
+        ImageSource::Color { rgb } => Ok(crate::frames::encode::encode_solid(ft, *rgb)),
+        ImageSource::File { path } => {
+            let wire = read_image_file(path)?;
+            crate::frames::encode::encode_frame(ft, &wire).map_err(|e| format!("{}: {e}", e.code()))
         }
-        ImageSource::File { path } => read_image_file(path),
     }
 }
 
 /// Send one planned action to the device through the transport, paced by `limits`.
 ///
-/// An image push resolves its bytes (file read or colour placeholder), chunks them with the
-/// ds-protocol builders for the target's module and sends every chunk in order — a failed
-/// chunk aborts the push with an `Err` (logged by the caller; the state task is never
-/// involved).
+/// An image push resolves its source (file read or solid colour), re-encodes it to the
+/// device wire format, chunks it with the frame plane's chunker for the target's module
+/// and sends every chunk in order — a failed chunk aborts the push with an `Err` (logged
+/// by the caller; the state task is never involved).
 pub fn send_action(
     t: &dyn Transport,
     action: &DeviceAction,
@@ -355,10 +358,10 @@ pub fn send_action(
                 .map_err(|e| e.to_string())
         }
         DeviceAction::Image { target, source } => {
-            let bytes = resolve_image(source)?;
+            let jpeg = encode_image(*target, source)?;
             let module = target.module();
             let out_len = module_info(module).out_len;
-            let reports = target.reports(&bytes, out_len);
+            let reports = crate::frames::chunk::reports(target.frame_target(), &jpeg, out_len);
             if reports.is_empty() {
                 return Err(format!("image chunker produced no reports for {target:?}"));
             }
@@ -590,94 +593,6 @@ fn handle_push(transport: Option<&dyn Transport>, push: &DevicePush, limits: &Ra
     }
 }
 
-// ---------------------------------------------------------------------------
-// phase-1 solid-colour PNG (std only — no image crate in the dependency set)
-// ---------------------------------------------------------------------------
-
-/// Encode a minimal solid-colour PNG (8-bit RGB, non-interlaced, stored deflate blocks):
-/// `signature | IHDR | IDAT | IEND`. This is the phase-1 placeholder pushed for
-/// `kind:color` visuals; DS-030 replaces it with the per-target baseline JPEG.
-pub fn solid_color_png(rgb: [u8; 3], width: u32, height: u32) -> Vec<u8> {
-    // Raw scanlines: one filter byte (0) per row, then `width` RGB triples.
-    let row: Vec<u8> = std::iter::once(0)
-        .chain(std::iter::repeat_n(rgb, width as usize).flatten())
-        .collect();
-    let mut raw = Vec::with_capacity(row.len() * height as usize);
-    for _ in 0..height {
-        raw.extend_from_slice(&row);
-    }
-    let zlib = zlib_stored(&raw);
-
-    let mut png = Vec::with_capacity(8 + 25 + 12 + zlib.len() + 12);
-    png.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
-    let mut ihdr = Vec::with_capacity(13);
-    ihdr.extend_from_slice(&width.to_be_bytes());
-    ihdr.extend_from_slice(&height.to_be_bytes());
-    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]); // bit depth 8, color type 2 (RGB), deflate, no interlace
-    png.extend_from_slice(&png_chunk(b"IHDR", &ihdr));
-    png.extend_from_slice(&png_chunk(b"IDAT", &zlib));
-    png.extend_from_slice(&png_chunk(b"IEND", &[]));
-    png
-}
-
-/// One PNG chunk: `len u32 BE | type | data | crc32(type|data) u32 BE`.
-fn png_chunk(ty: &[u8; 4], data: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(12 + data.len());
-    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    out.extend_from_slice(ty);
-    out.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(ty);
-    crc_input.extend_from_slice(data);
-    out.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-    out
-}
-
-/// A zlib stream of `raw` using stored (uncompressed) deflate blocks, plus the adler32.
-fn zlib_stored(raw: &[u8]) -> Vec<u8> {
-    let mut out = vec![0x78, 0x01]; // CMF/FLG: deflate, 32K window, valid check bits
-    let mut pos = 0;
-    loop {
-        let n = (raw.len() - pos).min(65535);
-        let last = pos + n == raw.len();
-        out.push(if last { 1 } else { 0 }); // BFINAL, BTYPE=00 (stored)
-        out.extend_from_slice(&(n as u16).to_le_bytes());
-        out.extend_from_slice(&(!(n as u16)).to_le_bytes());
-        out.extend_from_slice(&raw[pos..pos + n]);
-        pos += n;
-        if last {
-            break;
-        }
-    }
-    out.extend_from_slice(&adler32(raw).to_be_bytes());
-    out
-}
-
-/// CRC-32 (IEEE 802.3, as used by PNG), bitwise.
-fn crc32(data: &[u8]) -> u32 {
-    let mut crc = 0xFFFF_FFFFu32;
-    for &byte in data {
-        crc ^= u32::from(byte);
-        for _ in 0..8 {
-            let mask = (crc & 1).wrapping_neg();
-            crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
-        }
-    }
-    !crc
-}
-
-/// adler32 (RFC 1950), as used by zlib.
-fn adler32(data: &[u8]) -> u32 {
-    const MOD: u32 = 65521;
-    let mut a = 1u32;
-    let mut b = 0u32;
-    for &byte in data {
-        a = (a + u32::from(byte)) % MOD;
-        b = (b + a) % MOD;
-    }
-    (b << 16) | a
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -847,12 +762,13 @@ mod tests {
     }
 
     #[test]
-    fn send_action_pushes_image_chunks_for_the_target() {
+    fn send_action_pushes_encoded_jpeg_chunks_for_the_target() {
         let mock = MockTransport {
             sent: StdMutex::new(Vec::new()),
         };
         let limits = RateLimits::new();
-        // a colour on key 3: one small chunk report `02 36 00 00 <len> 03 01 <png…>`
+        // a colour on key 3: one chunk report `02 36 00 00 <len> 03 01 <jpeg…>` carrying the
+        // encoded baseline JPEG (solid 72x72 screen at q90), not a PNG placeholder
         send_action(
             &mock,
             &DeviceAction::Image {
@@ -865,26 +781,50 @@ mod tests {
         )
         .unwrap();
         {
+            let want = crate::frames::encode::encode_solid(
+                ImageTarget::Key(3).frame_target(),
+                [0xff, 0x88, 0x00],
+            );
             let sent = mock.sent.lock().unwrap();
-            assert_eq!(sent.len(), 1, "the 8x8 colour PNG fits in one chunk");
+            assert_eq!(
+                sent.len(),
+                want.len().div_ceil(312),
+                "the solid key JPEG is chunked into ceil(len/312) reports"
+            );
             assert_eq!(sent[0].0.kind, ModuleKind::Keys);
             let raw = &sent[0].1;
             assert_eq!(&raw[..2], &[0x02, 0x36]);
             assert_eq!(u16::from_le_bytes([raw[2], raw[3]]), 0, "chunk 0");
             let len = u16::from_le_bytes([raw[4], raw[5]]) as usize;
             assert_eq!(raw[6], 3, "key index");
-            assert_eq!(raw[7], 1, "last chunk");
+            assert_eq!(
+                raw[7],
+                u8::from(sent.len() == 1),
+                "last flag only on the final chunk"
+            );
             assert_eq!(len, raw.len() - 8);
             assert_eq!(
-                &raw[8..16],
-                &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+                &raw[8..10],
+                &[0xFF, 0xD8],
+                "payload is the encoded JPEG (SOI)"
             );
+            // ... and the reassembled payload is exactly what the frame plane encodes
+            let mut reassembled = Vec::new();
+            for (_, r) in sent.iter() {
+                let l = u16::from_le_bytes([r[4], r[5]]) as usize;
+                reassembled.extend_from_slice(&r[8..8 + l]);
+            }
+            assert_eq!(reassembled, want);
         }
-        // a file on the panel: bytes chunked as 0x35 with index 0
+        // a file on the panel: a real image file is re-encoded to the panel JPEG (q80) and
+        // chunked as 0x35 with index 0 — the chunks no longer carry the file bytes raw
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("panel.bin");
-        let data: Vec<u8> = (0..1000u32).map(|i| (i % 251) as u8).collect();
-        std::fs::write(&file, &data).unwrap();
+        let file = dir.path().join("panel.jpg");
+        let source_jpeg = crate::frames::encode::encode_solid(
+            crate::frames::FrameTarget::Key(0),
+            [0x10, 0x20, 0x30],
+        );
+        std::fs::write(&file, &source_jpeg).unwrap();
         send_action(
             &mock,
             &DeviceAction::Image {
@@ -903,8 +843,8 @@ mod tests {
                 .filter(|(m, raw)| m.kind == ModuleKind::Keys && raw[1] == 0x35)
                 .collect();
             assert!(
-                chunks.len() > 1,
-                "1000 bytes must split into several chunks"
+                chunks.len() >= 1,
+                "the encoded panel JPEG is chunked as 0x35"
             );
             let mut reassembled = Vec::new();
             for (i, (_, raw)) in chunks.iter().enumerate() {
@@ -917,12 +857,34 @@ mod tests {
                 let len = u16::from_le_bytes([raw[4], raw[5]]) as usize;
                 reassembled.extend_from_slice(&raw[8..8 + len]);
             }
+            let want = crate::frames::encode::encode_frame(
+                crate::frames::FrameTarget::Panel,
+                &source_jpeg,
+            )
+            .unwrap();
             assert_eq!(
-                reassembled, data,
-                "the chunks carry the file bytes unchanged"
+                reassembled, want,
+                "the chunks carry the re-encoded device JPEG, not the file bytes"
             );
             assert_eq!(chunks.last().unwrap().1[7], 1, "last chunk flagged");
         }
+        // a non-image file is refused with E_FORMAT and nothing is sent
+        let junk = dir.path().join("junk.bin");
+        std::fs::write(&junk, b"this is not an image").unwrap();
+        let before = mock.sent.lock().unwrap().len();
+        let err = send_action(
+            &mock,
+            &DeviceAction::Image {
+                target: ImageTarget::Panel,
+                source: ImageSource::File {
+                    path: junk.display().to_string(),
+                },
+            },
+            &limits,
+        )
+        .unwrap_err();
+        assert!(err.starts_with("E_FORMAT"), "{err}");
+        assert_eq!(mock.sent.lock().unwrap().len(), before, "nothing forwarded");
         // a dial colour goes to the dial module as 0x45
         send_action(
             &mock,
@@ -939,7 +901,10 @@ mod tests {
                 .iter()
                 .filter(|(m, raw)| m.kind == ModuleKind::Dial && raw[1] == 0x45)
                 .collect();
-            assert_eq!(dial.len(), 1);
+            let want =
+                crate::frames::encode::encode_solid(ImageTarget::Dial.frame_target(), [1, 2, 3]);
+            assert_eq!(dial.len(), want.len().div_ceil(312));
+            assert_eq!(&dial[0].1[8..10], &[0xFF, 0xD8]);
         }
         // an LED colour is still a feature report on its module
         send_action(
@@ -986,75 +951,6 @@ mod tests {
         drop(f);
         let err = read_image_file(&big.display().to_string()).unwrap_err();
         assert!(err.contains("cap"), "{err}");
-    }
-
-    #[test]
-    fn solid_color_png_is_a_valid_png_of_the_solid_colour() {
-        let rgb = [0x3c, 0xc8, 0x6e];
-        let png = solid_color_png(rgb, COLOR_IMAGE_WIDTH, COLOR_IMAGE_HEIGHT);
-        assert_eq!(&png[..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
-        // walk the chunks
-        let mut pos = 8;
-        let mut ihdr = None;
-        let mut idat = Vec::new();
-        let mut seen_iend = false;
-        while pos < png.len() {
-            let len =
-                u32::from_be_bytes([png[pos], png[pos + 1], png[pos + 2], png[pos + 3]]) as usize;
-            let ty = &png[pos + 4..pos + 8];
-            let data = &png[pos + 8..pos + 8 + len];
-            let crc = u32::from_be_bytes([
-                png[pos + 8 + len],
-                png[pos + 9 + len],
-                png[pos + 10 + len],
-                png[pos + 11 + len],
-            ]);
-            let mut crc_input = ty.to_vec();
-            crc_input.extend_from_slice(data);
-            assert_eq!(crc32(&crc_input), crc, "chunk crc must match");
-            match ty {
-                b"IHDR" => ihdr = Some(data.to_vec()),
-                b"IDAT" => idat.extend_from_slice(data),
-                b"IEND" => {
-                    seen_iend = true;
-                    assert!(data.is_empty());
-                }
-                other => panic!("unexpected chunk {other:?}"),
-            }
-            pos += 12 + len;
-        }
-        assert!(seen_iend);
-        let ihdr = ihdr.expect("IHDR present");
-        assert_eq!(&ihdr[..4], &COLOR_IMAGE_WIDTH.to_be_bytes());
-        assert_eq!(&ihdr[4..8], &COLOR_IMAGE_HEIGHT.to_be_bytes());
-        assert_eq!(&ihdr[8..13], &[8, 2, 0, 0, 0]);
-        // decode the zlib stream: 2-byte header, stored blocks, adler32 trailer
-        assert_eq!(&idat[..2], &[0x78, 0x01]);
-        let mut raw = Vec::new();
-        let mut p = 2;
-        loop {
-            let flags = idat[p];
-            assert_eq!(flags & 0x06, 0, "BTYPE=00 stored");
-            let n = u16::from_le_bytes([idat[p + 1], idat[p + 2]]) as usize;
-            let nlen = u16::from_le_bytes([idat[p + 3], idat[p + 4]]);
-            assert_eq!(nlen, !(n as u16), "NLEN is the complement of LEN");
-            raw.extend_from_slice(&idat[p + 5..p + 5 + n]);
-            p += 5 + n;
-            if flags & 1 == 1 {
-                break;
-            }
-        }
-        let adler = u32::from_be_bytes([idat[p], idat[p + 1], idat[p + 2], idat[p + 3]]);
-        assert_eq!(adler32(&raw), adler, "zlib adler32 trailer");
-        // the raw data is height scanlines of (filter 0 + width RGB triples)
-        let row: Vec<u8> = std::iter::once(0)
-            .chain(std::iter::repeat_n(rgb, COLOR_IMAGE_WIDTH as usize).flatten())
-            .collect();
-        let expected: Vec<u8> = std::iter::repeat_n(&row, COLOR_IMAGE_HEIGHT as usize)
-            .flatten()
-            .cloned()
-            .collect();
-        assert_eq!(raw, expected);
     }
 
     #[test]

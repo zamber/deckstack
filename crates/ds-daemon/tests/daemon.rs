@@ -211,14 +211,19 @@ impl Stack {
 }
 
 #[test]
-fn file_image_push_reassembles_on_vdev_with_the_files_sha256() {
+fn file_image_push_reassembles_on_vdev_with_the_encoded_frames_sha256() {
     let (mut stack, mut conn, _token) = Stack::start();
     // allow a dedicated dir as an fs root, then set a key image from a file inside it
     let allowed = stack._tmp.path().join("allowed");
     fs::create_dir_all(&allowed).unwrap();
-    let img = allowed.join("key-image.bin");
-    let bytes: Vec<u8> = (0..1000u32).map(|i| (i * 31 % 251) as u8).collect();
-    fs::write(&img, &bytes).unwrap();
+    let img = allowed.join("key-image.jpg");
+    // a real wire image (a JPEG the frame plane itself produced): DS-030 re-encodes it to
+    // the device wire format, so the vdev frame sha is the ENCODED frame's sha, not the file's
+    let source = ds_daemon::frames::encode::encode_solid(
+        ds_daemon::frames::FrameTarget::Key(0),
+        [0x3c, 0xc8, 0x6e],
+    );
+    fs::write(&img, &source).unwrap();
     let img_path = img.display().to_string();
     stack.set(
         &mut conn,
@@ -238,18 +243,58 @@ fn file_image_push_reassembles_on_vdev_with_the_files_sha256() {
         r["result"]["value"],
         json!({"kind": "file", "path": img_path})
     );
-    // and the device task pushed the file bytes: the vdev frame for key:0 has the file's sha
+    // and the device task pushed the re-encoded JPEG: the vdev frame for key:0 has its sha
+    let encoded =
+        ds_daemon::frames::encode::encode_frame(ds_daemon::frames::FrameTarget::Key(0), &source)
+            .unwrap();
     let line = wait_for_frame(&stack.vdev_sock, "key:0", Duration::from_secs(10))
         .expect("a reassembled frame for key:0 after the file set");
-    let want = ds_vdev::sha256_hex(&bytes);
+    let want = ds_vdev::sha256_hex(&encoded);
     assert!(
         line.contains(&want),
-        "frame line {line:?} must contain sha256(file) {want}"
+        "frame line {line:?} must contain sha256(encoded frame) {want}"
     );
     assert!(
-        line.contains(&format!("{}B", bytes.len())),
-        "frame line {line:?} must report the file's byte count"
+        line.contains(&format!("{}B", encoded.len())),
+        "frame line {line:?} must report the encoded frame's byte count"
     );
+    let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
+    assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
+}
+
+#[test]
+fn non_image_file_push_is_refused_with_e_format_and_no_frame() {
+    let (mut stack, mut conn, _token) = Stack::start();
+    let allowed = stack._tmp.path().join("allowed");
+    fs::create_dir_all(&allowed).unwrap();
+    stack.set(
+        &mut conn,
+        1,
+        "/policy/fs/roots",
+        json!([allowed.display().to_string()]),
+    );
+    // a file inside the roots but not a decodable image: the set is accepted (schema-valid),
+    // the device push is refused with E_FORMAT and no frame is stored
+    let junk = allowed.join("junk.bin");
+    fs::write(&junk, b"this is not a PNG/JPEG/GIF").unwrap();
+    stack.set(
+        &mut conn,
+        2,
+        "/controls/keys/1/image",
+        json!({"kind": "file", "path": junk.display().to_string()}),
+    );
+    std::thread::sleep(Duration::from_millis(700));
+    assert!(
+        ds_vdev::ctl::request(&stack.vdev_sock, "frames key:1").is_err(),
+        "no frame may be stored for a non-image file (E_FORMAT drop)"
+    );
+    let log = stack.daemon.stderr_text();
+    assert!(
+        log.contains("E_FORMAT"),
+        "the E_FORMAT refusal must be logged; stderr:\n{log}"
+    );
+    let r = conn.round(json!({"id": 3, "op": "ping"}));
+    assert_eq!(r["result"], json!({"pong": true}));
     let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
     assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
 }
@@ -271,21 +316,20 @@ fn colour_image_push_yields_a_frame_for_key_and_dial() {
     );
     let key_line = wait_for_frame(&stack.vdev_sock, "key:2", Duration::from_secs(10))
         .expect("a frame for key:2 after the colour set");
-    let want_key = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+    // DS-030: the colour is encoded to the target's device JPEG (q90 key, q85 dial)
+    let want_key = ds_vdev::sha256_hex(&ds_daemon::frames::encode::encode_solid(
+        ds_daemon::frames::FrameTarget::Key(2),
         [0x3c, 0xc8, 0x6e],
-        ds_daemon::device::COLOR_IMAGE_WIDTH,
-        ds_daemon::device::COLOR_IMAGE_HEIGHT,
     ));
     assert!(
         key_line.contains(&want_key),
-        "frame {key_line:?} must be the solid-colour PNG the daemon encodes ({want_key})"
+        "frame {key_line:?} must be the encoded solid-colour JPEG for key:2 ({want_key})"
     );
     let dial_line = wait_for_frame(&stack.vdev_sock, "dial", Duration::from_secs(10))
         .expect("a frame for the dial after the colour set");
-    let want_dial = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+    let want_dial = ds_vdev::sha256_hex(&ds_daemon::frames::encode::encode_solid(
+        ds_daemon::frames::FrameTarget::Dial,
         [0x0a, 0x0b, 0x0c],
-        ds_daemon::device::COLOR_IMAGE_WIDTH,
-        ds_daemon::device::COLOR_IMAGE_HEIGHT,
     ));
     assert!(
         dial_line.contains(&want_dial),
@@ -456,14 +500,13 @@ fn daemon_end_to_end_on_virtual_device() {
     // the colour image was pushed as chunks and reassembled into the key:0 frame
     let frame = wait_for_frame(&vdev_sock, "key:0", Duration::from_secs(5))
         .expect("a reassembled frame for key:0 after the colour set");
-    let want = ds_vdev::sha256_hex(&ds_daemon::device::solid_color_png(
+    let want = ds_vdev::sha256_hex(&ds_daemon::frames::encode::encode_solid(
+        ds_daemon::frames::FrameTarget::Key(0),
         [0x3c, 0xc8, 0x6e],
-        ds_daemon::device::COLOR_IMAGE_WIDTH,
-        ds_daemon::device::COLOR_IMAGE_HEIGHT,
     ));
     assert!(
         frame.contains(&want),
-        "frame {frame:?} must carry the sha256 of the encoded colour image {want}"
+        "frame {frame:?} must carry the sha256 of the encoded colour JPEG {want}"
     );
 
     // --- SIGTERM exits 0 and cleans up ------------------------------------------

@@ -10,7 +10,9 @@ under it, and drives the system ONLY through the real binaries (black box):
     2. ds set /controls/keys/0/image --file examples/key.png ; ds get ... --json
        round-trips the file visual and rev increased
     3. ds-vdevctl --socket <tmp>/vdev.sock frames key:0 prints the reassembled sha256,
-       which must equal sha256(examples/key.png)
+       which must equal the golden ENCODED-frame sha tests/golden/example-key0.sha256
+       (DS-030: the daemon re-encodes examples/key.png to baseline JPEG 4:4:4 q90 for
+       key:0 before chunking, so the wire frame is the encoded JPEG, not the file)
     4. ds watch --ndjson --max-events 1 sees the event of a set ; ds watch --json exits 1
     5. ds migrate <anything> exits 1 (scope invariant: no migrate verb)
     6. bench skeleton: a background writer loops colour sets while N>=200 sequential
@@ -59,6 +61,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 KEY_PNG = ROOT / "examples" / "key.png"
+# DS-030 golden: the frame on the device wire is the daemon's re-encoded baseline JPEG
+# (standard Huffman, 4:4:4, q90 for key:N), so step 3 compares the vdev-reassembled frame
+# sha against the golden ENCODED-frame sha, not against sha256(examples/key.png).
+GOLDEN_DIR = ROOT / "tests" / "golden"
+EXAMPLE_KEY0_SHA = GOLDEN_DIR / "example-key0.sha256"
 
 NO_BENCH = "--no-bench" in sys.argv
 VERBOSE = "--verbose" in sys.argv
@@ -350,23 +357,27 @@ def step_set_get_image(stack):
 
 
 def step_golden_frame_sha(stack, info):
-    """Step 3: ds-vdevctl frames key:0 prints the reassembled sha256 == sha256(key.png).
+    """Step 3: ds-vdevctl frames key:0 prints the reassembled frame sha256 == the golden
+    ENCODED-frame sha (tests/golden/example-key0.sha256).
 
-    Phase-1 contract: the daemon pushes the file bytes unchanged, so the sha256 of the
-    frame reassembled by ds-vdev equals sha256(examples/key.png). Phase-3 caveat: the
-    frame plane will re-encode the image into the device wire format (JPEG baseline,
-    DS-030/DS-031), so from phase 3 on the golden sha is the sha of the ENCODED frame
-    pushed to the device, not of the source file — the assert below then compares
-    against the re-encoded golden, and this comment is the pointer to update.
+    DS-030 changed the frame plane: the daemon no longer pushes the file bytes of
+    examples/key.png unchanged — it re-encodes the image to the device wire format
+    (baseline JPEG, standard Huffman tables, 4:4:4, q90 for key:N; see
+    docs/contracts/streaming.md §2 and crates/ds-daemon/src/frames/). ds-vdev reassembles
+    the 0x36 chunks into that JPEG, so the sha256 to compare against is the sha of the
+    encoder's output for examples/key.png at key:0, checked in as
+    tests/golden/example-key0.sha256 (regenerate deliberately with
+    `DS_GOLDEN_REGEN=1 cargo test -p ds-daemon frames::golden` — see tests/golden/README.md).
+    The frame byte count is likewise the encoded frame's, not the source file's.
     """
-    golden = info.get("golden_sha256")
-    assert golden, "step 2 did not produce a golden sha256 (it failed); nothing to compare"
+    assert EXAMPLE_KEY0_SHA.is_file(), "golden encoded-frame sha missing: %s" % EXAMPLE_KEY0_SHA
+    golden = EXAMPLE_KEY0_SHA.read_text().strip()
+    assert re.fullmatch(r"[0-9a-f]{64}", golden), "bad golden sha file: %r" % golden
     p = stack.vdevctl("frames", "key:0")
     assert p.returncode == 0, (
         "ds-vdevctl frames key:0 rc=%d stderr=%s — no reassembled frame for key:0. "
-        "Expected the daemon's device task to push the file bytes of examples/key.png as "
-        "key-image chunks (crates/ds-daemon/src/device.rs plan_push currently maps only "
-        "color/LED visuals and logs file visuals as 'out of scope for DS-015, ignored'; "
+        "Expected the daemon's device task to re-encode examples/key.png to the device "
+        "JPEG and push it as key-image chunks (crates/ds-daemon/src/frames/ + device.rs); "
         "ds-vdev only stores frames reassembled from 0x35/0x36/0x45 image-chunk reports). "
         "expected sha256=%s" % (p.returncode, p.stderr.strip(), golden)
     )
@@ -375,10 +386,11 @@ def step_golden_frame_sha(stack, info):
     assert m, "frames key:0 line must be 'key:0 <sha256> <n>B seq=<k>', got %r" % line
     got_sha, nbytes, seq = m.group(1), int(m.group(2)), int(m.group(3))
     assert got_sha == golden, (
-        "golden sha mismatch: ds-vdevctl frames key:0 = %s but sha256(examples/key.png) = %s "
-        "(%d B, seq=%d)" % (got_sha, golden, nbytes, seq)
+        "golden encoded-frame sha mismatch: ds-vdevctl frames key:0 = %s but the DS-030 "
+        "golden sha of encode(examples/key.png, key:0) = %s (%d B, seq=%d; see %s)"
+        % (got_sha, golden, nbytes, seq, EXAMPLE_KEY0_SHA)
     )
-    assert nbytes == info["bytes"], "frame bytes %d != file bytes %d" % (nbytes, info["bytes"])
+    assert nbytes > 0, "the reassembled frame must not be empty"
     return {"frame_sha256": got_sha, "bytes": nbytes, "seq": seq}
 
 
@@ -510,7 +522,7 @@ def step_bench(stack):
 STEPS = [
     ("1 boot vdev+daemon (empty state, rev 0)", step_boot, False),
     ("2 set --file key.png; get --json round-trips, rev up", step_set_get_image, False),
-    ("3 ds-vdevctl frames key:0 == sha256(key.png)", step_golden_frame_sha, True),
+    ("3 ds-vdevctl frames key:0 == golden encoded-frame sha (tests/golden/example-key0.sha256)", step_golden_frame_sha, True),
     ("4 watch --ndjson --max-events 1; watch --json exits 1", step_watch, False),
     ("5 ds migrate exits 1", step_no_migrate, False),
 ]

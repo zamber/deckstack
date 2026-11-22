@@ -13,6 +13,9 @@
 //!   (`ping`, `get`, `set`, `subscribe`/`unsubscribe`, `daemon status`, `schema`).
 //! - [`device`] — the device task: owns the `ds-device` [`Transport`] opened from the
 //!   device URI and applies state image/color pushes to the hardware.
+//! - [`frames`] — the frame plane (DS-030): re-encode wire images to the device wire
+//!   format (baseline JPEG, standard Huffman, 4:4:4) and chunk them into 320 B image
+//!   reports; the device push path runs it off the state lock.
 //! - [`router`] — the event bus + router (DS-040): device input reports become
 //!   `deck/control/*` events, committed state changes become state events, the `emit`
 //!   op publishes `app/*`/`deck/*` topics; IPC `subscribe`/`unsubscribe` register on it.
@@ -25,6 +28,7 @@
 
 pub mod daemon;
 pub mod device;
+pub mod frames;
 pub mod ipc;
 pub mod lifecycle;
 pub mod router;
