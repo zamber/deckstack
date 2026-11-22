@@ -703,7 +703,7 @@
   {
     "id": "DS-022",
     "title": "Software-mode handshake, module init, safe builders on real hardware",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "device",
     "size": "M",
@@ -716,9 +716,9 @@
       "new:tests/hw/",
       "crates/ds-device/src/lib.rs"
     ],
-    "branch": "ticket/DS-022",
-    "worktree": ".worktrees/DS-022",
-    "pr": "prs/DS-022.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-22",
     "acceptance": [
@@ -741,7 +741,7 @@
   {
     "id": "DS-023",
     "title": "Hot-plug rescan, reconnect, re-push, unresponsive-device handling",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "device",
     "size": "M",
@@ -776,7 +776,7 @@
   {
     "id": "DS-024",
     "title": "Guard/handback: clean device state on daemon exit, SIGTERM, crash",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "daemon",
     "size": "M",
@@ -950,7 +950,7 @@
   {
     "id": "DS-029",
     "title": "Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "test",
     "size": "L",
