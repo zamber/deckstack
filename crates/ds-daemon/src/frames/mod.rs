@@ -11,18 +11,31 @@
 //!   chunked reports inside 320 B output reports for cmds `0x35` (panel), `0x36` (key N),
 //!   `0x45` (dial).
 //!
+//! - [`service`] — the frame service (DS-031): per-target latest-frame-wins queues
+//!   (1 in flight + 1 waiting), the global 256 MiB frame-queue budget, the [`FrameSink`]
+//!   that routes accepted stream-socket frames into the queues, stream stop/drain, and
+//!   the stats behind `/telemetry/streams/<target>`.
+//! - [`writer`] — one dedicated writer thread per module owning the send side of the
+//!   transport: whole-frame paced sends, no lock held across device I/O, graceful
+//!   stop/drain on shutdown.
+//! - [`telemetry`] — the ≤ 1 Hz sampler writing non-durable
+//!   `/telemetry/streams/<target>` stats into the state store (never persisted, no rev).
+//!
 //! Encoding is deterministic for a pinned `jpeg-encoder` version, which is what makes the
 //! golden vectors under `tests/golden/` exact-byte fixtures (see `tests/golden/README.md`).
 
 pub mod chunk;
 pub mod encode;
+pub mod service;
+pub mod telemetry;
+pub mod writer;
 
 use ds_protocol::ModuleKind;
 
 /// A display target in the unified streaming vocabulary (`docs/contracts/streaming.md` §1):
 /// the keys panel, one key, or the dial screen — with its module, wire command, index,
 /// target size and JPEG quality.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FrameTarget {
     /// The whole keys panel, 480×272 (`02 35`, index 0, q80).
     Panel,
@@ -78,6 +91,16 @@ impl FrameTarget {
         match self {
             FrameTarget::Panel | FrameTarget::Key(_) => ModuleKind::Keys,
             FrameTarget::Dial => ModuleKind::Dial,
+        }
+    }
+
+    /// The wire/stream name of the target (`keys` | `key:<0-14>` | `dial`) — the key used
+    /// under `/telemetry/streams/<target>` and in `stream-open`/`stream-ack` envelopes.
+    pub fn wire_name(self) -> String {
+        match self {
+            FrameTarget::Panel => "keys".to_string(),
+            FrameTarget::Key(n) => format!("key:{n}"),
+            FrameTarget::Dial => "dial".to_string(),
         }
     }
 
@@ -139,6 +162,9 @@ mod tests {
         assert_eq!(FrameTarget::Panel.module(), ModuleKind::Keys);
         assert_eq!(FrameTarget::Key(2).module(), ModuleKind::Keys);
         assert_eq!(FrameTarget::Dial.module(), ModuleKind::Dial);
+        assert_eq!(FrameTarget::Panel.wire_name(), "keys");
+        assert_eq!(FrameTarget::Key(7).wire_name(), "key:7");
+        assert_eq!(FrameTarget::Dial.wire_name(), "dial");
     }
 }
 

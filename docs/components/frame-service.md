@@ -52,3 +52,50 @@ Contract: `docs/contracts/streaming.md`. Design: ADR-005, D06.
   ds stream push dial --file anim.gif --loop
   ds stream stats keys --json                 # reads /telemetry/streams/keys (no rev)
   ```
+
+## In-daemon implementation (DS-031, `crates/ds-daemon/src/frames/`)
+
+| File | Role |
+|---|---|
+| `service.rs` | `FrameService`: per-target queue slots (1 in flight + 1 waiting, latest-frame-wins), the global 256 MiB frame-queue budget, the `FrameSink` impl that routes accepted DSF1 stream-socket frames into the queues, `serve_stream_socket` (binds `<dir>/stream.sock` 0600 with the DS-013 `StreamServer`), `stop_stream`, `push_image` (DS-095 state-push path through the same queues), stats views, graceful join. |
+| `writer.rs` | One writer thread **per module** owning the send side of the transport for that module (`keys` panel + `key:N` share the M4315 handle, so one writer serializes their chunked transfers; `dial` has its own). Takes the oldest waiting frame of the module whose slot has no in-flight frame, marks it in flight, encodes → chunks → sends it **whole**, paced by a token bucket at the ~2.1 MB/s device ceiling. No lock is held across device I/O and the writer shares no lock with the state task; on shutdown it drains the queue and exits; on a device error the frame is dropped + counted and `deck/device/<serial>/disconnected` is published. |
+| `telemetry.rs` | The ≤ 1 Hz sampler: writes `/telemetry/streams/<target>` (`sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, writer_ms_p99, sampled_at`) through `Store::set_telemetry` — non-durable, never persisted, `rev` never bumped (S1). |
+| `encode.rs` / `chunk.rs` | DS-030: wire-image validation + re-encode to baseline JPEG (standard Huffman, 4:4:4, per-target quality) and the 312 B chunked image reports. The writer thread is the only caller on the send path. |
+
+**Queue policy implementation:** the accept path (`FrameSink::on_frame` →
+`FrameService::push_frame`) takes only the slots lock: budget check → evict oldest
+waiting frame across targets while the 256 MiB budget would be exceeded (counted in that
+target's `dropped`) → refuse the new frame with typed `E_LIMIT` when only in-flight
+frames remain and the budget would still be exceeded → replace only the waiting slot
+(counted) → wake the module writer. The in-flight frame is owned by the writer and never
+dropped, replaced or timed out.
+
+**Budget:** `FRAME_QUEUE_BUDGET_BYTES = 256 MiB`, counting every queued (waiting +
+in-flight) frame byte across all targets. The control plane is never affected by frame
+traffic: the queue is bounded (depth 2 per target), the accept path never does device I/O,
+and the writer threads are structurally independent of the state task.
+
+**Telemetry fields** (`/telemetry/streams/<target>`, `schemas/state.json`
+`telemetry.streams`): `sent` (frames fully sent), `dropped` (replaced waiting frames +
+budget evictions + encode/send failures), `fps` (send rate over the sampling window),
+`bytes` (device-JPEG bytes sent), `queue` (waiting depth, 0/1), `in_flight` (bool),
+`last_sha256`/`last_seq` (last completed frame), `writer_ms_p99` (p99 whole-frame send
+time), `sampled_at` (RFC 3339). Sampled at 1 Hz; reads carry no `rev`.
+
+**Wiring points for the daemon assembly** (one-liners in `daemon::run`, next ticket):
+`let store = Arc::new(Store::open(..)?); let frames = FrameService::spawn(store.clone(),
+Some(transport), bus.clone(), shutdown.clone()); frames.serve_stream_socket(&data_dir,
+StreamConfig::default())?;` — the stream socket then serves `DSctl stream-open`/`DSF1`
+with this service as the sink, and the DS-095 device image pushes route through
+`frames.push_image(target, &wire)` instead of pushing inline on the device task (the
+`Arc<dyn Transport>` handle is shared with the device task, whose `send` takes `&self`).
+The in-crate tests exercise exactly this stack in-process (DS-013 stream server + ds-vdev +
+`Store`), including a 10-frame burst on a throttled vdev: the final device frame is the
+last pushed one, `dropped > 0`, `sent + dropped == 10`, telemetry shape correct, `rev`
+delta 0.
+
+**Tests** (`cargo test -p ds-daemon frames::`): queue policy unit tests with a gated mock
+transport (replace-waiting-only, in-flight never dropped, budget cap refusal `E_LIMIT` +
+oldest-waiting eviction counted, dropped counters, stopped-stream `E_SCOPE` refusal and
+drain, no-transport drop, one writer per module, telemetry shape + no rev) and the ds-vdev
+integration test described above.
