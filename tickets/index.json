@@ -1697,7 +1697,7 @@
   {
     "id": "DS-054",
     "title": "Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs",
-    "state": "review",
+    "state": "done",
     "phase": 5,
     "lane": "plugins",
     "size": "M",
@@ -1711,9 +1711,9 @@
       "new:packaging/plugin/",
       "docs/contracts/plugins.md"
     ],
-    "branch": "ticket/DS-054",
-    "worktree": ".worktrees/DS-054",
-    "pr": "prs/DS-054.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1932,7 +1932,7 @@
   {
     "id": "DS-070",
     "title": "lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes",
-    "state": "backlog",
+    "state": "ready",
     "phase": 7,
     "lane": "integrations",
     "size": "L",
@@ -1950,7 +1950,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "the separate deckstack-lights repo (repos.toml already marks it 'to create', own repo from day one) is created from the umbrella via subtree split conventions and implements docs/80-integrations.md: manifest per schemas/plugin-manifest.json with actions like lights.set {room, light, on, brightness, color} (JSON-Schema params), capability net:lights.lan only",
       "ALL HTTP goes through the daemon-mediated request kind:\"net\" (sdk.http) \u2014 the plugin never opens a socket; daemon checks the host glob against the grant AND /policy/net/allow_hosts (T11)",

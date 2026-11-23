@@ -47,13 +47,13 @@ Generated: 2026-11-23 - 66 tickets.
 | DS-051 | done | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | done | 5 | plugins | L | vibe/DS-052 | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
 | DS-053 | ready | 5 | test | M | - | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
-| DS-054 | review | 5 | plugins | M | vibe/DS-054 | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
+| DS-054 | done | 5 | plugins | M | vibe/DS-054 | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
 | DS-060 | done | 6 | senders | M | vibe/DS-060 | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |
 | DS-061 | done | 6 | senders | M | vibe/DS-061 | DS-040, DS-041 | ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) |
 | DS-062 | done | 6 | test | M | vibe/DS-062 | DS-016, DS-040, DS-041 | CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors |
 | DS-063 | done | 6 | agents | S | vibe/DS-063 | DS-060, DS-061, DS-062 | Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples |
 | DS-064 | done | 6 | docs | M | vibe/DS-064 | DS-060, DS-061, DS-062 | Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting |
-| DS-070 | backlog | 7 | integrations | L | - | DS-050, DS-052, DS-054 | lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes |
+| DS-070 | ready | 7 | integrations | L | - | DS-050, DS-052, DS-054 | lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes |
 | DS-071 | backlog | 7 | porting | M | - | DS-041, DS-070 | Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin |
 | DS-072 | done | 7 | platforms | M | vibe/DS-072 | DS-020, DS-026 | Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan |
 | DS-073 | done | 7 | platforms | M | vibe/DS-073 | DS-020, DS-026 | macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan |
