@@ -420,6 +420,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ds-mcp"
+version = "0.1.0"
+dependencies = [
+ "ds-client",
+ "ds-ipc",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "ds-protocol"
 version = "0.1.0"
 dependencies = [
