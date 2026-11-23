@@ -30,7 +30,7 @@ graph TD
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::done
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::done
-  DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::doing
+  DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::review
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::ready
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
@@ -223,7 +223,7 @@ Critical path length: 10 tickets.
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(done)
-- **verify** (2): DS-027(doing), DS-028(ready)
+- **verify** (2): DS-027(review), DS-028(ready)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
