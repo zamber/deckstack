@@ -45,7 +45,7 @@ graph TD
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::done
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::done
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::doing
-  DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::ready
+  DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::doing
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::ready
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::ready
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
@@ -202,7 +202,7 @@ Critical path length: 10 tickets.
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
 - **platforms** (2): DS-072(ready), DS-073(ready)
-- **plugins** (4): DS-050(ready), DS-051(ready), DS-052(ready), DS-054(backlog)
+- **plugins** (4): DS-050(doing), DS-051(ready), DS-052(ready), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
@@ -219,7 +219,6 @@ Critical path length: 10 tickets.
 
 - DS-027 - deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) (lane verify)
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
-- DS-050 - Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle (lane plugins)
 - DS-051 - Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests (lane plugins)
 - DS-052 - ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml (lane plugins)
 - DS-072 - Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan (lane platforms)
