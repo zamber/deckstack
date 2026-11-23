@@ -1976,7 +1976,7 @@
   {
     "id": "DS-071",
     "title": "Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin",
-    "state": "review",
+    "state": "done",
     "phase": 7,
     "lane": "porting",
     "size": "M",
@@ -1989,11 +1989,11 @@
       "new:docs/porting/",
       "docs/70-porting-notes.md"
     ],
-    "branch": "ticket/DS-071",
-    "worktree": ".worktrees/DS-071",
-    "pr": "prs/DS-071.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-23",
+    "updated": "2026-11-24",
     "acceptance": [
       "docs/porting/inventory.md lists candidate old-app behaviours with path:line evidence from docs/discovery/ (per docs/70-porting-notes.md 'How a porting ticket looks'), each marked port/drop with a reason; NO import/migration/compat layer is proposed (scope delta 2, ADR-012)",
       "one button actually ported as the worked example: a Salon deck key reimplemented as bindings (DS-041/042 vocabulary) + the lights plugin (DS-070), accepted on vdev (and hardware smoke if device-touching; camera check for pixel claims per docs/90-verification.md)",
