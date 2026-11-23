@@ -1766,7 +1766,7 @@
   {
     "id": "DS-061",
     "title": "ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status)",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "senders",
     "size": "M",
@@ -1780,9 +1780,9 @@
       "docs/components/mcp-bridge.md",
       "new:tests/conformance/mcp.py"
     ],
-    "branch": "ticket/DS-061",
-    "worktree": ".worktrees/DS-061",
-    "pr": "prs/DS-061.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1847,7 +1847,7 @@
   {
     "id": "DS-063",
     "title": "Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "agents",
     "size": "S",
@@ -1865,7 +1865,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "clients/ds-py/: a thin Python helper agents can pip-install or copy: connect via the control socket (NDJSON per ipc.md) with the token file, get/set/watch/emit/bind helpers, context manager, typed errors mapping E_* to exit-code semantics from cli.md section 3; it shells out to nothing and never reimplements daemon logic",
       "examples/agents/: at least one runnable example agent script (e.g. focus-recolor demo using ds-focus events + a binding, or an MCP client driving ds-mcp tools/list + deck_set) that runs against vdev in conformance",
@@ -1885,7 +1885,7 @@
   {
     "id": "DS-064",
     "title": "Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "docs",
     "size": "M",
@@ -1903,7 +1903,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "docs/runbook.md covers: systemd user unit start/enable (DS-019), ds daemon start|stop|status|restart --foreground, where logs/data/token live ($XDG_RUNTIME_DIR/deckstack/ vs ~/.local/state/deckstack/, perms 0700/0600), ds token list|issue|revoke (instant revocation for new connections, T9), recovery after crash (guard handback DS-024, crash-recovered event), reading /telemetry, common failures with exact error text + exit codes (cli.md section 5), upgrade = new release + restart (no migrate \u2014 scope), uninstall",
       "every command in the runbook is executed once against vdev and its output pasted into prs/DS-064.md (docs must not drift from reality)",

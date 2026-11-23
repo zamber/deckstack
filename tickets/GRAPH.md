@@ -51,10 +51,10 @@ graph TD
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::done
-  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::doing
+  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::done
   DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::done
-  DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::backlog
-  DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::backlog
+  DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::ready
+  DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::ready
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
@@ -189,14 +189,14 @@ Critical path length: 10 tickets.
 
 ## Parallel lanes
 
-- **agents** (1): DS-063(backlog)
+- **agents** (1): DS-063(ready)
 - **bench** (1): DS-033(ready)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
-- **docs** (2): DS-064(backlog), DS-094(done)
+- **docs** (2): DS-064(ready), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(ready)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
@@ -207,7 +207,7 @@ Critical path length: 10 tickets.
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
 - **security** (2): DS-043(doing), DS-081(backlog)
-- **senders** (2): DS-060(done), DS-061(doing)
+- **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(ready), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
@@ -222,4 +222,6 @@ Critical path length: 10 tickets.
 - DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
 - DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
 - DS-045 - Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) (lane test)
+- DS-063 - Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples (lane agents)
+- DS-064 - Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting (lane docs)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
