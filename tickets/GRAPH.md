@@ -31,7 +31,7 @@ graph TD
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::done
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::done
-  DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::ready
+  DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::doing
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
@@ -223,13 +223,12 @@ Critical path length: 10 tickets.
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(done)
-- **verify** (2): DS-027(done), DS-028(ready)
+- **verify** (2): DS-027(done), DS-028(doing)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-071 - Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin (lane porting)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-081 - Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status (lane security)

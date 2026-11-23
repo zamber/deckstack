@@ -925,11 +925,11 @@
   {
     "id": "DS-028",
     "title": "Camera golden checks for key:0, panel, LED + calibration procedure",
-    "state": "ready",
+    "state": "doing",
     "phase": 2,
     "lane": "verify",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-028",
     "depends_on": [
       "DS-026"
     ],
@@ -937,9 +937,9 @@
       "new:tools/verify/golden/",
       "docs/90-verification.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-028",
+    "worktree": ".worktrees/DS-028",
+    "pr": "prs/DS-028.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
