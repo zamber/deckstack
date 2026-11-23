@@ -47,3 +47,4 @@ ts	phase	decision	why	evidence	result
 2026-11-23T07:07:17Z	phase3	DS-034 animation/GIF pipeline merged	multi-frame decode, pacing and loop meta with the documented caps	cargo test -p ds-daemon; conformance streaming; merge 0cb6b5f	done
 2026-11-23T07:15:02Z	phase3	DS-033 streaming bench merged	32 fps sustained and query p99 budgets need a repeatable bench	cargo test -p ds-bench; merge 26d76bb	done
 2026-11-23T08:00:20Z	phase4	DS-045 action chains A/B + latency bench merged	bindings need end-to-end conformance across device, router and frames	conformance actions suite; merge e43b029	done
+2026-11-23T08:06:22Z	phase5	DS-051 Rust plugin SDK merged	plugins need a typed SDK matching the host contract	cargo test -p ds-plugin-sdk; merge f551126	done
