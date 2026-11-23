@@ -1976,7 +1976,7 @@
   {
     "id": "DS-071",
     "title": "Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin",
-    "state": "doing",
+    "state": "review",
     "phase": 7,
     "lane": "porting",
     "size": "M",
