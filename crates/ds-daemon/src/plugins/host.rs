@@ -152,6 +152,9 @@ pub struct Plugin {
     inner: Mutex<Inner>,
     ctrl_tx: Sender<Ctrl>,
     stop_requested: AtomicBool,
+    /// Set by `remove` before the stop request: no status refresh may write
+    /// `/plugins/<id>` again once removal has begun.
+    removed: AtomicBool,
     sup: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -192,6 +195,9 @@ impl Plugin {
     /// plugin-owned `state` subtree (where effects write, e.g. `/plugins/<id>/state/…`)
     /// is preserved and merged with the host's own fields (pid, landlock, …).
     fn refresh_state(&self) {
+        if self.removed.load(Ordering::SeqCst) {
+            return;
+        }
         let Some(host) = self.host() else { return };
         let path = format!("/plugins/{}", self.id);
         let preserved = host
@@ -537,6 +543,7 @@ impl Host {
             }),
             ctrl_tx,
             stop_requested: AtomicBool::new(false),
+            removed: AtomicBool::new(false),
             sup: Mutex::new(None),
         });
         self.plugins
@@ -590,7 +597,14 @@ impl Host {
     pub fn remove(&self, id: &str) -> Result<(), IpcError> {
         let plugin = self.plugins.lock().unwrap().remove(id);
         if let Some(p) = plugin {
+            // Authoritative removal: mark first, then stop and drain the supervisor so
+            // no late status update can re-create the state entry we delete below.
+            p.removed.store(true, Ordering::SeqCst);
             p.request_stop();
+            let handle = p.sup.lock().unwrap().take();
+            if let Some(handle) = handle {
+                let _ = handle.join();
+            }
         }
         let dir = self.dir.join(id);
         if dir.exists() {
