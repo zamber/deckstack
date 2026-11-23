@@ -561,6 +561,10 @@ mod tests {
         fn close(&self) -> ds_device::Result<()> {
             Ok(())
         }
+        fn module_id(&self, kind: ds_protocol::ModuleKind) -> Option<ModuleId> {
+            // the gate stands in for a whole deck: every kind resolves to its virtual id
+            Some(ds_device::vtransport::virtual_module_id(kind))
+        }
     }
 
     fn test_service(
@@ -905,7 +909,8 @@ mod tests {
         // software-mode handshake before any command (mh-protocol safety invariant)
         for kind in [ModuleKind::Keys, ModuleKind::Dial] {
             if let Some((report, _mode)) = ds_protocol::enter_software_mode(kind) {
-                let id = ds_device::vtransport::virtual_module_id(kind);
+                let id = ds_device::transport::module_id_for_send(&*transport, kind)
+                    .expect("screen module connected on the transport");
                 transport.send(&id, &report).unwrap();
             }
         }

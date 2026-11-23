@@ -23,6 +23,10 @@ use crate::transport::DeviceEvent;
 pub const INPUT_REPORT_LEN: usize = 64;
 /// One read slice: how long the reader holds the device lock per `hid_read_timeout` call.
 pub const READ_SLICE: Duration = Duration::from_millis(20);
+/// Gap the reader leaves the device lock free between two read slices. Without it the
+/// reader re-acquires the lock immediately after each slice and a waiting `send`/`query`
+/// starves on the mutex (observed as a hung `hid_write` on the real deck).
+pub const READ_GAP: Duration = Duration::from_millis(1);
 
 /// The module map the reader threads share with the transport (to close it when the last
 /// module goes away).
@@ -78,6 +82,10 @@ pub(crate) fn reader_loop(
             let device = handle.device.lock().unwrap_or_else(|e| e.into_inner());
             device.read_timeout(&mut buf, READ_SLICE.as_millis() as i32)
         };
+        // The lock is released here; leave it free for READ_GAP so a send/query waiting on
+        // it can acquire it before the next slice re-locks (mutex barging would otherwise
+        // starve the writer indefinitely).
+        std::thread::sleep(READ_GAP);
         match res {
             Ok(0) => {} // slice timed out, no report
             Ok(n) => {

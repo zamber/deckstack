@@ -136,7 +136,14 @@ fn send_whole(
             device: false,
         });
     }
-    let module_id = virtual_module_id(module);
+    // The transport owns module identity: send to the id of the module of this kind that
+    // the transport actually has connected (a missing module is a typed error, not a panic).
+    let Some(module_id) = transport.module_id(module) else {
+        return Err(SendFailure {
+            message: format!("module {} not connected on this transport", module.name()),
+            device: false,
+        });
+    };
     for report in &reports {
         limiter.acquire(); // pace to the ~2.1 MB/s device ceiling, never block producers
         transport
@@ -232,7 +239,12 @@ fn finish(
                 ),
             );
             if f.device {
-                let serial = virtual_module_id(module).serial;
+                let serial = inner
+                    .transport
+                    .as_ref()
+                    .and_then(|t| t.module_id(module))
+                    .map(|m| m.serial)
+                    .unwrap_or_else(|| virtual_module_id(module).serial);
                 inner.bus.publish(router::device_event(
                     &serial,
                     "disconnected",

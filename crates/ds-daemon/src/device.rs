@@ -40,10 +40,11 @@ use crate::lifecycle::{self, Shutdown};
 use crate::router::{self, Bus};
 use ds_device::module::module_info;
 use ds_device::rate::{RateLimiter, DEFAULT_LED_RATE_PER_S};
-use ds_device::transport::{DeviceEvent, Transport};
+use ds_device::transport::{module_id_for_send, DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
 use ds_device::vtransport::virtual_module_id;
 use ds_protocol::{LedTarget, ModuleKind};
+use mh_device::ModuleId;
 use serde_json::Value;
 use std::fs;
 use std::io::Read;
@@ -352,8 +353,11 @@ pub fn send_action(
         DeviceAction::LedColor { kind, rgb } => {
             let report =
                 ds_protocol::led_color(*kind, LedTarget::All, *rgb).ok_or("no led report")?;
+            // The transport owns module identity: ask it for the id of this module kind
+            // (hid: -> the enumerated serial, virtual: -> the virtual id).
+            let module = module_id_for_send(t, *kind).map_err(|e| e.to_string())?;
             limits.led.acquire();
-            t.send(&virtual_module_id(*kind), &report)
+            t.send(&module, &report)
                 .map(|_| ())
                 .map_err(|e| e.to_string())
         }
@@ -365,7 +369,8 @@ pub fn send_action(
             if reports.is_empty() {
                 return Err(format!("image chunker produced no reports for {target:?}"));
             }
-            let module_id = virtual_module_id(module);
+            let module_id = module_id_for_send(t, module)
+                .map_err(|e| format!("image push for {target:?}: {e}"))?;
             for report in &reports {
                 limits.image.acquire();
                 t.send(&module_id, report)
@@ -457,21 +462,56 @@ fn run_loop(
                     &format!("connected to device {uri}"),
                 );
                 // Software-mode handshake before anything else on keys/dial (invariant:
-                // no reads/commands on those modules in hardware mode).
-                for kind in [ModuleKind::Keys, ModuleKind::Dial] {
-                    if let Some((report, _mode)) = ds_protocol::enter_software_mode(kind) {
-                        let module = virtual_module_id(kind);
-                        if let Err(e) = t.send(&module, &report) {
-                            lifecycle::log(
-                                "error",
-                                "ds-daemon::device",
-                                &format!("software-mode handshake for {kind:?} failed: {e}"),
-                            );
+                // no reads/commands on those modules in hardware mode). The transport
+                // owns module identity: the on-report goes to the id of the connected
+                // module of that kind (hid: -> the enumerated serial, virtual: -> the
+                // virtual id); the M0 family needs no report and is ready at any time.
+                let mut handshaken: Vec<ModuleId> = Vec::new();
+                let mut failed: Vec<String> = Vec::new();
+                for kind in ModuleKind::ALL {
+                    match t.module_id(kind) {
+                        None => continue, // not connected on this transport
+                        Some(id) => {
+                            if let Some((report, _mode)) = ds_protocol::enter_software_mode(kind) {
+                                match t.send(&id, &report) {
+                                    Ok(_) => handshaken.push(id),
+                                    Err(e) => {
+                                        failed.push(format!("{} ({}): {e}", kind.name(), id.serial))
+                                    }
+                                }
+                            } else {
+                                handshaken.push(id); // M0: no software mode, ready now
+                            }
                         }
                     }
                 }
+                handshaken.sort();
+                let fw: Vec<String> = handshaken
+                    .iter()
+                    .map(|id| format!("{} fw=?", id.kind.name()))
+                    .collect();
+                lifecycle::log(
+                    "info",
+                    "ds-daemon::device",
+                    &format!(
+                        "connected to {uri}: {} module(s) handshaken [{}], {} unhealthy",
+                        handshaken.len(),
+                        fw.join(", "),
+                        failed.len()
+                    ),
+                );
+                for f in &failed {
+                    lifecycle::log(
+                        "error",
+                        "ds-daemon::device",
+                        &format!("software-mode handshake failed for {f}"),
+                    );
+                }
                 // The connect is a bus event: deck/device/<serial>/connected (DS-040).
-                let serial = virtual_module_id(ModuleKind::Keys).serial;
+                let serial = t
+                    .module_id(ModuleKind::Keys)
+                    .map(|m| m.serial)
+                    .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
                 bus.publish(router::device_event(
                     &serial,
                     "connected",
@@ -531,7 +571,11 @@ fn run_loop(
                 Ok(DeviceEvent::Disconnected) => {
                     lifecycle::log("warn", "ds-daemon::device", "device disconnected");
                     *status.lock().unwrap() = Some("disconnected".to_string());
-                    let serial = virtual_module_id(ModuleKind::Keys).serial;
+                    let serial = transport
+                        .as_ref()
+                        .and_then(|t| t.module_id(ModuleKind::Keys))
+                        .map(|m| m.serial)
+                        .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
                     bus.publish(router::device_event(
                         &serial,
                         "disconnected",
@@ -628,6 +672,10 @@ mod tests {
         }
         fn close(&self) -> ds_device::Result<()> {
             Ok(())
+        }
+        fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+            // the mock stands in for a whole deck: every kind resolves to its virtual id
+            Some(virtual_module_id(kind))
         }
     }
 
@@ -924,6 +972,59 @@ mod tests {
                 .unwrap();
             assert_eq!(&led.1[..8], &[0x02, 0x2D, 1, 0xFF, 4, 5, 6, 0]);
         }
+    }
+
+    #[test]
+    fn send_action_without_a_connected_module_is_a_typed_error_not_a_panic() {
+        // a transport that has no module of the asked kind (the trait default): the send
+        // path must produce a clear typed error, never panic
+        struct NoModuleTransport;
+        impl Transport for NoModuleTransport {
+            fn send(&self, _module: &ModuleId, _report: &Report) -> ds_device::Result<usize> {
+                Ok(0)
+            }
+            fn query(
+                &self,
+                _module: &ModuleId,
+                _feature_id: u8,
+                _timeout: Duration,
+            ) -> ds_device::Result<Vec<u8>> {
+                Ok(vec![])
+            }
+            fn recv(&self, _timeout: Duration) -> ds_device::Result<DeviceEvent> {
+                Err(ds_device::Error::Timeout(Duration::from_millis(1)))
+            }
+            fn close(&self) -> ds_device::Result<()> {
+                Ok(())
+            }
+        }
+        let limits = RateLimits::new();
+        let err = send_action(
+            &NoModuleTransport,
+            &DeviceAction::LedColor {
+                kind: ModuleKind::Knobs,
+                rgb: [1, 2, 3],
+            },
+            &limits,
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("module knobs not connected on this transport"),
+            "{err}"
+        );
+        let err = send_action(
+            &NoModuleTransport,
+            &DeviceAction::Image {
+                target: ImageTarget::Panel,
+                source: ImageSource::Color { rgb: [1, 2, 3] },
+            },
+            &limits,
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("module keys not connected on this transport"),
+            "{err}"
+        );
     }
 
     #[test]
