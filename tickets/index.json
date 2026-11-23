@@ -1816,7 +1816,8 @@
     ],
     "touches": [
       "new:tests/conformance/cli/",
-      "docs/components/cli.md"
+      "docs/components/cli.md",
+      "tests/conformance/run.py"
     ],
     "branch": "ticket/DS-062",
     "worktree": ".worktrees/DS-062",
