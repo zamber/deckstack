@@ -95,7 +95,15 @@ packaging.
 pipe, hardware smoke on a Windows VM with the deck. **Evidence gaps:** upstream has no
 named pipes at all (grep-verified, discovery/50 O3).
 
-## 3. macOS — TODO (do not start until Linux alpha is stable)
+## 3. macOS — TODO, post-alpha (do not start until Linux alpha is stable)
+
+macOS is **post-alpha and untested** (OPEN O8): no implementation, no CI gate, no alpha
+exit criterion mentions it (`docs/30-testing.md` §8, `docs/60-roadmap.md:38`). The
+itemized port breakdown (Unix-socket IPC carry-over, hidapi IOHIDManager transport with
+exclusive opens + busy error, SET_IDLE at connect, pipelined pictures DEPTH=8,
+NSWorkspace+AX focus, app bundle + launchd, TCC permissions, test plan) lives in
+**`docs/breakdowns/macos.md`** — schedulable ticket-by-ticket from there, still gated by
+the rule above.
 
 **Where the shim goes:** `ds-platform` (NSWorkspace+AX focus, app bundle), ds-device macOS
 paths. **What to implement:** exclusive hidapi opens with a clear "busy" error (OPEN O8,
