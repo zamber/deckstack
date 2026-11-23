@@ -1723,7 +1723,7 @@
   {
     "id": "DS-060",
     "title": "ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "senders",
     "size": "M",
@@ -1737,9 +1737,9 @@
       "docs/components/focus-sender.md",
       "new:tests/conformance/focus_sender.sh"
     ],
-    "branch": "ticket/DS-060",
-    "worktree": ".worktrees/DS-060",
-    "pr": "prs/DS-060.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
