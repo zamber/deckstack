@@ -3,12 +3,21 @@ name: ci
 # Linux-only alpha CI (docs/00-scope.md invariant 4): no Windows/macOS jobs.
 # Single gate job: fixture gate + tools/check.sh (which adds cargo fmt/clippy/test
 # once Cargo.toml exists — DS-004 — and the conformance suite once
-# tests/conformance/run.py exists — DS-018).
+# tests/conformance/run.py exists — DS-018), then the DS-082 perf gates: the ds-bench
+# CI preset (10 s) against a throttled vdev plus the actions event-latency suite.
+# Budgets and margin policy: docs/30-testing.md §5/§8/§9.
+#
+# Concurrency guard: one run per ref — perf benches must not share a loaded runner
+# with a superseded run of the same ref (see docs/30-testing.md §8 margin policy).
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -30,5 +39,35 @@ jobs:
       - name: fixture gate
         run: sh tests/fixtures/validate.sh
 
+      # Build once; the check gate (cargo test) and the perf gates below reuse this
+      # build cache, and the action-latency bench finds ds-vdev/ds-daemon in
+      # target/debug.
+      - name: build workspace
+        run: cargo build --workspace
+
       - name: full gate
         run: sh tools/check.sh
+
+      # DS-082 perf gates on vdev, short CI configuration: 10 s window, JSON report
+      # written to ds-bench-ci.json (uploaded below). Exit 1 on any budget violation
+      # (query p99 <= 10 ms, S1 rev delta 0 / no /controls events, >= 0.95 x 32 fps
+      # accepted on the throttled vdev, peak RSS <= 256 MiB).
+      - name: perf gate — ds-bench CI preset (10 s, vdev)
+        run: cargo run -p ds-bench -- --seconds 10 --ci
+
+      # DS-082 event-latency gate: the actions conformance suite on real binaries
+      # over the vdev — asserts key input -> visual <= 2 s end to end
+      # (docs/contracts/actions.md §5) and the single-event-path S1 assertions.
+      # (The DS-045 in-process dispatch-p99 bench, tests/bench/actions.rs, is not a
+      # cargo target yet; see docs/30-testing.md §8.)
+      - name: perf gate — event latency (actions suite, vdev)
+        run: python3 tests/conformance/actions/run.py
+
+      # Bench results as CI artifacts (JSON), even when a gate failed.
+      - name: upload bench artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ds-bench-ci
+          path: ds-bench-ci.json
+          if-no-files-found: error

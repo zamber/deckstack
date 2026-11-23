@@ -45,7 +45,10 @@ messages must get the documented `E_*`. The checked-in corpus is
 
 ## 5. Load / latency benchmarks (budgets, D13, R11) — incl. S1 assertions
 
-`cargo bench -p ds-bench` against ds-vdev:
+`cargo bench -p ds-bench` against ds-vdev. Since DS-082 these budgets are **CI
+gates** on the Linux job (`.github/workflows/ci.yml`, §8): the job fails beyond any
+of them. The CI runs the short configuration (`--seconds 10`); the full 60 s run
+stays available locally (`cargo bench -p ds-bench`).
 
 | Bench | Budget (CI fails beyond) |
 |---|---|
@@ -77,8 +80,36 @@ forbidden refusal, guard handback. Self-hosted Bazzite device, nightly + on tag.
 
 | Job | OS | Runs | Claims |
 |---|---|---|---|
-| test | Linux ubuntu-latest | schema/fixtures + unit + contract + conformance + acceptance + bench gates | Linux alpha fully tested (virtual) |
+| test (`check`) | Linux ubuntu-latest | schema/fixtures + unit + contract + conformance + acceptance + bench gates (§5, via `ds-bench --ci` + the actions bench — DS-082) | Linux alpha fully tested (virtual) incl. perf budgets |
 | hardware | self-hosted Bazzite + deck + webcam | smoke suite + `deckstack-verify check` on ≥1 key and the panel (`docs/90-verification.md`) | Linux hardware, camera-verified |
+
+**CI perf gates (DS-082), exact commands** — all run in the `check` job of
+`.github/workflows/ci.yml` after one `cargo build --workspace` and `sh tools/check.sh`:
+
+```sh
+cargo run -p ds-bench -- --seconds 10 --ci     # streaming gate, JSON -> ds-bench-ci.json, exit 1 beyond budget
+python3 tests/conformance/actions/run.py       # event-latency gate on the vdev (asserts the ≤ 2 s budget)
+```
+
+Gates (exit nonzero beyond budget): query-under-load p50 ≤ 2 ms / p99 ≤ 10 ms;
+S1 no-churn (`rev` delta == 0, `/controls` events == 0 during 32 fps × 10 s);
+stream throughput ≥ 0.95 × 32 fps accepted on the 16800 kbps-throttled vdev;
+event latency: key input → visual ≤ 2 s end to end on the vdev (actions.md §5,
+asserted by the actions conformance suite; the DS-045 in-process dispatch-p99
+bench `tests/bench/actions.rs` — event → dispatch p99 ≤ 5 ms under 32 fps stream
+load — is env-gated and not yet a cargo target: wiring it from `ds-bench` would
+make `cargo fmt --check` format that DS-045-owned file, which this ticket may
+not edit, so it stays out-of-tree until its owning ticket wires it);
+memory bound: peak RSS (VmHWM) ≤ 256 MiB per run (the 10 min soak with RSS
+growth < 100 MB, §5, stays a long-running/nightly job, not the per-PR gate).
+Bench results upload as the `ds-bench-ci` artifact (`ds-bench-ci.json`).
+
+**Margin policy** (shared runners): budgets carry headroom — measured on a dev
+box the 10 s CI run reports p99 ≈ 0.15 ms against the 10 ms budget and 32.0 fps
+accepted against the 30.4 fps floor — and the workflow sets
+`concurrency: {group: <workflow>-<ref>, cancel-in-progress: true}` so two bench
+runs never share a ref's runner. A flaky gate is retried once with a recorded
+flake note (AGENT-WORKFLOW escalation), never silently re-run.
 
 No Windows/macOS CI gate exists in alpha (scope delta 1): those platforms are TODO
 sections in `docs/40-platforms.md` §2–§3 — "do not start until Linux alpha is stable".
@@ -126,12 +157,33 @@ Commands:
 
 | Command | What |
 |---|---|
-| `cargo test -p ds-bench` | unit tests (percentile math, budget evaluation on a synthetic series) + a 2 s end-to-end integration run — **the CI-suitable gate** |
+| `cargo test -p ds-bench` | unit tests (percentile math, budget evaluation on a synthetic series, the `--ci` preset) + a 2 s end-to-end integration run — **the CI-suitable gate** |
 | `cargo run -p ds-bench -- --seconds 5` | short run, prints the compact table (exit 0 = PASS) |
 | `cargo run -p ds-bench -- --json` | one JSON object with every measurement + violations |
+| `cargo run -p ds-bench -- --seconds 10 --ci` | **the CI gate (DS-082)**: deterministic, bounded 10 s run; JSON on stdout **and** written to `ds-bench-ci.json` (the CI artifact, §8) |
 | `cargo run -p ds-bench` | full default run: 32 fps × 60 s |
 | `cargo bench -p ds-bench` | the full 60 s bench target (harness = false, stable Rust) |
+| `python3 tests/conformance/actions/run.py` | the event-latency gate on real binaries + vdev: key input → visual ≤ 2 s (actions.md §5) plus the single-event-path S1 assertions |
 
-Knobs: `--seconds N`, `--fps N`, `--throttle-kbps N|off`, `--target keys|key:0-14|dial`.
+Knobs: `--seconds N`, `--fps N`, `--throttle-kbps N|off`, `--target keys|key:0-14|dial`,
+`--json`, `--ci` (preset: implies `--json`, defaults `--seconds` to 10, writes the JSON
+report to `ds-bench-ci.json`), `--out PATH` (with `--ci`: artifact path override).
 Exit codes: 0 = all budgets met, 1 = budget violation, 2 = usage/harness error. Cleanup
 is deterministic: shutdown → writer drain → vdev stop → tmp dir removed.
+
+**Reproduce the CI gate locally** (same flags as `.github/workflows/ci.yml`):
+
+```sh
+cargo build --workspace                                   # once; provides the binaries the actions suite needs
+sh tools/check.sh                                         # the full local gate
+cargo run -p ds-bench -- --seconds 10 --ci                # writes ./ds-bench-ci.json, exit 0/1 on budgets
+python3 tests/conformance/actions/run.py                  # the event-latency gate (≤ 2 s key input -> visual)
+```
+
+Recorded local run of `cargo run -p ds-bench -- --seconds 10 --ci` (dev box, exit 0,
+`ds-bench-ci.json`): 320 pushed / 320 sent / 0 dropped, push = accepted = 32.04 fps,
+query n=135021 p50 0.065 ms / p99 0.144 ms, `rev` delta 0, `/controls` events 0,
+peak RSS 19.7 MiB, last frame on device, `ok: true`. Negative control
+(`--seconds 3 --throttle-kbps 100`): exit 1 with
+`accepted rate: 13.13 fps < 30.40 fps (target 32); sent=39 dropped=57` — the gate
+fails beyond budget.

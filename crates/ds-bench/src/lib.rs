@@ -2,6 +2,7 @@
 //!
 //! - [`stats`] — latency series + nearest-rank percentiles (unit-tested).
 //! - [`budget`] — the budget evaluation against `docs/30-testing.md` §5 (unit-tested).
+//! - [`ci`] — the `--ci` preset: deterministic, bounded CI gate run (DS-082).
 //! - [`stack`] — the in-process vdev + control server + frame-service stack.
 //! - [`stream`] — the bench runner (producer + query loop + measurements).
 //! - [`report`] — the table / `--json` output.
@@ -13,6 +14,7 @@
 //! ```
 
 pub mod budget;
+pub mod ci;
 pub mod report;
 pub mod stack;
 pub mod stats;
