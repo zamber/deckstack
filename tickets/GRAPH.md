@@ -36,7 +36,7 @@ graph TD
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::done
-  DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::doing
+  DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::done
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::done
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::done
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
@@ -190,7 +190,7 @@ Critical path length: 10 tickets.
 ## Parallel lanes
 
 - **agents** (1): DS-063(done)
-- **bench** (1): DS-033(doing)
+- **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(done)
