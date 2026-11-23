@@ -42,7 +42,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-042 | done | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
 | DS-043 | done | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | done | 4 | router | M | vibe/DS-044 | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
-| DS-045 | ready | 4 | test | L | - | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
+| DS-045 | doing | 4 | test | L | vibe/DS-045 | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
 | DS-050 | ready | 5 | plugins | L | - | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
 | DS-051 | ready | 5 | plugins | M | - | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | ready | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |

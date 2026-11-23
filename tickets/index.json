@@ -1494,11 +1494,11 @@
   {
     "id": "DS-045",
     "title": "Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s)",
-    "state": "ready",
+    "state": "doing",
     "phase": 4,
     "lane": "test",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-045",
     "depends_on": [
       "DS-042",
       "DS-044"
@@ -1507,9 +1507,9 @@
       "new:tests/conformance/actions/",
       "new:tests/bench/actions.rs"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-045",
+    "worktree": ".worktrees/DS-045",
+    "pr": "prs/DS-045.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
