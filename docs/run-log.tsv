@@ -50,3 +50,4 @@ ts	phase	decision	why	evidence	result
 2026-11-23T08:06:22Z	phase5	DS-051 Rust plugin SDK merged	plugins need a typed SDK matching the host contract	cargo test -p ds-plugin-sdk; merge f551126	done
 2026-11-23T08:35:23Z	phase5	DS-050 plugin host merged	plugins are separate processes with caps, rlimits/Landlock and a watchdog	cargo test -p ds-daemon; merge 0da2ecf	done
 2026-11-23T09:14:26Z	phase7	DS-072 Windows breakdown and DS-082 CI perf gates merged	port notes and CI budgets close the alpha gates	docs-only breakdown; .github/workflows/ci.yml wires ds-bench --ci; merges 3ac6eef, c899a3f	done
+2026-11-23T09:19:36Z	phase5	DS-052 Python plugin SDK + hubdeck-compat wrapper merged	plugins in Python need the same host protocol and a compat path	plugins-py smoke; merge 5b3f8ba	done
