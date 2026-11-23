@@ -1173,7 +1173,7 @@
   {
     "id": "DS-034",
     "title": "Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits",
-    "state": "doing",
+    "state": "review",
     "phase": 3,
     "lane": "frames",
     "size": "M",
