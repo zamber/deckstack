@@ -61,7 +61,7 @@ graph TD
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::done
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
-  DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::review
+  DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::done
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::done
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::done
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
@@ -218,7 +218,7 @@ Critical path length: 10 tickets.
 - **porting** (1): DS-071(done)
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
-- **security** (2): DS-043(done), DS-081(review)
+- **security** (2): DS-043(done), DS-081(done)
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
