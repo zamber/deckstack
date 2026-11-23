@@ -2152,7 +2152,7 @@
   {
     "id": "DS-081",
     "title": "Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "security",
     "size": "L",
