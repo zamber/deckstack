@@ -17,7 +17,7 @@
 //! | `set` | one state transaction through the [`StateHandle`] (the state task is the single writer), schema-validated against `schemas/state.json` on commit — one rev bump; a schema-invalid value is rejected with `E_SCHEMA` and **state is untouched** |
 //! | `emit` | validates the topic, publishes it on the bus (subscribers see it) and **re-enters the router synchronously** with depth + 1; the bus copy of an emit-published event is skipped by the engine's own subscription (marker map), so every event is dispatched exactly once |
 //! | `plugin` | stubbed until the plugin host lands (DS-050): typed `E_CAP` error, never crashes the router |
-//! | `exec` | stubbed until the DS-043 policy gate lands: **fails closed** with a typed capability error (the IPC vocabulary has no `E_POLICY`; `E_CAP` is its stand-in) — no process is ever spawned; the argv-only shape (non-empty string array, absolute `argv[0]`) is re-enforced at runtime |
+//! | `exec` | the DS-043 policy gate (`crate::policy`): argv-only shape, `/policy/exec` allow/deny (deny wins, shells pre-denied), cwd confined to `/policy/fs/roots` + `/tmp`, admin scope + `allow_exec:true` on the binding, then a fire-and-forget argv-only `execve` with rlimits and a scrubbed env; every attempt is audited (`deck/system/exec`) and a refusal is a typed error — no process is ever spawned through a shell |
 //! | `sleep` | bounded `ms` (1..=60000); the remaining steps continue on a **timer thread**, so the router/bus thread never blocks |
 //!
 //! Failure modes (event-router.md): a failing step publishes
@@ -194,7 +194,7 @@ impl Engine {
             let step = &steps[i];
             let kind = step.get("do").and_then(Value::as_str).unwrap_or("?");
             let t0 = Instant::now();
-            let result = self.exec_step(step, depth, trigger);
+            let result = self.exec_step(binding, step, depth, trigger);
             if kind == "set" || kind == "emit" {
                 let dur = t0.elapsed();
                 record_step(kind, dur);
@@ -249,6 +249,7 @@ impl Engine {
     /// Execute one step. Never panics; every failure is a typed [`IpcError`].
     fn exec_step(
         self: &Arc<Self>,
+        binding: &Value,
         step: &Value,
         depth: u32,
         trigger: &str,
@@ -323,9 +324,15 @@ impl Engine {
                 ))
             }
             "exec" => {
-                // Fail closed until the DS-043 policy gate lands. The argv-only shape is
-                // re-enforced here (bind-time schema enforces it too): a non-empty array
-                // of strings with an absolute argv[0] — never a shell, never relative.
+                // DS-043 policy gate: argv-only shape is re-enforced here (bind-time
+                // schema enforces it too): a non-empty array of strings with an
+                // absolute argv[0] — never a shell, never relative. The policy then
+                // checks /policy/exec allow/deny (deny wins; shells/interpreters are
+                // pre-denied), cwd confinement to /policy/fs/roots + /tmp, admin
+                // scope + the binding's allow_exec grant, and on "allow" spawns the
+                // binary fire-and-forget (argv-only execve, rlimits, scrubbed env).
+                // Every attempt is audited (deck/system/exec + log); a refusal is a
+                // typed error -> binding-error event, remaining steps still run.
                 let argv_ok = step.get("argv").and_then(Value::as_array).is_some_and(|a| {
                     !a.is_empty()
                         && a.len() <= 64
@@ -340,13 +347,14 @@ impl Engine {
                             .to_string(),
                     ));
                 }
-                Err(IpcError::new(
-                    ErrorCode::ECap,
-                    "exec step fails closed until the DS-043 policy gate is wired (E_CAP stands \
-                     in for E_POLICY: /policy/exec allow/deny is not enforced yet); no process \
-                     is spawned"
-                        .to_string(),
-                ))
+                let ctx = crate::policy::ExecContext {
+                    state: &self.state,
+                    bus: &self.bus,
+                    binding,
+                    trigger,
+                    caller_admin: crate::policy::caller_is_admin(trigger),
+                };
+                crate::policy::check_exec(&ctx, step).map(|_pid| StepOutcome::Continue)
             }
             "sleep" => {
                 let ms = step
@@ -796,7 +804,7 @@ mod tests {
     }
 
     #[test]
-    fn exec_fails_closed_and_enforces_the_argv_only_shape() {
+    fn exec_goes_through_the_ds043_policy_and_enforces_the_argv_only_shape() {
         let (engine, state, t, bus) = test_engine();
         let errors = collect(&bus, "/deck/system/*");
         // the schema rejects a relative argv[0] at bind time, so only the absolute-argv
@@ -815,17 +823,33 @@ mod tests {
             .filter(|m| m["topic"] == BINDING_ERROR_TOPIC)
             .collect();
         assert_eq!(errs.len(), 1, "{msgs:?}");
-        // absolute argv[0] passes the shape check, then fails closed (DS-043 stub)
+        // absolute argv[0] passes the shape check, then the DS-043 policy refuses the
+        // shell: /bin/sh is on the deny list (deny wins over any allowlist entry)
         assert_eq!(errs[0]["payload"]["step"], json!(0));
         assert_eq!(errs[0]["payload"]["error"]["code"], json!("E_CAP"));
         assert!(errs[0]["payload"]["error"]["message"]
             .as_str()
             .unwrap()
-            .contains("DS-043"));
+            .contains("deny list"));
+        // the refusal is audited as deck/system/exec with decision=refused, no pid
+        let audits: Vec<&Value> = msgs
+            .iter()
+            .filter(|m| m["topic"] == crate::policy::EXEC_AUDIT_TOPIC)
+            .collect();
+        assert_eq!(audits.len(), 1, "{msgs:?}");
+        assert_eq!(audits[0]["payload"]["decision"], json!("refused"));
+        assert_eq!(audits[0]["payload"]["code"], json!("E_CAP"));
+        assert_eq!(
+            audits[0]["payload"]["argv"],
+            json!(["/bin/sh", "-c", "echo hi"])
+        );
+        assert!(audits[0]["payload"].get("pid").is_none());
         // runtime re-check (a hand-crafted document could carry it): relative argv[0] and
         // non-array argv violate the argv-only shape -> E_SCHEMA, never a spawn
+        let b = json!({"id": "b0000", "topic": "app/demo/exec", "steps": []});
         let err = engine
             .exec_step(
+                &b,
                 &json!({"do": "exec", "argv": ["sh", "-c", "x"]}),
                 0,
                 "app/demo/exec",
@@ -834,6 +858,7 @@ mod tests {
         assert_eq!(err.code, ErrorCode::ESchema);
         let err = engine
             .exec_step(
+                &b,
                 &json!({"do": "exec", "argv": "sh -c x"}),
                 0,
                 "app/demo/exec",
@@ -841,9 +866,117 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         let err = engine
-            .exec_step(&json!({"do": "exec", "argv": []}), 0, "app/demo/exec")
+            .exec_step(&b, &json!({"do": "exec", "argv": []}), 0, "app/demo/exec")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
+        engine.state.stop();
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn exec_allowed_by_policy_spawns_fire_and_forget_and_audits_it() {
+        let (engine, state, t, bus) = test_engine();
+        let events = collect(&bus, "/deck/system/*");
+        // allowlist /bin/true, admin-managed
+        state
+            .set(Transaction::new(vec![Op::set(
+                "/policy/exec/allow",
+                json!(["/bin/true"]),
+            )]))
+            .unwrap();
+        // binding with the allow_exec grant, triggered from a daemon-internal topic
+        let (bid, _) = state
+            .bind(json!({
+                "id": "b0000",
+                "topic": "deck/control/keys.7/down",
+                "allow_exec": true,
+                "steps": [
+                    {"do": "exec", "argv": ["/bin/true"]},
+                    {"do": "set", "path": "/controls/keys/7/label", "value": "after-exec"},
+                ],
+            }))
+            .unwrap();
+        assert_eq!(bid, "b0001");
+        let rev_before = state.rev().unwrap();
+        engine.dispatch("deck/control/keys.7/down", &json!({}), 0);
+        // the exec spawned fire-and-forget (no state change from the exec itself) and
+        // the remaining set step still ran
+        assert_eq!(
+            state.rev().unwrap(),
+            rev_before + 1,
+            "only the set step bumps rev"
+        );
+        assert_eq!(
+            get(&state, "/controls/keys/7/label"),
+            json!("after-exec"),
+            "remaining steps still run after an allowed exec"
+        );
+        let msgs = recv_all(&events, Duration::from_secs(2));
+        // no binding-error: the exec was allowed
+        assert!(
+            !msgs.iter().any(|m| m["topic"] == BINDING_ERROR_TOPIC),
+            "{msgs:?}"
+        );
+        let audits: Vec<&Value> = msgs
+            .iter()
+            .filter(|m| m["topic"] == crate::policy::EXEC_AUDIT_TOPIC)
+            .collect();
+        assert_eq!(audits.len(), 1, "{msgs:?}");
+        assert_eq!(audits[0]["payload"]["decision"], json!("allow"));
+        assert_eq!(audits[0]["payload"]["argv"], json!(["/bin/true"]));
+        assert!(
+            audits[0]["payload"]["pid"].as_u64().unwrap() > 0,
+            "{msgs:?}"
+        );
+        assert_eq!(audits[0]["payload"]["binding"], json!("b0001"));
+        assert!(audits[0]["payload"]["rev"].is_number());
+        engine.state.stop();
+        t.join().unwrap();
+    }
+
+    #[test]
+    fn refused_exec_emits_binding_error_and_remaining_steps_still_run() {
+        let (engine, state, t, bus) = test_engine();
+        let events = collect(&bus, "/deck/system/*");
+        state
+            .set(Transaction::new(vec![Op::set(
+                "/policy/exec/allow",
+                json!(["/bin/true"]),
+            )]))
+            .unwrap();
+        // exec of a denied shell first, then a set step that must still run
+        state
+            .bind(json!({
+                "id": "b0000",
+                "topic": "deck/control/keys.8/down",
+                "allow_exec": true,
+                "steps": [
+                    {"do": "exec", "argv": ["/bin/sh", "-c", "touch /tmp/ds043-pwn"]},
+                    {"do": "set", "path": "/controls/keys/8/label", "value": "still-ran"},
+                ],
+            }))
+            .unwrap();
+        engine.dispatch("deck/control/keys.8/down", &json!({}), 0);
+        assert_eq!(get(&state, "/controls/keys/8/label"), json!("still-ran"));
+        let msgs = recv_all(&events, Duration::from_secs(2));
+        let errs: Vec<&Value> = msgs
+            .iter()
+            .filter(|m| m["topic"] == BINDING_ERROR_TOPIC)
+            .collect();
+        assert_eq!(errs.len(), 1, "{msgs:?}");
+        assert_eq!(errs[0]["payload"]["error"]["code"], json!("E_CAP"));
+        assert_eq!(errs[0]["payload"]["step"], json!(0));
+        let audits: Vec<&Value> = msgs
+            .iter()
+            .filter(|m| m["topic"] == crate::policy::EXEC_AUDIT_TOPIC)
+            .collect();
+        assert_eq!(audits.len(), 1, "{msgs:?}");
+        assert_eq!(audits[0]["payload"]["decision"], json!("refused"));
+        assert_eq!(audits[0]["payload"]["code"], json!("E_CAP"));
+        assert!(
+            !std::path::Path::new("/tmp/ds043-pwn").exists(),
+            "no shell was spawned"
+        );
         engine.state.stop();
         t.join().unwrap();
     }
@@ -954,24 +1087,26 @@ mod tests {
     #[test]
     fn unknown_step_shapes_fail_with_typed_errors_never_panics() {
         let (engine, _state, t, _bus) = test_engine();
+        let b = json!({"id": "b0000", "topic": "app/demo/x", "steps": []});
         // unknown `do` (unrepresentable via bind — the schema rejects it — but the
         // runtime re-checks): E_SCHEMA
         let err = engine
-            .exec_step(&json!({"do": "eval", "code": "1"}), 0, "app/demo/x")
+            .exec_step(&b, &json!({"do": "eval", "code": "1"}), 0, "app/demo/x")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         // sleep out of bounds
         let err = engine
-            .exec_step(&json!({"do": "sleep", "ms": 0}), 0, "app/demo/x")
+            .exec_step(&b, &json!({"do": "sleep", "ms": 0}), 0, "app/demo/x")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         let err = engine
-            .exec_step(&json!({"do": "sleep", "ms": 999_999}), 0, "app/demo/x")
+            .exec_step(&b, &json!({"do": "sleep", "ms": 999_999}), 0, "app/demo/x")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         // emit with an invalid topic grammar
         let err = engine
             .exec_step(
+                &b,
                 &json!({"do": "emit", "topic": "app/onlysender"}),
                 0,
                 "app/demo/x",
@@ -980,12 +1115,12 @@ mod tests {
         assert_eq!(err.code, ErrorCode::ESchema);
         // set without a value
         let err = engine
-            .exec_step(&json!({"do": "set", "path": "/x"}), 0, "app/demo/x")
+            .exec_step(&b, &json!({"do": "set", "path": "/x"}), 0, "app/demo/x")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         // plugin without id/action
         let err = engine
-            .exec_step(&json!({"do": "plugin"}), 0, "app/demo/x")
+            .exec_step(&b, &json!({"do": "plugin"}), 0, "app/demo/x")
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::ESchema);
         engine.state.stop();
