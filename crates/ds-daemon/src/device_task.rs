@@ -337,7 +337,13 @@ impl Task {
     }
 
     fn device_serial(&self) -> String {
-        ds_device::vtransport::virtual_module_id(ModuleKind::Keys).serial
+        // the transport owns module identity: prefer the serial of its keys module
+        // (hid: -> the enumerated serial); the virtual id is only the no-transport fallback
+        self.transport
+            .as_ref()
+            .and_then(|t| t.module_id(ModuleKind::Keys))
+            .map(|m| m.serial)
+            .unwrap_or_else(|| ds_device::vtransport::virtual_module_id(ModuleKind::Keys).serial)
     }
 
     fn run(mut self) {
@@ -423,13 +429,13 @@ impl Task {
         match (self.open)() {
             Ok(t) => {
                 self.lifecycle.detect();
-                let ids = match hotplug::module_ids_for(&uri) {
-                    Ok(ids) => ids,
-                    Err(e) => {
-                        self.log("warn", &format!("module enumeration failed: {e}"));
-                        Vec::new()
-                    }
-                };
+                // The transport owns module identity: handshake exactly the modules it has
+                // open (hid: -> the enumerated ids, virtual: -> the virtual ids), never a
+                // hardcoded id.
+                let ids: Vec<ModuleId> = ModuleKind::ALL
+                    .into_iter()
+                    .filter_map(|kind| t.module_id(kind))
+                    .collect();
                 let report = hotplug::handshake_all(&*t, &ids, self.cfg.handshake);
                 if report.ok.is_empty() && !ids.is_empty() {
                     // every module failed its handshake: unresponsive, not gone (unless a
@@ -1314,6 +1320,11 @@ mod tests {
         }
         fn close(&self) -> DevResult<()> {
             self.0.close()
+        }
+        fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+            // the fake stands in for a whole virtual deck: every kind resolves to its
+            // virtual id, exactly like VirtualTransport
+            Some(virtual_module_id(kind))
         }
     }
 

@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use ds_protocol::{Input, Report};
+use ds_protocol::{Input, ModuleKind, Report};
 use mh_device::ModuleId;
 
 use crate::error::{Error, Result};
@@ -49,6 +49,30 @@ pub trait Transport: Send + Sync + 'static {
 
     /// Close the connection (handback on real hardware is DS-024).
     fn close(&self) -> Result<()>;
+
+    /// The id of the connected module of `kind` on this transport, resolved lazily at call
+    /// time (enumeration may happen after construction), so senders address the module the
+    /// transport actually has open — `hid:` answers with the enumerated serials,
+    /// `virtual:` with its virtual ids. `None` when no module of that kind is connected.
+    ///
+    /// Every real transport overrides this; the default only exists so test doubles that
+    /// never resolve ids keep compiling.
+    fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+        let _ = kind;
+        None
+    }
+}
+
+/// Resolve the module of `kind` on `t` for a send: the transport owns module identity, so
+/// this is the one way a send path picks its target id. A missing module is a typed error
+/// with a clear message — never a panic.
+pub fn module_id_for_send(t: &dyn Transport, kind: ModuleKind) -> Result<ModuleId> {
+    t.module_id(kind).ok_or_else(|| {
+        Error::Device(format!(
+            "module {} not connected on this transport",
+            kind.name()
+        ))
+    })
 }
 
 /// Open the device a URI addresses.
@@ -70,7 +94,82 @@ pub fn open(uri: &DeviceUri) -> Result<Box<dyn Transport>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ds_protocol::ModuleKind;
+    use ds_protocol::{ModuleKind, Report};
+    use std::time::Duration;
+
+    /// A transport that resolves nothing (the trait default): a send-path resolution must
+    /// be a typed error naming the kind, never a panic.
+    struct EmptyTransport;
+
+    impl Transport for EmptyTransport {
+        fn send(&self, _module: &ModuleId, _report: &Report) -> Result<usize> {
+            Ok(0)
+        }
+        fn query(
+            &self,
+            _module: &ModuleId,
+            _feature_id: u8,
+            _timeout: Duration,
+        ) -> Result<Vec<u8>> {
+            Ok(vec![])
+        }
+        fn recv(&self, _timeout: Duration) -> Result<DeviceEvent> {
+            Err(Error::Timeout(Duration::from_millis(1)))
+        }
+        fn close(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A transport that resolves every kind to a fixed id.
+    struct FixedTransport;
+
+    impl Transport for FixedTransport {
+        fn send(&self, _module: &ModuleId, _report: &Report) -> Result<usize> {
+            Ok(0)
+        }
+        fn query(
+            &self,
+            _module: &ModuleId,
+            _feature_id: u8,
+            _timeout: Duration,
+        ) -> Result<Vec<u8>> {
+            Ok(vec![])
+        }
+        fn recv(&self, _timeout: Duration) -> Result<DeviceEvent> {
+            Err(Error::Timeout(Duration::from_millis(1)))
+        }
+        fn close(&self) -> Result<()> {
+            Ok(())
+        }
+        fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+            Some(ModuleId {
+                kind,
+                serial: format!("fixed-{}", kind.name()),
+            })
+        }
+    }
+
+    #[test]
+    fn module_id_resolution_is_object_safe_and_typed_on_missing_modules() {
+        // object safety: both fakes box behind dyn Transport
+        let empty: Box<dyn Transport> = Box::new(EmptyTransport);
+        let fixed: Box<dyn Transport> = Box::new(FixedTransport);
+
+        for kind in ModuleKind::ALL {
+            // default: None, and the send-path helper turns it into a typed error naming the kind
+            assert!(empty.module_id(kind).is_none(), "{kind:?}");
+            let err = module_id_for_send(&*empty, kind).unwrap_err();
+            assert!(
+                matches!(&err, Error::Device(m) if m == &format!("module {} not connected on this transport", kind.name())),
+                "{kind:?}: {err}"
+            );
+            // an overriding transport resolves
+            let id = module_id_for_send(&*fixed, kind).unwrap();
+            assert_eq!(id.kind, kind);
+            assert_eq!(id.serial, format!("fixed-{}", kind.name()));
+        }
+    }
 
     #[test]
     fn virtual_uris_open_a_virtual_transport() {

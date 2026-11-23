@@ -323,6 +323,12 @@ impl Transport for VirtualTransport {
         self.shared.cond.notify_all();
         Ok(())
     }
+
+    fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+        // The virtual deck is the whole hub behind one socket: every kind is present and
+        // addressed by its virtual id.
+        Some(virtual_module_id(kind))
+    }
 }
 
 #[cfg(test)]
@@ -624,6 +630,38 @@ mod tests {
             t.recv(Duration::from_millis(100)),
             Err(Error::Closed)
         ));
+        t.close().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn virtual_transport_resolves_every_kind_to_its_own_virtual_id() {
+        let dir = test_dir("module-id");
+        let mock = start_mock(
+            &dir,
+            "vdev.sock",
+            MockOpts {
+                ack: true,
+                ack_delay: Duration::ZERO,
+                answer: vec![],
+            },
+        );
+        let t = VirtualTransport::connect(&mock.path).unwrap();
+        for kind in ModuleKind::ALL {
+            let id = crate::transport::module_id_for_send(&t, kind).unwrap();
+            assert_eq!(id, virtual_module_id(kind), "{kind:?}");
+            assert_eq!(id.kind, kind);
+            assert_eq!(
+                id.serial,
+                format!("virtual-{:04x}", module_info(kind).pid),
+                "{kind:?}"
+            );
+        }
+        // the keys panel lives on the keys module, so the panel resolves to the keys id
+        assert_eq!(
+            t.module_id(ModuleKind::Keys).unwrap().serial,
+            "virtual-01fe"
+        );
         t.close().unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }

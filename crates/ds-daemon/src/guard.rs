@@ -50,7 +50,6 @@
 use crate::lifecycle::{self};
 use ds_device::transport::Transport;
 use ds_device::uri::DeviceUri;
-use ds_device::vtransport::virtual_module_id;
 use ds_protocol::{ModuleKind, Report};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -192,6 +191,8 @@ impl ShutdownSequence {
 
     /// Step 3 — handback on `t`: send every safe handback report of every screen module.
     /// Every report goes through the ds-protocol builders and [`handback_report_is_safe`].
+    /// The transport owns module identity: the handback goes to the id of the connected
+    /// module of that kind (hid: -> the enumerated serial, virtual: -> the virtual id).
     pub fn handback(&mut self, t: &dyn Transport) -> Result<(), String> {
         self.record(GuardStep::Handback);
         for kind in SCREEN_MODULES {
@@ -202,14 +203,21 @@ impl ShutdownSequence {
                         report.bytes()
                     ));
                 }
-                let module = virtual_module_id(kind);
+                let Some(module) = t.module_id(kind) else {
+                    lifecycle::log(
+                        "info",
+                        GUARD_TARGET,
+                        &format!("handback: {kind:?} is not connected on this transport; skipping"),
+                    );
+                    continue;
+                };
                 let hex: String = report.bytes().iter().map(|b| format!("{b:02x}")).collect();
                 t.send(&module, &report)
                     .map_err(|e| format!("handback report {hex} for {kind:?} failed: {e}"))?;
                 lifecycle::log(
                     "info",
                     GUARD_TARGET,
-                    &format!("handback: sent {hex} to {kind:?} (leave software mode)"),
+                    &format!("handback: sent {hex} to {kind:?} ({module}) — leave software mode"),
                 );
             }
         }
@@ -556,6 +564,7 @@ where
 mod tests {
     use super::*;
     use ds_device::transport::DeviceEvent;
+    use ds_device::vtransport::virtual_module_id;
     use ds_protocol::ModuleKind;
     use mh_device::ModuleId;
     use std::sync::Mutex as StdMutex;
@@ -600,6 +609,10 @@ mod tests {
         fn close(&self) -> ds_device::Result<()> {
             self.ops.lock().unwrap().push("close".to_string());
             Ok(())
+        }
+        fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+            // the fake stands in for a whole deck: every kind resolves to its virtual id
+            Some(virtual_module_id(kind))
         }
     }
 

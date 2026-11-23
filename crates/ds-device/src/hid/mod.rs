@@ -115,6 +115,9 @@ impl Shared {
 pub struct HidTransport {
     shared: Arc<Shared>,
     modules: Arc<Modules>,
+    /// The id of each open module, by kind — filled as modules open, so [`Transport::module_id`]
+    /// resolves lazily at call time (enumeration may happen after construction).
+    ids: Mutex<HashMap<ModuleKind, ModuleId>>,
 }
 
 impl HidTransport {
@@ -122,6 +125,7 @@ impl HidTransport {
         HidTransport {
             shared: Arc::new(Shared::new()),
             modules: Arc::new(Mutex::new(HashMap::new())),
+            ids: Mutex::new(HashMap::new()),
         }
     }
 
@@ -202,6 +206,10 @@ impl HidTransport {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(info.module_id.clone(), handle);
+        self.ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(info.info.kind, info.module_id.clone());
         Ok(())
     }
 
@@ -388,8 +396,19 @@ impl Transport for HidTransport {
                 let _ = reader.join();
             }
         }
+        self.ids.lock().unwrap_or_else(|e| e.into_inner()).clear();
         self.shared.close();
         Ok(())
+    }
+
+    fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+        // Lazy lookup in the id map filled at open time: the enumerated serial of the module
+        // of this kind that this transport actually has open (None when it is not connected).
+        self.ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&kind)
+            .cloned()
     }
 }
 
@@ -470,5 +489,52 @@ mod tests {
                 kind
             );
         }
+    }
+
+    /// The serials of the five modules of the DS-097 smoke deck (kind -> USB serial).
+    fn deck_serials() -> Vec<(ModuleKind, &'static str)> {
+        vec![
+            (ModuleKind::Base, "MHBS01AA221252301000"),
+            (ModuleKind::Keys, "MHKB03AA221252301767"),
+            (ModuleKind::Knobs, "MHKD15AA221252301042"),
+            (ModuleKind::Rollers, "MHRR02AA221252301533"),
+            (ModuleKind::Dial, "MHDD01AA221252301288"),
+        ]
+    }
+
+    #[test]
+    fn hid_transport_resolves_each_kind_to_its_own_enumerated_id() {
+        // build a transport the way open_all does, minus the hardware: register the
+        // enumerated module ids exactly as open_module does
+        let t = HidTransport::new();
+        for (kind, serial) in deck_serials() {
+            t.ids.lock().unwrap().insert(
+                kind,
+                ModuleId {
+                    kind,
+                    serial: serial.to_string(),
+                },
+            );
+        }
+        for (kind, serial) in deck_serials() {
+            let id = crate::transport::module_id_for_send(&t, kind).unwrap();
+            assert_eq!(id.kind, kind);
+            assert_eq!(id.serial, serial, "{kind:?} must resolve to its own serial");
+        }
+        // the keys panel lives on the keys module
+        assert_eq!(
+            t.module_id(ModuleKind::Keys).unwrap().serial,
+            "MHKB03AA221252301767"
+        );
+        // a kind that is not connected resolves to None and errors typed, never panics
+        assert!(t.module_id(ModuleKind::Faders).is_none());
+        let err = crate::transport::module_id_for_send(&t, ModuleKind::Faders).unwrap_err();
+        assert!(
+            matches!(&err, Error::Device(m) if m == "module faders not connected on this transport"),
+            "{err}"
+        );
+        // after close the ids are gone too
+        t.close().unwrap();
+        assert!(t.module_id(ModuleKind::Keys).is_none());
     }
 }
