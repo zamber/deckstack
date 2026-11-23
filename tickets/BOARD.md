@@ -69,4 +69,4 @@ Generated: 2026-11-23 - 66 tickets.
 | DS-094 | done | 0 | docs | S | vibe/DS-094 | - | run-log evidence backfill for the rows flagged by the independent review |
 | DS-095 | done | 1 | daemon | M | vibe/DS-095 | DS-015, DS-017 | ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports |
 | DS-096 | done | 1 | state | S | vibe/DS-096 | - | state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) |
-| DS-097 | ready | 2 | device | M | - | DS-021, DS-022, DS-023 | ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids |
+| DS-097 | doing | 2 | device | M | vibe/DS-097 | DS-021, DS-022, DS-023 | ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids |

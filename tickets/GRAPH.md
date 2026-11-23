@@ -71,7 +71,7 @@ graph TD
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::done
   DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::done
   DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::done
-  DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::ready
+  DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -199,7 +199,7 @@ Critical path length: 10 tickets.
 - **ci** (2): DS-003(done), DS-082(done)
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
-- **device** (5): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(ready)
+- **device** (5): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(doing)
 - **docs** (2): DS-064(done), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(done)
 - **integrations** (1): DS-070(backlog)
@@ -226,4 +226,3 @@ Critical path length: 10 tickets.
 - DS-053 - Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) (lane test)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-083 - Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh (lane packaging)
-- DS-097 - ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids (lane device)

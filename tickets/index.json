@@ -2486,11 +2486,11 @@
   {
     "id": "DS-097",
     "title": "ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids",
-    "state": "ready",
+    "state": "doing",
     "phase": 2,
     "lane": "device",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-097",
     "depends_on": [
       "DS-021",
       "DS-022",
@@ -2507,9 +2507,9 @@
       "crates/ds-daemon/src/frames/service.rs",
       "crates/ds-daemon/src/frames/animate.rs"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-097",
+    "worktree": ".worktrees/DS-097",
+    "pr": "prs/DS-097.md",
     "created": "2026-11-23",
     "updated": "2026-11-23",
     "acceptance": [
