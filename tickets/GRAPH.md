@@ -62,8 +62,8 @@ graph TD
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
-  DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::review
-  DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
+  DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::done
+  DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::ready
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
   DS092["DS-092 tickets.py add-touch: extend a ticket's touches without h..."]:::done
@@ -192,7 +192,7 @@ Critical path length: 10 tickets.
 - **agents** (1): DS-063(done)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
-- **ci** (2): DS-003(done), DS-082(review)
+- **ci** (2): DS-003(done), DS-082(done)
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
@@ -200,7 +200,7 @@ Critical path length: 10 tickets.
 - **frames** (3): DS-030(done), DS-031(done), DS-034(done)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
-- **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
+- **packaging** (3): DS-019(done), DS-025(done), DS-083(ready)
 - **platforms** (2): DS-072(done), DS-073(ready)
 - **plugins** (4): DS-050(done), DS-051(done), DS-052(doing), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
@@ -221,3 +221,4 @@ Critical path length: 10 tickets.
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-073 - macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan (lane platforms)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
+- DS-083 - Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh (lane packaging)
