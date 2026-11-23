@@ -501,7 +501,8 @@
       "DS-032",
       "DS-040",
       "DS-041",
-      "DS-062"
+      "DS-062",
+      "DS-099"
     ]
   },
   {
@@ -1854,7 +1855,8 @@
     ],
     "blocks": [
       "DS-063",
-      "DS-064"
+      "DS-064",
+      "DS-099"
     ]
   },
   {
@@ -2566,6 +2568,52 @@
     "verification": [
       "python tests/conformance/agent-onboarding/run.py",
       "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-099"
+    ]
+  },
+  {
+    "id": "DS-099",
+    "title": "Deck micro-app authoring: --help-first discovery, scripting guide, runnable examples, help content audit",
+    "state": "ready",
+    "phase": 6,
+    "lane": "agents",
+    "size": "L",
+    "owner": null,
+    "depends_on": [
+      "DS-016",
+      "DS-062",
+      "DS-098"
+    ],
+    "touches": [
+      "new:docs/microapps.md",
+      "docs/agents.md",
+      "AGENTS.md",
+      "new:examples/microapps/",
+      "bins/ds/src/help.rs",
+      "bins/ds/src/cli.rs",
+      "new:tests/conformance/microapps/",
+      "tests/conformance/run.py"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-23",
+    "updated": "2026-11-23",
+    "acceptance": [
+      "every phase-1/3 verb's --help lists its arguments, one runnable example and the documented exit codes; a conformance test asserts the content, not just exit 0",
+      "docs/microapps.md teaches an agent to discover the API from --help/schema/describe and then write a program: state paths, watch --ndjson, images, bindings, scripts-vs-plugins, rate limits, error handling",
+      "examples/microapps/ contains three runnable stdlib-only programs (status strip, focus panel, git status keys) that work against ds-vdev with --once and --loop",
+      "a conformance test runs one micro-app end to end against vdev and exits 0"
+    ],
+    "verification": [
+      "python tests/conformance/microapps/run.py",
+      "python tests/conformance/run.py",
+      "python tests/e2e/run.py",
+      "sh tests/fixtures/validate.sh",
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
