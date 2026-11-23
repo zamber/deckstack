@@ -2002,7 +2002,7 @@
   {
     "id": "DS-072",
     "title": "Windows port breakdown (TODO doc only \u2014 do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan",
-    "state": "review",
+    "state": "done",
     "phase": 7,
     "lane": "platforms",
     "size": "M",
@@ -2015,9 +2015,9 @@
       "new:docs/breakdowns/windows.md",
       "docs/40-platforms.md"
     ],
-    "branch": "ticket/DS-072",
-    "worktree": ".worktrees/DS-072",
-    "pr": "prs/DS-072.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
