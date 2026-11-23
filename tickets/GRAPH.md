@@ -37,7 +37,7 @@ graph TD
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::done
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::ready
-  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::ready
+  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::doing
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::ready
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
 - **docs** (2): DS-064(done), DS-094(done)
-- **frames** (3): DS-030(done), DS-031(done), DS-034(ready)
+- **frames** (3): DS-030(done), DS-031(done), DS-034(doing)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
@@ -218,7 +218,6 @@ Critical path length: 10 tickets.
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-033 - Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak (lane bench)
-- DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
 - DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
 - DS-045 - Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) (lane test)
 - DS-050 - Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle (lane plugins)
