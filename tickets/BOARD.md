@@ -40,12 +40,12 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-040 | done | 4 | router | L | vibe/DS-040 | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
 | DS-041 | done | 4 | router | M | vibe/DS-041 | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
 | DS-042 | done | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
-| DS-043 | review | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
+| DS-043 | done | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | done | 4 | router | M | vibe/DS-044 | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
 | DS-045 | ready | 4 | test | L | - | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
-| DS-050 | backlog | 5 | plugins | L | - | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
-| DS-051 | backlog | 5 | plugins | M | - | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
-| DS-052 | backlog | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
+| DS-050 | ready | 5 | plugins | L | - | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
+| DS-051 | ready | 5 | plugins | M | - | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
+| DS-052 | ready | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
 | DS-053 | backlog | 5 | test | M | - | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
 | DS-054 | backlog | 5 | plugins | M | - | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
 | DS-060 | done | 6 | senders | M | vibe/DS-060 | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |

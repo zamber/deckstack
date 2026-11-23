@@ -1403,7 +1403,7 @@
   {
     "id": "DS-043",
     "title": "Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests",
-    "state": "review",
+    "state": "done",
     "phase": 4,
     "lane": "security",
     "size": "L",
@@ -1420,9 +1420,9 @@
       "crates/ds-daemon/src/router/steps.rs",
       "crates/ds-daemon/Cargo.toml"
     ],
-    "branch": "ticket/DS-043",
-    "worktree": ".worktrees/DS-043",
-    "pr": "prs/DS-043.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1527,7 +1527,7 @@
   {
     "id": "DS-050",
     "title": "Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle",
-    "state": "backlog",
+    "state": "ready",
     "phase": 5,
     "lane": "plugins",
     "size": "L",
@@ -1546,7 +1546,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "one OS process per plugin from ~/.local/share/deckstack/plugins/<id>/, command = argv array (never a shell), newline-JSON over stdio, stderr -> daemon log; handshake hello{protocol:1, plugin_token, caps, roots, limits} -> register{id, manifest} -> events/invokes",
       "manifest validated against schemas/plugin-manifest.json before use; mismatch -> E_SCHEMA + kill; action args validated against params JSON Schema before invoke; effects validated against the state schema subset before touching state (invalid -> rejected + counted in /plugins/<id>/stats.violations)",
@@ -1571,7 +1571,7 @@
   {
     "id": "DS-051",
     "title": "Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests",
-    "state": "backlog",
+    "state": "ready",
     "phase": 5,
     "lane": "plugins",
     "size": "M",
@@ -1588,7 +1588,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "crates/ds-plugin-sdk implements the plugins.md section 8 wire protocol for Rust plugins: serve(manifest), action registration with params JSON Schema, effect builders set/emit/log, get/set_state requests, sdk.http() (host-mediated net, S4), event iteration",
       "cargo test -p ds-plugin-sdk: handshake, register with manifest round-trip, invoke->effects, request/reply, malformed message handling (protocol violations never panic the host)",
@@ -1607,7 +1607,7 @@
   {
     "id": "DS-052",
     "title": "ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml",
-    "state": "backlog",
+    "state": "ready",
     "phase": 5,
     "lane": "plugins",
     "size": "L",
@@ -1624,7 +1624,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "plugins-py/ds_plugin_py implements plugins.md section 6/8: sdk.serve(manifest), @sdk.action(id, params=...), effect builders sdk.set/emit/log, get/set_state, sdk.http(...) host-mediated (S4), event iteration \u2014 same wire protocol as DS-051",
       "compat wrapper runs an existing hubdeck plugin class (hubdeck plugins/base.py:112-272 interface: actions/states/values, invoke/adjust/set, watch/watch_states) in a child process and translates to the ds wire protocol; manifest generated from actions/states/values + pydantic arg models -> JSON Schema",
