@@ -39,3 +39,4 @@ ts	phase	decision	why	evidence	result
 2026-11-23T00:27:15Z	phase2	DS-024 guard/handback merged	daemon exit must leave the deck in a clean state	cargo test -p ds-daemon + DS_HARDWARE smoke; merge 0438291	done
 2026-11-23T01:01:31Z	phase4	DS-044 focus ingest + DS-060 ds-focus sender merged	focus mirroring is one transaction with binding dispatch; the sender feeds it from the compositor	cargo test -p ds-daemon/-p ds-focus; merges 967bde9, 701f271	done
 2026-11-23T01:22:49Z	phase6	DS-061 ds-mcp stdio bridge merged	agents need the deck API over MCP without a shell	cargo test -p ds-mcp; merge 89bca9b	done
+2026-11-23T01:39:11Z	phase6	DS-063 Python/CLI client helper for agents merged	agents need a typed wrapper over ds/ds-mcp and the discovery contract	clients/ds-py smoke RESULT: OK; merge 1724e61	done
