@@ -61,7 +61,7 @@ Generated: 2026-11-23 - 67 tickets.
 | DS-080 | done | 6 | test | L | vibe/DS-080 | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
 | DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
 | DS-082 | done | 6 | ci | M | vibe/DS-082 | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
-| DS-083 | review | 6 | packaging | M | vibe/DS-083 | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
+| DS-083 | done | 6 | packaging | M | vibe/DS-083 | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
 | DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
 | DS-091 | done | 0 | workflow | M | vibe/DS-091 | - | pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock |
 | DS-092 | done | 0 | workflow | S | vibe/DS-092 | - | tickets.py add-touch: extend a ticket's touches without hand-editing metadata |
@@ -70,4 +70,4 @@ Generated: 2026-11-23 - 67 tickets.
 | DS-095 | done | 1 | daemon | M | vibe/DS-095 | DS-015, DS-017 | ds-daemon: push image visuals (colour and file bytes) to the device as image-chunk reports |
 | DS-096 | done | 1 | state | S | vibe/DS-096 | - | state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) |
 | DS-097 | done | 2 | device | M | vibe/DS-097 | DS-021, DS-022, DS-023 | ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids |
-| DS-098 | backlog | 6 | agents | M | - | DS-061, DS-063, DS-083 | Agent onboarding: one route from zero to a working deck session, plus a living agent guide |
+| DS-098 | ready | 6 | agents | M | - | DS-061, DS-063, DS-083 | Agent onboarding: one route from zero to a working deck session, plus a living agent guide |

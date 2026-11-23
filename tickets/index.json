@@ -2227,7 +2227,7 @@
   {
     "id": "DS-083",
     "title": "Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "packaging",
     "size": "M",
@@ -2242,9 +2242,9 @@
       "new:packaging/linux/",
       "new:.github/workflows/release.yml"
     ],
-    "branch": "ticket/DS-083",
-    "worktree": ".worktrees/DS-083",
-    "pr": "prs/DS-083.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -2536,7 +2536,7 @@
   {
     "id": "DS-098",
     "title": "Agent onboarding: one route from zero to a working deck session, plus a living agent guide",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "agents",
     "size": "M",
