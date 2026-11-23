@@ -849,7 +849,7 @@
   {
     "id": "DS-026",
     "title": "Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py)",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "test",
     "size": "M",

@@ -56,3 +56,71 @@ substitutes for the other.
 `verify.toml` (camera path, ROI map, thresholds), output NDJSON for CI ingestion. Depends
 only on `schemas/stream-frame.json` + golden frames, not on the daemon — runnable against
 any capture directory.
+
+## Hardware smoke suite — `tests/hw/smoke.py` (DS-026)
+
+The phase-2 hardware smoke is a separate, black-box Python suite (stdlib only) that drives
+the real `ds` / `ds-daemon` binaries and reads sysfs + `/proc` — it never imports driver
+internals. It complements the camera oracle above: the camera proves pixels, the smoke
+proves the host-side device path (enumerate → handshake → frame → replug → handback).
+
+### How to run
+
+```sh
+DS_HARDWARE=1 python tests/hw/smoke.py    # hardware run (deck attached, see below)
+python tests/hw/smoke.py                  # CI: prints SKIP, exit 0 — no hardware needed
+```
+
+Exit 0 = no FAIL (SKIPs print their exact reason and still exit 0); exit 1 = at least one
+FAIL with precise evidence (pid, report bytes, error code, errno). Every wait has a
+timeout, all subprocess calls are argv lists (no shell interpolation), and the daemon plus
+temp dirs are always cleaned up in a `finally`.
+
+### What it proves, step by step
+
+| Step | Command path | Proves |
+|---|---|---|
+| enumerate | sysfs scan (the descriptor source of `ds-device::hid::enumerate`) + `ds daemon start --device hid:` + `ds daemon status --json` | all five attached modules (VID `0x2516`, pids `01f6` base, `01fe` keys, `0202` knobs, `0204` rollers, `0206` dial) are visible, and the daemon accepts the `hid:` URI (running, `device=hid:`) |
+| handshake | poll `device_status` until `connected hid: (healthy)`; assert `N module(s) handshaken [keys fw=…, …]` in `daemon.log` | the software-mode handshake (DS-022) completed for **every** module, each confirming firmware read answered |
+| frame | `ds set /controls/keys/0/image --file examples/key.png` (staged under `/tmp`, inside `/policy/fs/roots`), then `ds set /controls/keys/1/image '{"kind":"color","value":"#3cc86e"}'` | the daemon accepts every chunk: `pushed …` write-log lines for both targets, zero push errors/timeouts; state readback + `rev` delta == the two durable `set` commits (stream frames never bump `rev`, S1) |
+| replug | udev `unbind`/`bind` of one module (needs root — see fallback) | rescan + re-handshake + **re-push of the latest frame** within the ≤ 5 s budget (`upstream/PROTOCOL.md:172-177`): disconnect noticed, then `connected hid: (healthy)` + `re-pushing N cached target(s)` in `daemon.log` |
+| handback | SIGTERM to the daemon pid | exit 0 (`stopped cleanly (exit 0)` + guard `ds-daemon::guard` handback lines in `daemon.log`), control socket + pid file removed, `ds daemon status` afterwards exits 6, and **no lingering hidraw/usb handles** of ours (`/proc/*/fd` scan) — the deck is left in a clean state |
+
+Liveness (≤ 100 ms) is the daemon device task's own watchdog probe
+(`hotplug::DEFAULT_PROBE_TIMEOUT`); the smoke asserts its externally visible effect —
+`device_status` stays `connected … (healthy)` while idle.
+
+### Permissions and the manual replug fallback
+
+Opening the modules needs the DS-025 udev rule (`packaging/udev/99-deckstack.rules`,
+`TAG+="uaccess"` on the hidraw **and** usb nodes) installed and triggered, or root:
+
+```sh
+sudo install -Dm644 packaging/udev/99-deckstack.rules /etc/udev/rules.d/99-deckstack.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+ls -l /dev/hidraw*    # uaccess nodes carry an ACL for the logged-in user
+```
+
+Without it, `ds-device` enumeration still works (libusb reads sysfs), but opening fails
+with `EACCES` on `/dev/bus/usb/…` / `/dev/hidraw…` — in that state the suite still runs
+enumerate + handback for real and prints `SKIP` with the exact node, uid and errno for
+handshake / frame / replug (hardware absence or missing permissions are states to detect,
+not failures — same rule as `tests/hw/hid.rs`).
+
+The replug step needs to *disconnect* a module. There is no in-tree hotplug hook for the
+`hid:` transport (`ds-vdev --drop-after` simulates hot-unplug for the **virtual** device
+only), so the suite uses the udev unbind/bind path when `/sys/bus/usb/drivers/usb/unbind`
+is writable (root), and otherwise SKIPs with a pointer here. **Manual fallback** (no root
+at runtime): physically unplug and replug one module, or as root:
+
+```sh
+echo 3-2.3.4 > /sys/bus/usb/drivers/usb/unbind   # one module, e.g. the knobs
+sleep 1
+echo 3-2.3.4 > /sys/bus/usb/drivers/usb/bind
+```
+
+Expected while the daemon runs on `hid:`: `device_status` drops (`disconnected` /
+`reconnecting`), then within ≤ 5 s after the replug it returns to
+`connected hid: (healthy)` and `daemon.log` shows `re-pushing N cached target(s) after
+connect` followed by the `pushed … for re-push …` lines — the latest frame is back on
+the deck. The smoke automates exactly this when it has the permissions.
