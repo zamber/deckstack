@@ -25,21 +25,69 @@
 //! - [`router`] — the event bus + router (DS-040): device input reports become
 //!   `deck/control/*` events, committed state changes become state events, the `emit`
 //!   op publishes `app/*`/`deck/*` topics; IPC `subscribe`/`unsubscribe` register on it.
-//! - [`daemon`] — the glue: arg parsing + assembling the tasks + the run loop.
+//! - [`daemon`] — the glue: arg parsing + assembling the tasks + the run loop. `run` is
+//!   wrapped here (see below) so the DS-024 guard supervises it.
 //! - [`lifecycle`] — data dir resolution + permissions, token, pid file, structured logs,
 //!   SIGTERM handling, socket/pid cleanup.
+//! - [`guard`] — the DS-024 guard/handback: on SIGTERM/normal stop it commits state first,
+//!   drains the writers, hands the deck back over a safe-builder-only sequence and closes
+//!   the transport (exit 0); on a panic in a critical task the in-process supervisor does
+//!   the same handback and exits nonzero; a stale `daemon.pid` from a crashed run is
+//!   detected on the next start.
 //!
 //! [`Server`]: ds_ipc::Server
 //! [`Transport`]: ds_device::Transport
 
-pub mod daemon;
+// Lets the tests under `tests/hw/` (compiled into this crate's test binary via `#[path]`
+// below) use `ds_daemon::…` paths like any integration test.
+extern crate self as ds_daemon;
+
+// DS-024 wiring: this ticket's touches cover only `src/guard.rs` and this file, so the
+// daemon module is included under a private name and re-exported through a thin facade
+// whose `run` routes through the guard's supervisor (`guard::supervise`). Everything else
+// (`Cli`, `RunOptions`, `parse_args`, `usage`, `device_uri`) is re-exported unchanged.
+#[path = "daemon.rs"]
+mod daemon_impl;
+
+pub mod daemon {
+    //! The daemon glue (arg parsing + run loop), with `run` supervised by the DS-024
+    //! [`crate::guard`]. See `src/lib.rs` for why the wrapper lives here.
+
+    pub use super::daemon_impl::*;
+
+    /// Run the daemon under the DS-024 guard: SIGTERM/normal stop → state committed,
+    /// writers drained, device handed back, exit 0; a critical-task panic → the same
+    /// handback, exit [`crate::guard::CRASH_EXIT_CODE`].
+    pub fn run(opts: RunOptions) -> std::io::Result<i32> {
+        let device = device_uri(&opts.device)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+        let data_dir = crate::lifecycle::resolve_data_dir(opts.data_dir.as_deref());
+        Ok(crate::guard::supervise(
+            move || super::daemon_impl::run(opts),
+            crate::guard::GuardContext { device, data_dir },
+        ))
+    }
+}
+
 pub mod device;
 pub mod device_task;
 pub mod frames;
+pub mod guard;
 pub mod ipc;
 pub mod lifecycle;
 pub mod router;
 pub mod state;
+
+// The DS-024 hardware/vdev tests live in the repo-level `tests/hw/` directory (like
+// `tests/hw/hid.rs` for DS-021). Registering a `[[test]]` target would need a Cargo.toml
+// edit, which is outside this ticket's touches, so they are compiled into this crate's
+// test binary via `#[path]` instead; `cargo test -p ds-daemon` runs them.
+#[cfg(test)]
+#[path = "../../../tests/hw/guard_smoke.rs"]
+mod hw_guard_smoke;
+#[cfg(test)]
+#[path = "../../../tests/hw/vdev_sigterm.rs"]
+mod hw_vdev_sigterm;
 
 /// `schemas/stream-frame.json`, embedded so the `schema` op can serve it like the others.
 pub const STREAM_FRAME_SCHEMA_JSON: &str = include_str!("../../../schemas/stream-frame.json");
