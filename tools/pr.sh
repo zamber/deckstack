@@ -359,6 +359,9 @@ cmd_merge() {
       die "rebase conflict needs manual resolution in $wt (a path outside the resolver whitelist, or lockfile regeneration failed); resolve there, then re-run: sh tools/pr.sh merge $id"
     fi
   fi
+  # The submit commit sets the ticket to review, so after a clean rebase the branch's
+  # generated board can be stale against its own ticket files. Normalize before the gate.
+  ( cd "$ROOT/$wt" && python3 tools/tickets.py sync >/dev/null 2>&1 ) || true
   if ! run_checks "$ROOT/$wt"; then
     cat "$TMP/checks.txt"
     die "tools/check.sh failed after rebase; merge aborted, worktree left intact at $wt"
