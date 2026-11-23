@@ -2536,7 +2536,7 @@
   {
     "id": "DS-098",
     "title": "Agent onboarding: one route from zero to a working deck session, plus a living agent guide",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "agents",
     "size": "M",
@@ -2553,9 +2553,9 @@
       "new:tests/conformance/agent-onboarding/",
       "tests/conformance/run.py"
     ],
-    "branch": "ticket/DS-098",
-    "worktree": ".worktrees/DS-098",
-    "pr": "prs/DS-098.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-23",
     "updated": "2026-11-23",
     "acceptance": [

@@ -72,7 +72,7 @@ graph TD
   DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::done
   DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::done
   DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::done
-  DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::review
+  DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::done
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 
 ## Parallel lanes
 
-- **agents** (2): DS-063(done), DS-098(review)
+- **agents** (2): DS-063(done), DS-098(done)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(done)
