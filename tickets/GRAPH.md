@@ -47,7 +47,7 @@ graph TD
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::done
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::done
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::done
-  DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::ready
+  DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::doing
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::done
@@ -202,7 +202,7 @@ Critical path length: 10 tickets.
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
 - **platforms** (2): DS-072(ready), DS-073(ready)
-- **plugins** (4): DS-050(done), DS-051(done), DS-052(ready), DS-054(backlog)
+- **plugins** (4): DS-050(done), DS-051(done), DS-052(doing), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
@@ -219,7 +219,6 @@ Critical path length: 10 tickets.
 
 - DS-027 - deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) (lane verify)
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
-- DS-052 - ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml (lane plugins)
 - DS-072 - Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan (lane platforms)
 - DS-073 - macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan (lane platforms)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
