@@ -1660,11 +1660,11 @@
   {
     "id": "DS-053",
     "title": "Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11)",
-    "state": "ready",
+    "state": "doing",
     "phase": 5,
     "lane": "test",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-053",
     "depends_on": [
       "DS-050",
       "DS-052"
@@ -1673,9 +1673,9 @@
       "new:tests/conformance/plugins/",
       "docs/20-security.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-053",
+    "worktree": ".worktrees/DS-053",
+    "pr": "prs/DS-053.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
