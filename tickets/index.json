@@ -2227,7 +2227,7 @@
   {
     "id": "DS-083",
     "title": "Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "packaging",
     "size": "M",
