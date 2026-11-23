@@ -2227,11 +2227,11 @@
   {
     "id": "DS-083",
     "title": "Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh",
-    "state": "ready",
+    "state": "doing",
     "phase": 6,
     "lane": "packaging",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-083",
     "depends_on": [
       "DS-019",
       "DS-025",
@@ -2242,9 +2242,9 @@
       "new:packaging/linux/",
       "new:.github/workflows/release.yml"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-083",
+    "worktree": ".worktrees/DS-083",
+    "pr": "prs/DS-083.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
