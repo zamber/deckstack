@@ -1,0 +1,38 @@
+[package]
+name = "ds-bench"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Streaming bench harness (DS-033): sustained 32 fps frame push on a throttled ds-vdev while the control plane serves queries; budgets from docs/30-testing.md §5 and docs/contracts/streaming.md."
+
+# The bench boots its own ds-vdev + daemon stack in-process on a tmp dir (the same
+# library wiring the DS-031 in-crate integration test uses: ds-vdev VdevServer, a
+# ds-ipc control Server over a shared ds-state Store, and the ds-daemon FrameService
+# serving <dir>/stream.sock), so `cargo test -p ds-bench` needs no prebuilt binaries.
+[dependencies]
+ds-client = { path = "../ds-client", version = "0.1.0" }
+ds-daemon = { path = "../ds-daemon", version = "0.1.0" }
+ds-device = { path = "../ds-device", version = "0.1.0" }
+ds-ipc = { path = "../ds-ipc", version = "0.1.0" }
+ds-protocol = { path = "../ds-protocol", version = "0.1.0" }
+ds-state = { path = "../ds-state", version = "0.1.0" }
+ds-vdev = { path = "../ds-vdev", version = "0.1.0" }
+serde_json = "1"
+tempfile = "3"
+
+[[bin]]
+name = "ds-bench"
+path = "src/main.rs"
+
+# `cargo bench -p ds-bench` runs the full (60 s) streaming bench as a plain main —
+# harness = false keeps it on stable Rust. `cargo test -p ds-bench` does not run it
+# (test = false); the crate's tests/ integration test runs the short (2 s) variant.
+[[bench]]
+name = "stream"
+harness = false
+test = false
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true

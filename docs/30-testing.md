@@ -88,3 +88,50 @@ runner, then a runner with a deck (O8).
 
 m11: LED rate cap default 30/s is interim; soak (OPEN O2) must land **before phase 3
 exit** (docs/60-roadmap.md).
+
+## 9. Streaming bench harness (DS-033) — `crates/ds-bench`
+
+`ds-bench` runs the phase-3 streaming bench against a **throttled ds-vdev + the daemon
+stack assembled in-process** on a tmp dir — the same library wiring the DS-031
+in-crate integration test uses (`VdevServer`, a `ds-ipc` control server over the
+shared `ds-state` `Store`, and the `FrameService` serving `<dir>/stream.sock`;
+`daemon::run` does not serve `stream.sock` yet, docs/components/frame-service.md
+§wiring). No hardware and no prebuilt binaries are needed.
+
+One run (default: 32 fps × 60 s to `key:0`, vdev throttled to `--throttle-kbps
+16800` ≈ 2.1 MB/s, the simulated device write cap):
+
+1. paces DSF1 frames on `stream.sock` at the target rate (credits/acks honoured,
+   `stream-stop` at the end, queue drained);
+2. while a query loop times `get /controls/keys/0` over `daemon.sock` (p50/p95/p99);
+3. then reads `stream-stats` (the `stream-stats` op; `/telemetry` paths with `:` are
+   not addressable by `get` — ipc-message.json's path pattern excludes `:`), checks
+   `rev` delta and `/controls` subscription events across the window (S1), reads peak
+   RSS from `/proc/<pid>/status` `VmHWM` (the bench process hosts the daemon tasks
+   in-process, so the daemon pid is the bench pid), and verifies via the vdev control
+   socket that the last pushed frame is the device's final reassembled frame.
+
+Budgets (the §5 budgets above, enforced by the bench; exit 1 on any violation):
+
+| Metric | Budget |
+|---|---|
+| query p50 / p99 under load | ≤ 2 ms / ≤ 10 ms |
+| push rate and device-accepted rate | ≥ 0.95 × `--fps` (default 32 fps) |
+| frame conservation | sent + dropped == pushed (drops counted in telemetry) |
+| `rev` delta, `/controls` events (S1) | == 0 |
+| peak RSS of the daemon (VmHWM) | ≤ 256 MiB |
+| last frame on device | the last pushed frame (latest-frame-wins) |
+
+Commands:
+
+| Command | What |
+|---|---|
+| `cargo test -p ds-bench` | unit tests (percentile math, budget evaluation on a synthetic series) + a 2 s end-to-end integration run — **the CI-suitable gate** |
+| `cargo run -p ds-bench -- --seconds 5` | short run, prints the compact table (exit 0 = PASS) |
+| `cargo run -p ds-bench -- --json` | one JSON object with every measurement + violations |
+| `cargo run -p ds-bench` | full default run: 32 fps × 60 s |
+| `cargo bench -p ds-bench` | the full 60 s bench target (harness = false, stable Rust) |
+
+Knobs: `--seconds N`, `--fps N`, `--throttle-kbps N|off`, `--target keys|key:0-14|dial`.
+Exit codes: 0 = all budgets met, 1 = budget violation, 2 = usage/harness error. Cleanup
+is deterministic: shutdown → writer drain → vdev stop → tmp dir removed.
