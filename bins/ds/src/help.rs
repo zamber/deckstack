@@ -75,6 +75,9 @@ Global flags:
   -h, --help          help at this level
   -V, --version       print the version
 
+Learn more: docs/contracts/cli.md (contract) · docs/microapps.md (writing programs for
+            the deck) · docs/agents.md (agent sessions) · `ds schema`/`ds describe`.
+
 Exit codes: 0 ok · 1 usage/schema (incl. --json on a streaming verb; there is no
 `migrate` verb) · 2 E_PATH · 3 E_CONFLICT (current_rev in the payload) · 4 E_AUTH/
 E_SCOPE/E_CAP · 5 E_LIMIT · 6 E_UNREACHABLE (start it with: ds daemon start) ·

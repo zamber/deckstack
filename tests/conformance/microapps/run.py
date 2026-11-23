@@ -543,15 +543,19 @@ class MicroApps(unittest.TestCase):
             time.sleep(1.5)  # let the watch subscription reach the daemon
             self._emit_focus("firefox", "Mozilla — example.org")
             deadline = time.monotonic() + 15
-            label = None
+            label = key1 = None
             while time.monotonic() < deadline:
                 label = self.get_json("/controls/dial/label")["value"]
-                if label == "firefox":
+                key1 = self.key(1, "label")
+                if label == "firefox" and key1 == "Mozilla — example.org":
                     break
                 time.sleep(0.25)
             self.assertEqual(label, "firefox",
-                             "focus_panel --loop did not re-render on the watched event")
-            self.assertEqual(self.key(1, "label"), "Mozilla — example.org")
+                             "focus_panel --loop did not re-render the dial on the watched event")
+            # the renderer writes several paths in order; poll the last one too instead of
+            # reading it the instant the dial flips (raced the write order)
+            self.assertEqual(key1, "Mozilla — example.org",
+                             "focus_panel --loop did not re-render key 1 on the watched event")
         finally:
             panel.terminate()
             try:
