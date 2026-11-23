@@ -55,7 +55,7 @@ graph TD
   DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::done
   DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::done
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::done
-  DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::ready
+  DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::doing
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::done
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::done
@@ -210,7 +210,7 @@ Critical path length: 10 tickets.
 - **device** (5): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(done)
 - **docs** (2): DS-064(done), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(done)
-- **integrations** (1): DS-070(ready)
+- **integrations** (1): DS-070(doing)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(done)
 - **platforms** (2): DS-072(done), DS-073(done)
@@ -230,6 +230,5 @@ Critical path length: 10 tickets.
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
-- DS-070 - lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes (lane integrations)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-081 - Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status (lane security)
