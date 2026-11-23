@@ -1723,7 +1723,7 @@
   {
     "id": "DS-060",
     "title": "ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "senders",
     "size": "M",
