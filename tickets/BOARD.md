@@ -46,7 +46,7 @@ Generated: 2026-11-23 - 68 tickets.
 | DS-050 | done | 5 | plugins | L | vibe/DS-050 | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
 | DS-051 | done | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | done | 5 | plugins | L | vibe/DS-052 | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
-| DS-053 | doing | 5 | test | M | vibe/DS-053 | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
+| DS-053 | review | 5 | test | M | vibe/DS-053 | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
 | DS-054 | done | 5 | plugins | M | vibe/DS-054 | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
 | DS-060 | done | 6 | senders | M | vibe/DS-060 | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |
 | DS-061 | done | 6 | senders | M | vibe/DS-061 | DS-040, DS-041 | ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) |
