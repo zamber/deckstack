@@ -1,0 +1,8 @@
+{
+  "id": "tpbad",
+  "name": "Bad manifest plugin",
+  "version": "1.0",
+  "command": ["/usr/bin/python3", "plugin.py"],
+  "capabilities": ["state.read"],
+  "actions": []
+}

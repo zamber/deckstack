@@ -26,6 +26,14 @@ signal-hook = "0.3"
 # lints deny unsafe_code in this crate, so the child is produced by re-executing this
 # binary through std::process::Command (argv-only) and the safe nix calls run in it.
 nix = { version = "=0.31.3", default-features = false, features = ["resource", "process", "signal"] }
+# DS-050 plugin host: manifests and action params are validated against the normative
+# JSON Schemas with the same crate/version ds-state uses (offline-resolvable, one copy
+# in the lockfile). The `landlock` crate provides the safe Landlock wrappers for the
+# plugin-child sandbox (the workspace lints deny unsafe_code in this crate, so the
+# landlock_* syscalls must come from a dependency); best-effort mode feature-detects
+# the running kernel's ABI and degrades where Landlock is unavailable.
+jsonschema = { version = "0.63", default-features = false }
+landlock = "0.4"
 # DS-030 frame plane: re-encode every accepted wire image to the device format — baseline
 # JPEG, standard Huffman tables, 4:4:4 (docs/contracts/streaming.md §2). jpeg-encoder is
 # PINNED (=) because the golden frames under tests/golden/ are exact bytes of one encoder

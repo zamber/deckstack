@@ -98,3 +98,41 @@ sdk.serve({"id":"demo","name":"Demo counter","version":"0.1.0",
 `@action(id, params)`, effect builders `set/emit/log`, `get/set_state`, `http()` (S4),
 event iteration. Same wire protocol both sides. Test: `cargo test -p ds-plugin-sdk` +
 `tests/conformance/plugins/`.
+
+## 9. Host error mapping, lifecycle state and logs (DS-050 host, normative)
+
+The host (`crates/ds-daemon/src/plugins/`, component `docs/components/plugin-host.md`)
+maps every plugin failure to the stable control-plane codes (`docs/contracts/ipc.md` §4):
+
+| situation | code |
+|---|---|
+| unknown plugin id (not installed) / unknown action on a running plugin | `E_PATH` |
+| plugin not running (`stopped`/`crashed`/disabled) or crashed **mid-call** | `E_DEVICE` |
+| capability violation (effect/request without the grant, path outside the writable subset, net host not granted) | `E_CAP` |
+| invoke `args` violate the action's `params` schema; manifest invalid/mismatch at register; malformed wire line | `E_SCHEMA` |
+| invoke timeout (2 s) — plugin `degraded` on the first, restarted on the second consecutive | `E_LIMIT` |
+| spawn/host internal failure | `E_INTERNAL` |
+
+Lifecycle state is exposed at `/plugins/<id>` (`{manifest, status, state, stats}`,
+`schemas/state.json`) — readable with the ordinary `get /plugins` op and reflected in
+`daemon status` through `rev`. `status` ∈ `installing | running | degraded | stopped |
+crashed`; a plugin the watchdog gave up on is `stopped` with
+`state.disabled_reason = "watchdog: 3 respawns within 600 s; plugin disabled"` and a
+`plugin/<id>/disabled` bus event. `stats` carries `restarts`, `violations`, `invokes`.
+A crash publishes `plugin/<id>/crash` on the bus and a `warn` daemon log line.
+
+Plugin output never reaches the control plane: stdout is the protocol channel
+(malformed lines are counted as violations + logged), **stderr goes to the daemon log
+and a per-plugin ring buffer of the last 200 lines** (`Host::logs(id)` in-crate; the
+`ds plugin logs <id>` verb lands with the CLI ticket). The plugin's `log` op/request
+kind writes the same ring.
+
+Writable-state subset for plugin effects/requests: `set` may only touch `/controls/…`
+or the plugin's own `/plugins/<id>/…` (capability `state.write`); `emit` only topics
+under `plugin/<id>/…` (capability `emit`); every `set` is schema-validated by the state
+task on commit — an invalid effect is rejected, counted in `stats.violations`, and
+never touches state. At most 100 effects per invoke (extras rejected + counted).
+
+Handshake deadline: `register` must arrive within 5 s of `hello` and its manifest must
+be schema-valid **and** equal (semantically) to the on-disk `manifest.json`, else
+`E_SCHEMA` + the child is killed.
