@@ -2046,7 +2046,8 @@
       "DS-026"
     ],
     "touches": [
-      "new:docs/breakdowns/macos.md"
+      "new:docs/breakdowns/macos.md",
+      "docs/40-platforms.md"
     ],
     "branch": "ticket/DS-073",
     "worktree": ".worktrees/DS-073",
