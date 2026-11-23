@@ -25,6 +25,15 @@ over stdio (initialize, tools/list, deck_status, deck_set, deck_get) and then th
 three calls through clients/ds-py — the scripted proof of the docs/agents.md route.
 Use `-k onboarding` to run only those cases.
 
+It also registers the DS-099 micro-app authoring suite (tests/conformance/microapps/):
+boots its own stack and asserts the CONTENT of `ds <verb> --help` for every verb
+(usage, arguments with defaults, exactly one runnable example, exit codes, the
+`ds schema`/`ds describe` pointer, <= 25 lines), then runs examples/microapps/
+end to end against vdev (gitdeck.py --once against a temp git repo with ahead/
+behind/dirty transitions, focus_panel.py --once/--loop on app/focus/changed,
+status_strip.py --once) and asserts the resulting key/dial state.
+Use `-k microapps` to run only those cases.
+
 Usage:
     python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
 
@@ -720,6 +729,19 @@ def _cli_suite():
     return cli_suite()
 
 
+def _microapps_suite():
+    """The DS-099 micro-app authoring-route suite (tests/conformance/microapps/),
+    registered into this run so `python tests/conformance/run.py` also machine-checks
+    the help CONTENT of every verb (DS-099 asserts content; DS-062 asserted presence)
+    and the runnable examples in examples/microapps/ end to end against vdev.
+    `-k microapps` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from microapps.run import microapps_suite
+    return microapps_suite()
+
+
 def _agent_onboarding_suite():
     """The DS-098 agent-onboarding suite (tests/conformance/agent-onboarding/),
     registered into this run so `python tests/conformance/run.py` also machine-checks
@@ -770,6 +792,7 @@ def main():
         suite.addTests(_safety_suite())
         suite.addTests(_cli_suite())
         suite.addTests(_agent_onboarding_suite())
+        suite.addTests(_microapps_suite())
         if patterns:
             suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,

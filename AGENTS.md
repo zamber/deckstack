@@ -13,13 +13,18 @@ Operational short version. Long protocol: `docs/AGENT-WORKFLOW.md`. Scope/invari
 
 **Agents driving a deck (not working on the codebase)?** Read `docs/agents.md` — the one
 route from install → udev permissions → daemon → `ds-mcp`/`ds-py` → the 10 MCP tools →
-troubleshooting, with the scripted proof in `tests/conformance/agent-onboarding/`.
+**micro-apps** (`docs/microapps.md`, examples in `examples/microapps/`) →
+troubleshooting, with the scripted proof in `tests/conformance/agent-onboarding/` and
+`tests/conformance/microapps/`.
 
 **Upkeep rule for `docs/agents.md`:** it is a living guide, not a snapshot. When a contract,
 tool name, default, or install path changes (a `docs/contracts/*` or `schemas/*` change, a
 `ds-mcp` tool, a `ds` verb/flag, a packaging layout or version), update `docs/agents.md` in
 the same commit — and keep `tests/conformance/agent-onboarding/run.py` green so the page
-stays executable.
+stays executable. Same for the authoring route: when a contract, tool name, default,
+install path or example changes, update `docs/microapps.md` and the examples in
+`examples/microapps/` in the same commit — and keep `tests/conformance/microapps/run.py`
+green so the guide and its examples stay executable.
 
 ## Invariants (never violate; conformance tests enforce them)
 
