@@ -42,7 +42,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-042 | done | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
 | DS-043 | done | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | done | 4 | router | M | vibe/DS-044 | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
-| DS-045 | doing | 4 | test | L | vibe/DS-045 | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
+| DS-045 | done | 4 | test | L | vibe/DS-045 | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
 | DS-050 | doing | 5 | plugins | L | vibe/DS-050 | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
 | DS-051 | doing | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | ready | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
@@ -60,7 +60,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-074 | ready | 7 | web | M | - | DS-013, DS-032 | Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI |
 | DS-080 | done | 6 | test | L | vibe/DS-080 | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
 | DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
-| DS-082 | backlog | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
+| DS-082 | ready | 6 | ci | M | - | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | backlog | 6 | packaging | M | - | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
 | DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
 | DS-091 | done | 0 | workflow | M | vibe/DS-091 | - | pr.sh: automatic rebase conflict resolution for generated ticket files and Cargo.lock |

@@ -1494,7 +1494,7 @@
   {
     "id": "DS-045",
     "title": "Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s)",
-    "state": "review",
+    "state": "done",
     "phase": 4,
     "lane": "test",
     "size": "L",
@@ -1507,9 +1507,9 @@
       "new:tests/conformance/actions/",
       "new:tests/bench/actions.rs"
     ],
-    "branch": "ticket/DS-045",
-    "worktree": ".worktrees/DS-045",
-    "pr": "prs/DS-045.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -2178,7 +2178,7 @@
   {
     "id": "DS-082",
     "title": "Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "ci",
     "size": "M",
@@ -2197,7 +2197,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       ".github/workflows/ci.yml Linux test job runs the bench gate: cargo bench -p ds-bench with budgets from docs/30-testing.md section 5 \u2014 query-under-load p99 <= 10 ms (p50 <= 2 ms), frame-push-no-state-churn 32 fps x 60 s rev delta 0, event-latency p99 <= 5 ms, stream-throughput >= 32 fps accepted on throttled vdev, memory soak RSS growth < 100 MB; CI fails beyond budget",
       "bench results are uploaded as CI artifacts (JSON) and a summary is printed; the hardware job stays separate (self-hosted Bazzite, docs/30-testing.md section 8)",

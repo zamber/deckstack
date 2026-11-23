@@ -44,7 +44,7 @@ graph TD
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::done
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::done
-  DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::doing
+  DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::done
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::doing
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::doing
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::ready
@@ -62,7 +62,7 @@ graph TD
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
-  DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::backlog
+  DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::ready
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::backlog
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
   DS091["DS-091 pr.sh: automatic rebase conflict resolution for generated..."]:::done
@@ -192,7 +192,7 @@ Critical path length: 10 tickets.
 - **agents** (1): DS-063(done)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
-- **ci** (2): DS-003(done), DS-082(backlog)
+- **ci** (2): DS-003(done), DS-082(ready)
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(done), DS-081(backlog)
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(doing), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(done)
 - **verify** (2): DS-027(ready), DS-028(ready)
 - **web** (1): DS-074(ready)
@@ -223,3 +223,4 @@ Critical path length: 10 tickets.
 - DS-072 - Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan (lane platforms)
 - DS-073 - macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan (lane platforms)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
+- DS-082 - Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job (lane ci)
