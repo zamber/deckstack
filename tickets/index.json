@@ -2578,7 +2578,7 @@
   {
     "id": "DS-099",
     "title": "Deck micro-app authoring: --help-first discovery, scripting guide, runnable examples, help content audit",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "agents",
     "size": "L",

@@ -71,4 +71,4 @@ Generated: 2026-11-23 - 68 tickets.
 | DS-096 | done | 1 | state | S | vibe/DS-096 | - | state schema: enforce key/knob/roller index limits at object level (S8 gap found by DS-093) |
 | DS-097 | done | 2 | device | M | vibe/DS-097 | DS-021, DS-022, DS-023 | ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids |
 | DS-098 | done | 6 | agents | M | vibe/DS-098 | DS-061, DS-063, DS-083 | Agent onboarding: one route from zero to a working deck session, plus a living agent guide |
-| DS-099 | doing | 6 | agents | L | vibe/DS-099 | DS-016, DS-062, DS-098 | Deck micro-app authoring: --help-first discovery, scripting guide, runnable examples, help content audit |
+| DS-099 | review | 6 | agents | L | vibe/DS-099 | DS-016, DS-062, DS-098 | Deck micro-app authoring: --help-first discovery, scripting guide, runnable examples, help content audit |
