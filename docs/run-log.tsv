@@ -43,3 +43,4 @@ ts	phase	decision	why	evidence	result
 2026-11-23T01:42:21Z	phase4	DS-043 exec policy merged	exec steps need argv-only allow/deny, admin scope, rlimits and audit before plugins	cargo test -p ds-daemon; conformance exec suite; merge ebb51d5	done
 2026-11-23T01:45:09Z	phase6	DS-064 operator runbook + README merged	operators need start/stop/logs/token/recovery in one place	docs/runbook.md extended; merge 3490def	done
 2026-11-23T02:01:22Z	phase2	DS-026 hardware smoke suite merged; deck enumerated, open blocked by permissions	the smoke is the hardware gate; this user cannot open hidraw without the DS-025 udev rule	DS_HARDWARE=1 tests/hw/smoke.py: 2 PASS 3 SKIP 0 FAIL; merge 75159d0	done; install packaging/udev/99-deckstack.rules to unlock handshake/frame steps
+2026-11-23T06:58:51Z	phase3	DS-035 vdev throttle/backpressure tests merged	credits, drops and never-torn in-flight frames need a deterministic vdev oracle	cargo test -p ds-vdev; merge dd6593c	done
