@@ -58,7 +58,7 @@ graph TD
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::done
-  DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::ready
+  DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::doing
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
@@ -201,7 +201,7 @@ Critical path length: 10 tickets.
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(ready)
-- **platforms** (2): DS-072(done), DS-073(ready)
+- **platforms** (2): DS-072(done), DS-073(doing)
 - **plugins** (4): DS-050(done), DS-051(done), DS-052(done), DS-054(doing)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
@@ -220,6 +220,5 @@ Critical path length: 10 tickets.
 - DS-027 - deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) (lane verify)
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-053 - Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) (lane test)
-- DS-073 - macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan (lane platforms)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
 - DS-083 - Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh (lane packaging)
