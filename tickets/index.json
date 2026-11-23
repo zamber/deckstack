@@ -1403,7 +1403,7 @@
   {
     "id": "DS-043",
     "title": "Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests",
-    "state": "doing",
+    "state": "review",
     "phase": 4,
     "lane": "security",
     "size": "L",

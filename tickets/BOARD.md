@@ -40,7 +40,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-040 | done | 4 | router | L | vibe/DS-040 | DS-015, DS-016, DS-017 | Event bus + router: topics, device input events, exact/wildcard lookup, dispatch ordering |
 | DS-041 | done | 4 | router | M | vibe/DS-041 | DS-015, DS-016 | Bindings: /bindings array with ids (bNNNN), when/payload conditions, ds bind/unbind CLI, validation |
 | DS-042 | done | 4 | router | L | vibe/DS-042 | DS-041 | Core step vocabulary: set/emit/plugin/exec/sleep execution, sequential ordering, recursion cap 10, when evaluation |
-| DS-043 | doing | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
+| DS-043 | review | 4 | security | L | vibe/DS-043 | DS-042 | Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests |
 | DS-044 | done | 4 | router | M | vibe/DS-044 | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
 | DS-045 | ready | 4 | test | L | - | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
 | DS-050 | backlog | 5 | plugins | L | - | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
