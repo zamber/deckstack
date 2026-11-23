@@ -136,3 +136,20 @@ never touches state. At most 100 effects per invoke (extras rejected + counted).
 Handshake deadline: `register` must arrive within 5 s of `hello` and its manifest must
 be schema-valid **and** equal (semantically) to the on-disk `manifest.json`, else
 `E_SCHEMA` + the child is killed.
+
+## 10. Example plugin and install layout (informational; §1–§9 stay normative)
+
+- The runnable form of the §7 example lives at `examples/plugins/demo/` (Python,
+  `ds-plugin-py`; the Rust `ds-plugin-sdk` speaks the same wire): `bump` sets
+  `/controls/keys/0/label` + `/controls/keys/0/image` and emits `plugin/demo/bumped`;
+  `get_lamp` shows the host-mediated `net:` path. Author quickstart:
+  `examples/plugins/README.md`. Note: state paths in effects are slash-separated
+  (`/controls/keys/0/label`); the dotted form is the bus-topic form.
+- End-to-end demo (vdev + daemon, no hardware): `python3 examples/plugins/run_demo.py`
+  — installs the example under a temp `$XDG_DATA_HOME`, invokes `demo.bump` via a
+  binding, asserts the label/image/emit effects; exit 0.
+- Install layout and bundle/packaging notes (manifest + payload under
+  `~/.local/share/deckstack/plugins/<id>/`, versioning, wheel/subtree-split hooks for the
+  `ds-plugin-py` release): `packaging/plugin/README.md`. The `ds plugin install|invoke`
+  verbs land with a later CLI ticket; until then install is a copy into that directory
+  and invoke goes through a `--do 'plugin <id>.<action> <json-args>'` binding step.
