@@ -32,35 +32,9 @@ pub const VIRTUAL_FIRMWARE: &str = "01.00.00.00";
 /// Default backlight percent reported before the host sets one.
 pub const DEFAULT_BACKLIGHT: u8 = 50;
 
-/// Artificial device-side slowdown knobs (bench/conformance; DS-033/035).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Throttle {
-    /// Simulated device write cap in kbit/s (`--throttle-kbps`); `None` = unlimited.
-    pub kbps: Option<u32>,
-    /// Simulate hot-unplug after this many accepted writes (`--drop-after`); `None` = never.
-    pub drop_after: Option<u32>,
-}
-
-impl Throttle {
-    /// No throttling: deterministic by default.
-    pub fn none() -> Self {
-        Throttle {
-            kbps: None,
-            drop_after: None,
-        }
-    }
-
-    /// How long the device takes to accept `bytes` bytes at the configured cap
-    /// (~2.1 MB/s is the real cap, `upstream/PROTOCOL.md:265`).
-    pub fn delay_for(&self, bytes: usize) -> Duration {
-        match self.kbps {
-            Some(kbps) if kbps > 0 => {
-                Duration::from_secs_f64(bytes as f64 / (f64::from(kbps) * 125.0))
-            }
-            _ => Duration::ZERO,
-        }
-    }
-}
+// The throttle/backpressure knobs (DS-035) live in `throttle.rs`; re-exported here so the
+// `hub::Throttle` path (and `ds_vdev::Throttle`) keeps working.
+pub use crate::throttle::{CreditState, CreditWindow, Throttle};
 
 /// What to seed the hub with.
 #[derive(Debug, Clone)]
@@ -104,6 +78,9 @@ pub struct WriteRecord {
     pub refused: bool,
     /// Milliseconds since the hub started.
     pub at_ms: u128,
+    /// For image-chunk writes: `(chunk index, last)` — the write-log oracle for whole-frame
+    /// transfers (DS-035: the device never sees a partial chunk sequence).
+    pub chunk: Option<(u16, bool)>,
 }
 
 /// What the connection loop should do after one request frame.
@@ -134,6 +111,8 @@ struct HubState {
     software_mode: HashMap<u16, bool>,
     backlight: HashMap<u16, u8>,
     throttle: Throttle,
+    /// Credit-exhaustion window (DS-035), armed via `set_credits` / `throttle … credits=…`.
+    credits: Option<CreditState>,
     seq: u64,
     accepted: u64,
     started: Instant,
@@ -167,6 +146,7 @@ impl Hub {
                     .map(|&k| (module_info(k).pid, DEFAULT_BACKLIGHT))
                     .collect(),
                 throttle: config.throttle,
+                credits: None,
                 seq: 0,
                 accepted: 0,
                 started: Instant::now(),
@@ -190,6 +170,9 @@ impl Hub {
             .lock()
             .expect("clients poisoned")
             .insert(id, tx);
+        // A new device connection is a replug: the --drop-after write budget is per
+        // connection, so a reconnect after a simulated unplug gets a fresh budget.
+        self.lock().accepted = 0;
         (id, rx)
     }
 
@@ -254,6 +237,7 @@ impl Hub {
                 len: f.payload.len(),
                 refused: true,
                 at_ms,
+                chunk: None,
             });
             return Outcome {
                 replies: vec![error_frame(
@@ -273,6 +257,7 @@ impl Hub {
                 len: f.payload.len(),
                 refused: true,
                 at_ms,
+                chunk: None,
             });
             return Outcome {
                 replies: vec![error_frame(
@@ -286,19 +271,27 @@ impl Hub {
 
         // --drop-after: simulate a hot-unplug — no ack, the connection just dies.
         st.accepted += 1;
-        if let Some(n) = st.throttle.drop_after {
-            if st.accepted > u64::from(n) {
-                return Outcome {
-                    replies: Vec::new(),
-                    delay: Duration::ZERO,
-                    close: true,
-                };
-            }
+        if st.throttle.drop_exceeded(st.accepted) {
+            return Outcome {
+                replies: Vec::new(),
+                delay: Duration::ZERO,
+                close: true,
+            };
         }
 
-        let delay = st.throttle.delay_for(f.payload.len());
+        // --throttle-kbps paces the ack by the bytes of this report; the credit window
+        // (DS-035) additionally holds the ack when its bucket is empty — output writes
+        // only, feature traffic (handshake, queries) is never held or charged.
+        let mut delay = st.throttle.delay_for(f.payload.len());
+        if f.kind == kind::WRITE {
+            let now = st.started.elapsed();
+            if let Some(credits) = st.credits.as_mut() {
+                delay += credits.take(now);
+            }
+        }
         let mut refused = false;
         let mut error = None;
+        let mut chunk = None;
 
         if f.kind == kind::FEATURE_SET {
             if let ReportView::Feature { cmd, rest } = view_report(&f.payload) {
@@ -313,6 +306,7 @@ impl Hub {
                 }
             }
         } else if let ReportView::ImageChunk(c) = view_report(&f.payload) {
+            chunk = Some((c.chunk, c.last));
             // a transfer starts at chunk 0 (restarting any partial previous attempt)
             if c.chunk == 0 {
                 st.reassembler.begin(c.cmd, c.index, None);
@@ -350,6 +344,7 @@ impl Hub {
             len: f.payload.len(),
             refused,
             at_ms,
+            chunk,
         });
 
         let replies = if let Some(msg) = error {
@@ -468,6 +463,23 @@ impl Hub {
         self.lock().throttle = throttle;
     }
 
+    /// The armed credit-exhaustion window, if any (DS-035).
+    pub fn credits(&self) -> Option<CreditWindow> {
+        self.lock().credits.as_ref().map(CreditState::window)
+    }
+
+    /// Arm or clear the credit-exhaustion window at runtime; arming resets the bucket to
+    /// full. Reachable from `ds-vdevctl … throttle … credits=…` and the Rust API.
+    pub fn set_credits(&self, window: Option<CreditWindow>) {
+        let mut st = self.lock();
+        st.credits = window.map(|w| CreditState::new(w, st.started.elapsed()));
+    }
+
+    /// Credits left in the bucket right now (`None` when the window is off).
+    pub fn credit_remaining(&self) -> Option<u32> {
+        self.lock().credits.as_ref().map(CreditState::remaining)
+    }
+
     /// One line of the control protocol (`<socket>.ctl`, see `server.rs`).
     pub fn control(&self, line: &str) -> Result<Vec<String>, String> {
         let mut parts = line.trim().splitn(2, char::is_whitespace);
@@ -521,7 +533,12 @@ impl Hub {
             "throttle" => {
                 let mut fields = rest.split_whitespace();
                 let kbps = match fields.next() {
-                    None => return Err("usage: throttle <kbps|off> [drop-after]".to_string()),
+                    None => {
+                        return Err(
+                            "usage: throttle <kbps|off> [drop-after|off] [credits=…|off]"
+                                .to_string(),
+                        )
+                    }
                     Some("off") => None,
                     Some(s) => Some(s.parse::<u32>().map_err(|_| format!("bad kbps '{s}'"))?),
                 };
@@ -533,12 +550,45 @@ impl Hub {
                             .map_err(|_| format!("bad drop-after '{s}'"))?,
                     ),
                 };
+                // optional `credits=<burst>/<refill>/<period_ms>[@<seed>]` / `credits=off`
+                // (DS-035 credit-exhaustion mode); unspecified leaves the window unchanged
+                let mut credits = self.credits();
+                for field in fields {
+                    if field == "credits=off" {
+                        credits = None;
+                    } else if field.starts_with("credits=") {
+                        credits = Some(CreditWindow::parse(field)?);
+                    } else {
+                        return Err(format!("bad throttle field '{field}'"));
+                    }
+                }
                 let t = Throttle { kbps, drop_after };
                 self.set_throttle(t);
+                if let Some(w) = credits {
+                    self.set_credits(Some(w));
+                } else {
+                    self.set_credits(None);
+                }
+                let remaining = self.credit_remaining();
                 Ok(vec![format!(
-                    "throttle kbps={} drop_after={}",
+                    "throttle kbps={} drop_after={} credits={}",
                     t.kbps.map_or("off".to_string(), |k| k.to_string()),
-                    t.drop_after.map_or("off".to_string(), |n| n.to_string())
+                    t.drop_after.map_or("off".to_string(), |n| n.to_string()),
+                    match (credits, remaining) {
+                        (Some(w), Some(r)) => format!(
+                            "{}/{}/{}{} remaining={}",
+                            w.burst,
+                            w.refill,
+                            w.refill_period.as_millis(),
+                            if w.seed == 0 {
+                                String::new()
+                            } else {
+                                format!("@{}", w.seed)
+                            },
+                            r
+                        ),
+                        _ => "off".to_string(),
+                    }
                 )])
             }
             "inject" => {

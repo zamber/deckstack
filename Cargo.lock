@@ -457,8 +457,10 @@ dependencies = [
 name = "ds-vdev"
 version = "0.1.0"
 dependencies = [
+ "ds-daemon",
  "ds-device",
  "ds-protocol",
+ "ds-state",
  "serde",
  "serde_json",
  "sha2",

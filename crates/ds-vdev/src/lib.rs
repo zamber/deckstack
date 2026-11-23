@@ -8,7 +8,9 @@
 //!   `<socket>.ctl` control socket, one thread per host connection;
 //! - [`hub`] — the report-level state: module reports for the deck layout, chunked
 //!   image/color pushes reassembled per target with sha256, per-target latest frame, the
-//!   forbidden-report refusal, and the throttle/drop knobs;
+//!   forbidden-report refusal, and the throttle/drop/credit knobs;
+//! - [`throttle`] — the throttle/backpressure knobs themselves (DS-035): kbps shaping of
+//!   acks, `--drop-after` unplug, and the seeded credit-exhaustion window;
 //! - [`inject`] — scripted input events (ndjson) broadcast to hosts as `0x81` INPUT frames;
 //! - [`ctl`] — the client side of the control socket, used by `ds-vdevctl`.
 //!
@@ -28,11 +30,13 @@ pub mod hub;
 pub mod inject;
 pub mod server;
 pub mod target;
+pub mod throttle;
 
 pub use hub::{sha256_hex, sha256_of, FrameEntry, Hub, HubConfig, Outcome, Throttle, WriteRecord};
 pub use inject::{encode_input_report, event_frame, parse_events_ndjson, InjectEvent};
 pub use server::{control_path, VdevServer};
 pub use target::Target;
+pub use throttle::{CreditState, CreditWindow};
 
 /// Crate name, for logs and `--version` output.
 pub const CRATE_NAME: &str = "ds-vdev";
