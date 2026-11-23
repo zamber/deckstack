@@ -43,7 +43,7 @@ graph TD
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::ready
-  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::doing
+  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::review
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::backlog
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::backlog
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::backlog
@@ -205,7 +205,7 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(doing)
+- **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(review)
 - **security** (2): DS-043(ready), DS-081(backlog)
 - **senders** (2): DS-060(doing), DS-061(doing)
 - **state** (2): DS-011(done), DS-096(done)

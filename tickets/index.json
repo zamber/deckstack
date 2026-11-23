@@ -1446,7 +1446,7 @@
   {
     "id": "DS-044",
     "title": "Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7)",
-    "state": "doing",
+    "state": "review",
     "phase": 4,
     "lane": "router",
     "size": "M",

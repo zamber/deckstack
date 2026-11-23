@@ -25,32 +25,96 @@
 //! within each group, FIFO per subscriber, bounded queue with drop-oldest + counted
 //! `dropped` messages so publishers never block.
 //!
-//! ## Binding dispatch (DS-042)
+//! ## Binding dispatch (DS-042) and transactional ingest (DS-044)
 //!
-//! [`steps::Engine`] subscribes to the bus on the catch-all topic pattern `*`, so every
-//! producer above reaches the binding engine through the one bus. On each topic event
-//! it runs the matching `/bindings` (exact topic first, then `*` wildcards, array order),
-//! evaluates their `when` ([`when::eval_when`]) and executes the closed step vocabulary
-//! (`set`/`emit`/`plugin`/`exec`/`sleep`, [`steps`]) sequentially. Step failures publish
-//! `deck/system/binding-error` and the remaining steps still run; `emit` re-enters the
-//! router with a recursion cap of [`steps::MAX_EMIT_DEPTH`].
+//! [`Engine`] (this module's wrapper around the DS-042 [`steps::Engine`]) subscribes ONE
+//! forwarder on the real bus, catch-all topic pattern `*`, so every producer above
+//! reaches the router through the one bus, in arrival order (one drainer, FIFO):
+//!
+//! - **mirrored topics** ([`ingest::mirror_path`], today `app/focus/changed` → `/focus`)
+//!   go through [`ingest::Ingest`] — the S7 atomic ingest that mirrors the payload into
+//!   state and dispatches the matching bindings in ONE transaction;
+//! - **everything else** is dispatched by the DS-042 [`steps::Engine`] on its private
+//!   bus (exact topic first, then `*` wildcards, array order; `when` evaluation via
+//!   [`when::eval_when`]; the closed step vocabulary via [`steps`]). Events the engine
+//!   itself publishes there (`emit` steps, `binding-error`) are relayed back onto the
+//!   real bus so external subscribers see them, marked so the forwarder skips the copy.
+//!
+//! Step failures publish `deck/system/binding-error` and the remaining steps still run;
+//! `emit` re-enters the router with a recursion cap of [`steps::MAX_EMIT_DEPTH`].
 
 pub mod bus;
+pub mod ingest;
 pub mod steps;
 pub mod topics;
 pub mod when;
 
 pub use bus::{Bus, Event, FnSink, IpcSink, Sink, SUBSCRIBER_QUEUE_CAP};
-pub use steps::{step_metrics, Engine, BINDING_ERROR_TOPIC, MAX_EMIT_DEPTH, STEP_BUDGET};
+pub use steps::{step_metrics, BINDING_ERROR_TOPIC, MAX_EMIT_DEPTH, STEP_BUDGET};
 pub use topics::TopicPattern;
 pub use when::eval_when;
 
+use crate::state::StateHandle;
 use ds_ipc::error::{ErrorCode, IpcError};
 use ds_state::Path;
 use serde_json::{json, Value};
+use std::sync::Arc;
 
 use ds_protocol::{Input, ModuleKind, Orientation};
 use mh_device::ModuleId;
+
+/// The router engine wired into the daemon: the DS-040 bus + DS-042 step engine +
+/// DS-044 transactional ingest.
+///
+/// [`Engine::new`] subscribes one forwarder on the real `bus` (catch-all topic pattern
+/// `*`, a single drainer thread, so events are routed in arrival order) and gives the
+/// DS-042 [`steps::Engine`] a private bus:
+///
+/// - events on a mirrored topic ([`ingest::mirror_path`], today `app/focus/changed`)
+///   are ingested transactionally ([`ingest::Ingest`]): the payload is mirrored into
+///   state and the matching bindings are dispatched in ONE transaction (S7);
+/// - every other topic event is handed to [`steps::Engine::dispatch`];
+/// - events the steps engine publishes on its private bus (`emit`-step events,
+///   `binding-error`) are relayed onto the real bus so external subscribers see them,
+///   marked so the forwarder does not dispatch them twice.
+pub struct Engine {
+    steps: Arc<steps::Engine>,
+    ingest: Arc<ingest::Ingest>,
+}
+
+impl Engine {
+    /// Create the engine: wire the ingest forwarder + relay around `bus` and the steps
+    /// engine. `state` is the handle to the state task (single writer).
+    pub fn new(bus: Bus, state: StateHandle) -> Arc<Self> {
+        let engine_bus = Bus::new();
+        let steps = steps::Engine::new(engine_bus.clone(), state.clone());
+        let ingest = ingest::Ingest::new(bus.clone(), state.clone(), steps.clone(), engine_bus);
+        Arc::new(Self { steps, ingest })
+    }
+
+    /// Route one event (as if published on the real bus): mirrored topics through the
+    /// transactional ingest, everything else to the binding engine. `depth` is the
+    /// emit-recursion depth (0 for published events).
+    pub fn dispatch(self: &Arc<Self>, topic: &str, payload: &Value, depth: u32) {
+        self.ingest.route(topic, payload, depth);
+    }
+
+    /// Ingest one mirrored-topic event directly; returns the committing rev or the
+    /// rejection error (no state change on error).
+    pub fn try_ingest(
+        self: &Arc<Self>,
+        topic: &str,
+        payload: &Value,
+        depth: u32,
+    ) -> Result<u64, IpcError> {
+        self.ingest.try_ingest(topic, payload, depth)
+    }
+
+    /// The DS-042 binding step engine.
+    pub fn steps(&self) -> &Arc<steps::Engine> {
+        &self.steps
+    }
+}
 
 /// A subscription pattern: state-path or topic.
 #[derive(Debug, Clone)]
