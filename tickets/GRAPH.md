@@ -72,7 +72,7 @@ graph TD
   DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::done
   DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::done
   DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::done
-  DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::ready
+  DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 
 ## Parallel lanes
 
-- **agents** (2): DS-063(done), DS-098(ready)
+- **agents** (2): DS-063(done), DS-098(doing)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(done)
@@ -228,4 +228,3 @@ Critical path length: 10 tickets.
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-070 - lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes (lane integrations)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
-- DS-098 - Agent onboarding: one route from zero to a working deck session, plus a living agent guide (lane agents)

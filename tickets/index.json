@@ -2536,11 +2536,11 @@
   {
     "id": "DS-098",
     "title": "Agent onboarding: one route from zero to a working deck session, plus a living agent guide",
-    "state": "ready",
+    "state": "doing",
     "phase": 6,
     "lane": "agents",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-098",
     "depends_on": [
       "DS-061",
       "DS-063",
@@ -2552,9 +2552,9 @@
       "new:examples/agents/mcp/",
       "new:tests/conformance/agent-onboarding/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-098",
+    "worktree": ".worktrees/DS-098",
+    "pr": "prs/DS-098.md",
     "created": "2026-11-23",
     "updated": "2026-11-23",
     "acceptance": [
