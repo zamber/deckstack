@@ -1,0 +1,33 @@
+[package]
+name = "ds-focus"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Window-focus watcher that emits app/focus/changed to ds-daemon over the control socket (DS-060, docs/components/focus-sender.md)."
+
+# Thin sender binary over ds-client (ADR-002, R4: the watcher is an ordinary external
+# program). Backends are native, no shell-outs: KWin over D-Bus (zbus blocking, the
+# org.kde.KWin active-window interface at /KWin — verified present on Bazzite KDE
+# Plasma 6), wlroots compositors over zwlr_foreign_toplevel_manager_v1 (wayland-client,
+# pure-Rust backend so no system libwayland is needed to build). signal-hook only for a
+# clean SIGTERM/SIGINT shutdown of the watch loop.
+[dependencies]
+ds-client = { path = "../../crates/ds-client", version = "0.1.0" }
+ds-ipc = { path = "../../crates/ds-ipc", version = "0.1.0" }
+serde_json = "1"
+zbus = "5"
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+signal-hook = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "ds-focus"
+path = "src/main.rs"
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true
