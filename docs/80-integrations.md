@@ -3,7 +3,10 @@
 Owner steering 2026-11-22 (delta 7): lights.lan is **reimplemented, not imported**. The
 first integration is a deckstack plugin — separate process, manifest, JSON-Schema actions,
 host-mediated HTTP (S4) — living in the separate `deckstack-lights` repo (`repos.toml`).
-Post-alpha; tickets to be filed then.
+**Landed by ticket DS-070**: the repo is the sibling checkout `../deckstack-lights`
+(own repo from day one) — plugin `lights.set {room, light, on, brightness, color}` with
+capability `net:lights.lan` only, config as data under `/plugins/lights/…`, fake HueMux
++ end-to-end daemon tests in `tests/run.py` (exit 0), no shipped scenes/presets.
 
 ## Shape
 

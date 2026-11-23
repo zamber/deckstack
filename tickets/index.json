@@ -1938,7 +1938,7 @@
   {
     "id": "DS-070",
     "title": "lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes",
-    "state": "doing",
+    "state": "review",
     "phase": 7,
     "lane": "integrations",
     "size": "L",
