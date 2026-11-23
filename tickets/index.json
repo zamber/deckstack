@@ -2486,7 +2486,7 @@
   {
     "id": "DS-097",
     "title": "ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "device",
     "size": "M",
@@ -2508,9 +2508,9 @@
       "crates/ds-daemon/src/frames/animate.rs",
       "crates/ds-device/src/hid/reader.rs"
     ],
-    "branch": "ticket/DS-097",
-    "worktree": ".worktrees/DS-097",
-    "pr": "prs/DS-097.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-23",
     "updated": "2026-11-23",
     "acceptance": [

@@ -71,7 +71,7 @@ graph TD
   DS094["DS-094 run-log evidence backfill for the rows flagged by the ind..."]:::done
   DS095["DS-095 ds-daemon: push image visuals (colour and file bytes) to ..."]:::done
   DS096["DS-096 state schema: enforce key/knob/roller index limits at obj..."]:::done
-  DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::review
+  DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::done
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -199,7 +199,7 @@ Critical path length: 10 tickets.
 - **ci** (2): DS-003(done), DS-082(done)
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
-- **device** (5): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(review)
+- **device** (5): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(done)
 - **docs** (2): DS-064(done), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(done)
 - **integrations** (1): DS-070(backlog)
