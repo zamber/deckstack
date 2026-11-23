@@ -1672,7 +1672,8 @@
     ],
     "touches": [
       "new:tests/conformance/plugins/",
-      "docs/20-security.md"
+      "docs/20-security.md",
+      "tests/conformance/run.py"
     ],
     "branch": "ticket/DS-053",
     "worktree": ".worktrees/DS-053",
