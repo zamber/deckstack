@@ -1446,7 +1446,7 @@
   {
     "id": "DS-044",
     "title": "Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7)",
-    "state": "review",
+    "state": "done",
     "phase": 4,
     "lane": "router",
     "size": "M",
@@ -1460,9 +1460,9 @@
       "new:tests/conformance/focus_ingest/",
       "crates/ds-daemon/src/router/mod.rs"
     ],
-    "branch": "ticket/DS-044",
-    "worktree": ".worktrees/DS-044",
-    "pr": "prs/DS-044.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1486,7 +1486,7 @@
   {
     "id": "DS-045",
     "title": "Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 4,
     "lane": "test",
     "size": "L",
@@ -1503,7 +1503,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "chain A (actions.md section 6): ds bind deck/control/keys.0/down --do 'plugin demo.bump {\"by\":1}'; inject key-down on ds-vdev -> label+colour change observed within 2 s, rev bumped per effect \u2014 plugin step runs against the DS-050 host if landed, else against a conformance stub plugin speaking the plugins.md wire protocol (record which in the PR)",
       "chain B: ds emit app/focus/changed (or ds-focus --inject once DS-060 lands) -> binding with when on payload AND a binding with when on /focus/app both fire atomically (S7) -> /controls/keys/3/image recoloured",

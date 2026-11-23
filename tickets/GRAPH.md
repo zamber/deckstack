@@ -43,8 +43,8 @@ graph TD
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
   DS043["DS-043 Exec policy: /policy/exec allow-deny, admin scope + allow..."]:::ready
-  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::review
-  DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::backlog
+  DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::done
+  DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::ready
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::backlog
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::backlog
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::backlog
@@ -205,11 +205,11 @@ Critical path length: 10 tickets.
 - **plugins** (4): DS-050(backlog), DS-051(backlog), DS-052(backlog), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
-- **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(review)
+- **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
 - **security** (2): DS-043(ready), DS-081(backlog)
 - **senders** (2): DS-060(doing), DS-061(doing)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(ready), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(ready), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(ready)
@@ -222,4 +222,5 @@ Critical path length: 10 tickets.
 - DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
 - DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
 - DS-043 - Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests (lane security)
+- DS-045 - Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) (lane test)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
