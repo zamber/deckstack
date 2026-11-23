@@ -697,7 +697,8 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": [
-      "DS-022"
+      "DS-022",
+      "DS-097"
     ]
   },
   {
@@ -735,7 +736,8 @@
     "blocks": [
       "DS-023",
       "DS-024",
-      "DS-029"
+      "DS-029",
+      "DS-097"
     ]
   },
   {
@@ -772,7 +774,8 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": [
-      "DS-026"
+      "DS-026",
+      "DS-097"
     ]
   },
   {
@@ -2475,6 +2478,50 @@
     ],
     "verification": [
       "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-097",
+    "title": "ds-daemon: resolve module ids from the connected transport; hid: currently sends to virtual ids",
+    "state": "ready",
+    "phase": 2,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-021",
+      "DS-022",
+      "DS-023"
+    ],
+    "touches": [
+      "crates/ds-device/src/transport.rs",
+      "crates/ds-device/src/vtransport.rs",
+      "crates/ds-device/src/hid/mod.rs",
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-daemon/src/device_task.rs",
+      "crates/ds-daemon/src/guard.rs",
+      "crates/ds-daemon/src/frames/writer.rs",
+      "crates/ds-daemon/src/frames/service.rs",
+      "crates/ds-daemon/src/frames/animate.rs"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-23",
+    "updated": "2026-11-23",
+    "acceptance": [
+      "DS_HARDWARE=1 python3 tests/hw/smoke.py passes handshake and frame on the real deck (RESULT: OK)",
+      "virtual transport behaviour is unchanged: python tests/e2e/run.py and tests/conformance still pass",
+      "a unit test proves each transport resolves the five module kinds to its own ids"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "DS_HARDWARE=1 python3 tests/hw/smoke.py",
+      "python tests/conformance/run.py",
+      "python tests/e2e/run.py",
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
