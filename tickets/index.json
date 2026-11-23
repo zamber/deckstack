@@ -2092,7 +2092,7 @@
   {
     "id": "DS-080",
     "title": "Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "test",
     "size": "L",
