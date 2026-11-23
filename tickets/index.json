@@ -849,7 +849,7 @@
   {
     "id": "DS-026",
     "title": "Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py)",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "test",
     "size": "M",
@@ -863,9 +863,9 @@
       "new:tests/hw/",
       "docs/90-verification.md"
     ],
-    "branch": "ticket/DS-026",
-    "worktree": ".worktrees/DS-026",
-    "pr": "prs/DS-026.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -888,7 +888,7 @@
   {
     "id": "DS-027",
     "title": "deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "verify",
     "size": "L",
@@ -904,7 +904,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "tools/verify implements deckstack-verify per docs/90-verification.md: camera discovery, calibration, capture, pixel compare, CLI (check command)",
       "deckstack-verify check passes for >= 1 key (key:0) and the panel on the real deck \u2014 camera-verified pixels",
@@ -921,7 +921,7 @@
   {
     "id": "DS-028",
     "title": "Camera golden checks for key:0, panel, LED + calibration procedure",
-    "state": "backlog",
+    "state": "ready",
     "phase": 2,
     "lane": "verify",
     "size": "M",
@@ -937,7 +937,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "tools/verify/golden/ holds the golden captures for key:0, the panel (keys), and LED states with a documented calibration procedure",
       "deckstack-verify check passes against the goldens on the real deck (camera-verified)",
@@ -1995,7 +1995,7 @@
   {
     "id": "DS-072",
     "title": "Windows port breakdown (TODO doc only \u2014 do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan",
-    "state": "backlog",
+    "state": "ready",
     "phase": 7,
     "lane": "platforms",
     "size": "M",
@@ -2012,7 +2012,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "docs/breakdowns/windows.md is a concrete, reviewable breakdown of docs/40-platforms.md section 2: ds-ipc named pipe \\\\.\\pipe\\deckstack-<user> (+ -stream) with SDDL D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>) and token-file ACLs (S5/T12); ds-platform WinEvent focus hook + SendInput + job objects + UIPI; hidapi winhid per-report-type handle memory, overlapped writes DEPTH=8 on a second handle, CM_Register_Notification, pnputil /restart-device for wedged modules; plugin job object KILL_ON_JOB_CLOSE; PowerShell glue examples; MSI/single-exe packaging",
       "each item carries: where the shim goes, what to implement, what must be tested (pipe throughput incl. p99 under 32 fps frame load on a VM OPEN O5, second-local-account ACL test T12, full conformance over the pipe, hardware smoke on a Windows VM with the deck), and the evidence gaps (upstream has no named pipes \u2014 discovery/50 O3)",
@@ -2029,7 +2029,7 @@
   {
     "id": "DS-073",
     "title": "macOS port breakdown (TODO doc only \u2014 do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan",
-    "state": "backlog",
+    "state": "ready",
     "phase": 7,
     "lane": "platforms",
     "size": "M",
@@ -2045,7 +2045,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "docs/breakdowns/macos.md is a concrete, reviewable breakdown of docs/40-platforms.md section 3: ds-platform NSWorkspace+AX focus + app bundle; ds-device macOS paths with exclusive hidapi opens and a clear busy error (OPEN O8); SET_IDLE at connect for rollers (upstream recover.rs:15-18); pipelined pictures on a second device object DEPTH=8 (pictures_macos.m); never backlight-0 the dial",
       "each item carries: where the shim goes, what to implement, what must be tested (full conformance on a macOS runner, hardware smoke with a deck, roller input after SET_IDLE \u2014 OPEN O8), and evidence gaps",

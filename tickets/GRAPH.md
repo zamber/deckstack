@@ -29,9 +29,9 @@ graph TD
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::done
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::done
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
-  DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::doing
-  DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
-  DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
+  DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::done
+  DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::ready
+  DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::ready
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
   DS030["DS-030 JPEG baseline 4:4:4 encoder + chunking (device wire forma..."]:::done
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
@@ -57,8 +57,8 @@ graph TD
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::done
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
-  DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
-  DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::backlog
+  DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::ready
+  DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::ready
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
   DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
@@ -201,7 +201,7 @@ Critical path length: 10 tickets.
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
-- **platforms** (2): DS-072(backlog), DS-073(backlog)
+- **platforms** (2): DS-072(ready), DS-073(ready)
 - **plugins** (4): DS-050(ready), DS-051(ready), DS-052(ready), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
@@ -209,16 +209,20 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(done), DS-081(backlog)
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(doing), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(doing)
-- **verify** (2): DS-027(backlog), DS-028(backlog)
+- **verify** (2): DS-027(ready), DS-028(ready)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
+- DS-027 - deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) (lane verify)
+- DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-045 - Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) (lane test)
 - DS-050 - Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle (lane plugins)
 - DS-051 - Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests (lane plugins)
 - DS-052 - ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml (lane plugins)
+- DS-072 - Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan (lane platforms)
+- DS-073 - macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan (lane platforms)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
