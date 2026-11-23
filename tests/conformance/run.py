@@ -39,6 +39,14 @@ timeout -> degraded -> restart, net glob edge matrix, crash -> watchdog disable,
 on a fresh ds-vdev + daemon stack with generated raw-stdio fixture plugins
 (docs/20-security.md T3/T5/T6/T11). Use `-k plugins` to run only those cases.
 
+It also registers the DS-081 security conformance mapping
+(tests/conformance/security/): one test per threat row T1-T12 of docs/20-security.md
+§2, each executing or referencing the concrete case that proves the row (the rows
+subprocess the suites above with `-k` selectors, plus a live T9 token-rotation glue
+case and a doc↔runner 1:1 assertion). Use `-k security` to run only the mapping.
+Row checks that re-invoke this runner set DS_SECURITY_CHILD=1, which makes the child
+skip registering the security suite (no recursion).
+
 Usage:
     python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
 
@@ -71,8 +79,11 @@ OP_TIMEOUT_S = 20
 BOOT_TIMEOUT_S = 30
 WATCH_TIMEOUT_S = 20
 KILL_TIMEOUT_S = 5
-# the safety suite (DS-029) may compile extra cargo test targets on a cold cache
-SUITE_TIMEOUT_S = 1200
+# the safety suite (DS-029) may compile extra cargo test targets on a cold cache;
+# the DS-081 security mapping (registered below) additionally subprocesses the
+# referenced suites (bindings/exec/limits/fuzz/streaming subsets), so the watchdog
+# carries headroom for those on top of the in-process suites
+SUITE_TIMEOUT_S = 2400
 
 BINARIES = ("ds", "ds-daemon", "ds-vdev", "ds-vdevctl")
 
@@ -774,6 +785,20 @@ def _plugins_suite():
     return plugins_suite()
 
 
+def _security_suite():
+    """The DS-081 security conformance mapping (tests/conformance/security/): one test
+    per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
+    concrete case that proves the row (the row checks subprocess the suites registered
+    here with `-k` selectors — they set DS_SECURITY_CHILD=1 so the child does not
+    register this suite again — plus a live T9 rotation glue case and the doc↔runner
+    1:1 assertion). `-k security` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from security.run import security_suite
+    return security_suite()
+
+
 def _filter_suite(suite, patterns):
     """Keep only the tests whose id contains one of the `-k` substrings."""
     out = unittest.TestSuite()
@@ -811,6 +836,10 @@ def main():
         suite.addTests(_agent_onboarding_suite())
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
+        # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
+        # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
+        if not os.environ.get("DS_SECURITY_CHILD"):
+            suite.addTests(_security_suite())
         if patterns:
             suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,
