@@ -2002,7 +2002,7 @@
   {
     "id": "DS-072",
     "title": "Windows port breakdown (TODO doc only \u2014 do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan",
-    "state": "doing",
+    "state": "review",
     "phase": 7,
     "lane": "platforms",
     "size": "M",

@@ -65,6 +65,10 @@ runbook need no permissions setup.
 
 ## 2. Windows — TODO (do not start until Linux alpha is stable)
 
+The itemized port breakdown (named-pipe IPC + ACLs, hidapi winhid transport, overlapped
+writes, job objects, packaging, test plan) lives in **`docs/breakdowns/windows.md`** —
+schedulable ticket-by-ticket from there, still gated by the rule above.
+
 **Where the shim goes:** `ds-ipc` (named pipe `\\.\pipe\deckstack-<user>` + `-stream`,
 same NDJSON/DSF1 framings; ACL SDDL `D:P(A;;GA;;;SY)(A;;GA;;;<user-sid>)`, S5/T12);
 `ds-platform` (WinEvent focus hook, SendInput, job objects, UIPI).
