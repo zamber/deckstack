@@ -1615,7 +1615,7 @@
   {
     "id": "DS-052",
     "title": "ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml",
-    "state": "review",
+    "state": "done",
     "phase": 5,
     "lane": "plugins",
     "size": "L",
@@ -1628,9 +1628,9 @@
       "new:plugins-py/",
       "repos.toml"
     ],
-    "branch": "ticket/DS-052",
-    "worktree": ".worktrees/DS-052",
-    "pr": "prs/DS-052.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -1657,7 +1657,7 @@
   {
     "id": "DS-053",
     "title": "Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11)",
-    "state": "backlog",
+    "state": "ready",
     "phase": 5,
     "lane": "test",
     "size": "M",
@@ -1674,7 +1674,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "fork-bomb plugin killed by nproc rlimit, daemon healthy afterwards (T3); memory hog killed by AS limit; cap violation (state.write without grant, device.write without grant) -> E_CAP counted in /plugins/<id>/stats.violations",
       "fs traversal: plugin requesting fs outside its fs_roots -> E_CAP (T6); oversized net URL / net to non-granted host -> E_CAP (T11); glob edges: lights.lan matches only lights.lan; *.lan matches lights.lan but NOT lan, a.b.lan, or lights.lan.evil.com \u2014 all as conformance cases against a fake lights server",
@@ -1694,7 +1694,7 @@
   {
     "id": "DS-054",
     "title": "Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs",
-    "state": "backlog",
+    "state": "ready",
     "phase": 5,
     "lane": "plugins",
     "size": "M",
@@ -1712,7 +1712,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "examples/plugins/demo/ is the docs/contracts/plugins.md section 7 counter plugin (~40 lines, ds_plugin_py), installable via ds plugin install examples/plugins/demo and invocable via ds plugin invoke demo.bump '{\"by\":1}'; effects land on /controls/keys/0 label+image on vdev",
       "plugin author docs: README in examples/plugins/ + a docs page (linked from docs/contracts/plugins.md) covering manifest fields, capabilities, limits, the wire protocol, and the wrapper's honest guarantees (plugins.md section 6)",
