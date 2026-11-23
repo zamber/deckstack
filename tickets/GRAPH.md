@@ -38,7 +38,7 @@ graph TD
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::done
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::doing
   DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::doing
-  DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::doing
+  DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::done
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
   DS042["DS-042 Core step vocabulary: set/emit/plugin/exec/sleep executio..."]:::done
@@ -210,7 +210,7 @@ Critical path length: 10 tickets.
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
-- **vdev** (2): DS-017(done), DS-035(doing)
+- **vdev** (2): DS-017(done), DS-035(done)
 - **verify** (2): DS-027(ready), DS-028(ready)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)

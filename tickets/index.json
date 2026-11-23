@@ -1209,7 +1209,7 @@
   {
     "id": "DS-035",
     "title": "vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn",
-    "state": "review",
+    "state": "done",
     "phase": 3,
     "lane": "vdev",
     "size": "M",
@@ -1226,9 +1226,9 @@
       "crates/ds-vdev/src/hub.rs",
       "crates/ds-vdev/Cargo.toml"
     ],
-    "branch": "ticket/DS-035",
-    "worktree": ".worktrees/DS-035",
-    "pr": "prs/DS-035.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
