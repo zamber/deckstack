@@ -21,6 +21,11 @@ serde_json = "1"
 # SIGTERM/SIGINT -> shutdown flag. std has no signal API and the workspace lints deny
 # unsafe_code, so the handler comes from signal-hook instead of a hand-rolled sigaction.
 signal-hook = "0.3"
+# DS-043 exec policy: safe syscall wrappers for the exec-child re-exec (setrlimit before
+# execve, setpgid, execve, waitpid, killpg). nix's own `fork` is unsafe and the workspace
+# lints deny unsafe_code in this crate, so the child is produced by re-executing this
+# binary through std::process::Command (argv-only) and the safe nix calls run in it.
+nix = { version = "=0.31.3", default-features = false, features = ["resource", "process", "signal"] }
 # DS-030 frame plane: re-encode every accepted wire image to the device format — baseline
 # JPEG, standard Huffman tables, 4:4:4 (docs/contracts/streaming.md §2). jpeg-encoder is
 # PINNED (=) because the golden frames under tests/golden/ are exact bytes of one encoder

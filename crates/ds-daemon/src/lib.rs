@@ -55,17 +55,36 @@ pub mod daemon {
 
     pub use super::daemon_impl::*;
 
+    /// Parse argv (without argv[0]). DS-043: the private exec-child marker is
+    /// intercepted here — the exec policy spawns `/proc/self/exe <marker> <argv…>` so
+    /// the child can apply rlimits and `execve` the allowlisted `argv[0]` without any
+    /// unsafe code in this crate (the workspace lints deny `unsafe_code`). The child
+    /// never returns from [`crate::policy::spawn::exec_child_main`].
+    pub fn parse_args(args: &[String]) -> Result<Cli, String> {
+        if args
+            .first()
+            .is_some_and(|a| a == crate::policy::spawn::EXEC_CHILD_ARG)
+        {
+            std::process::exit(crate::policy::spawn::exec_child_main(&args[1..]));
+        }
+        super::daemon_impl::parse_args(args)
+    }
+
     /// Run the daemon under the DS-024 guard: SIGTERM/normal stop → state committed,
     /// writers drained, device handed back, exit 0; a critical-task panic → the same
-    /// handback, exit [`crate::guard::CRASH_EXIT_CODE`].
+    /// handback, exit [`crate::guard::CRASH_EXIT_CODE`]. On the way out, every tracked
+    /// exec-child process group is SIGKILLed (DS-043; the children also die on their
+    /// own via RLIMIT_CPU).
     pub fn run(opts: RunOptions) -> std::io::Result<i32> {
         let device = device_uri(&opts.device)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
         let data_dir = crate::lifecycle::resolve_data_dir(opts.data_dir.as_deref());
-        Ok(crate::guard::supervise(
+        let result = crate::guard::supervise(
             move || super::daemon_impl::run(opts),
             crate::guard::GuardContext { device, data_dir },
-        ))
+        );
+        crate::policy::spawn::kill_all_tracked();
+        Ok(result)
     }
 }
 
@@ -75,6 +94,7 @@ pub mod frames;
 pub mod guard;
 pub mod ipc;
 pub mod lifecycle;
+pub mod policy;
 pub mod router;
 pub mod state;
 
