@@ -1132,11 +1132,11 @@
   {
     "id": "DS-033",
     "title": "Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak",
-    "state": "ready",
+    "state": "doing",
     "phase": 3,
     "lane": "bench",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-033",
     "depends_on": [
       "DS-031",
       "DS-032"
@@ -1145,9 +1145,9 @@
       "new:crates/ds-bench/",
       "docs/30-testing.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-033",
+    "worktree": ".worktrees/DS-033",
+    "pr": "prs/DS-033.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
