@@ -51,7 +51,7 @@ graph TD
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::doing
-  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::ready
+  DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::doing
   DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::done
   DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::backlog
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::backlog
@@ -207,7 +207,7 @@ Critical path length: 10 tickets.
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(doing)
 - **security** (2): DS-043(ready), DS-081(backlog)
-- **senders** (2): DS-060(doing), DS-061(ready)
+- **senders** (2): DS-060(doing), DS-061(doing)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(ready), DS-029(done), DS-045(backlog), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
@@ -222,5 +222,4 @@ Critical path length: 10 tickets.
 - DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
 - DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
 - DS-043 - Exec policy: /policy/exec allow-deny, admin scope + allow_exec, argv-only execve, rlimits, audit events, tests (lane security)
-- DS-061 - ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) (lane senders)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
