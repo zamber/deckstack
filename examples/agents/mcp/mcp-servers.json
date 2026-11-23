@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "deckstack": {
+      "command": "/home/YOU/Applications/deckstack-0.1.0/bin/ds-mcp",
+      "args": ["--data-dir", "/home/YOU/.local/state/deckstack"]
+    }
+  }
+}

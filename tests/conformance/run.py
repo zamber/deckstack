@@ -19,6 +19,12 @@ report), `ds schema <name>` vs schemas/, `ds describe`, exit codes 0-8 with the 
 stderr shapes, `--json`/`--ndjson` rules, and the no-`migrate` invariant. Use
 `-k cli` to run only those cases.
 
+It also registers the DS-098 agent-onboarding suite
+(tests/conformance/agent-onboarding/): boots its own stack, drives the real `ds-mcp`
+over stdio (initialize, tools/list, deck_status, deck_set, deck_get) and then the same
+three calls through clients/ds-py — the scripted proof of the docs/agents.md route.
+Use `-k onboarding` to run only those cases.
+
 Usage:
     python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
 
@@ -714,6 +720,21 @@ def _cli_suite():
     return cli_suite()
 
 
+def _agent_onboarding_suite():
+    """The DS-098 agent-onboarding suite (tests/conformance/agent-onboarding/),
+    registered into this run so `python tests/conformance/run.py` also machine-checks
+    the docs/agents.md route: ds-mcp over stdio (initialize, tools/list, deck_status,
+    deck_set, deck_get on a booted vdev+daemon) and the same three calls through
+    clients/ds-py. `-k onboarding` runs only these cases. The directory name has a
+    hyphen, so the module is loaded by path with importlib."""
+    import importlib.util
+    path = ROOT / "tests" / "conformance" / "agent-onboarding" / "run.py"
+    spec = importlib.util.spec_from_file_location("agent_onboarding", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.agent_onboarding_suite()
+
+
 def _filter_suite(suite, patterns):
     """Keep only the tests whose id contains one of the `-k` substrings."""
     out = unittest.TestSuite()
@@ -748,6 +769,7 @@ def main():
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(Conformance))
         suite.addTests(_safety_suite())
         suite.addTests(_cli_suite())
+        suite.addTests(_agent_onboarding_suite())
         if patterns:
             suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,
