@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ds-plugin-py"
+version = "0.1.0"
+description = "deckstack Python plugin SDK (ds_plugin_py) + hubdeck compatibility wrapper — newline-JSON wire protocol over stdio, host-mediated network (S4)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "deckstack" }]
+keywords = ["deckstack", "plugin", "sdk"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Libraries",
+]
+# stdlib-only: no runtime dependencies
+dependencies = []
+
+[project.urls]
+Homepage = "https://deckstack.dev"
+
+[tool.setuptools]
+packages = ["ds_plugin_py", "deckstack_plugin"]
+
+[tool.setuptools.package-data]
+ds_plugin_py = ["py.typed"]
