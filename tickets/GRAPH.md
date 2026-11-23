@@ -27,7 +27,7 @@ graph TD
   DS021["DS-021 Real HID transport on Linux: libusb/hidraw enumeration, o..."]:::done
   DS022["DS-022 Software-mode handshake, module init, safe builders on re..."]:::done
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::done
-  DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::doing
+  DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::review
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
   DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::backlog
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
@@ -194,7 +194,7 @@ Critical path length: 10 tickets.
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
 - **cli** (2): DS-016(done), DS-032(done)
-- **daemon** (3): DS-015(done), DS-024(doing), DS-095(done)
+- **daemon** (3): DS-015(done), DS-024(review), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
 - **docs** (2): DS-064(backlog), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(ready)

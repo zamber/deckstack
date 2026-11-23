@@ -25,7 +25,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-021 | done | 2 | device | L | vibe/DS-021 | DS-020 | Real HID transport on Linux: libusb/hidraw enumeration, open, reader threads |
 | DS-022 | done | 2 | device | M | vibe/DS-022 | DS-021 | Software-mode handshake, module init, safe builders on real hardware |
 | DS-023 | done | 2 | device | M | vibe/DS-023 | DS-022 | Hot-plug rescan, reconnect, re-push, unresponsive-device handling |
-| DS-024 | doing | 2 | daemon | M | vibe/DS-024 | DS-022 | Guard/handback: clean device state on daemon exit, SIGTERM, crash |
+| DS-024 | review | 2 | daemon | M | vibe/DS-024 | DS-022 | Guard/handback: clean device state on daemon exit, SIGTERM, crash |
 | DS-025 | done | 2 | packaging | S | vibe/DS-025 | DS-020 | udev rules, device permissions, install docs (Linux) |
 | DS-026 | backlog | 2 | test | M | - | DS-023, DS-024 | Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py) |
 | DS-027 | backlog | 2 | verify | L | - | DS-026 | deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) |
