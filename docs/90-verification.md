@@ -124,3 +124,41 @@ Expected while the daemon runs on `hid:`: `device_status` drops (`disconnected` 
 `connected hid: (healthy)` and `daemon.log` shows `re-pushing N cached target(s) after
 connect` followed by the `pushed … for re-push …` lines — the latest frame is back on
 the deck. The smoke automates exactly this when it has the permissions.
+
+## Operator section — deckstack-verify (tools/verify/, DS-027)
+
+The harness is `python3 tools/verify/deckstack_verify.py <devices|capture|calibrate|compare|check|selftest>`
+(stdlib + ffmpeg/v4l2-ctl, argv-only; usage and limits in `tools/verify/README.md`).
+
+- **Device**: enumerate with `deckstack_verify.py devices`. On the reference machine
+  the camera is the **AUKEY PC-W1 at `/dev/video2`** (`/dev/video3` is its metadata
+  node; `/dev/video0` is the OBS virtual camera and is never the default). Override
+  with `--device` or `$DSV_CAMERA`. Capture: `capture --out shot.jpg --settle 800`
+  (1280×720 MJPEG by default, warm-up frame + retries).
+- **Placement**: camera fixed and roughly frontal to the keys panel, panel filling a
+  good part of the frame, no direct glare on the LCDs. Calibration is only valid for
+  the pose it was taken in — re-calibrate after any camera/deck movement. Limits:
+  lighting changes shift measured RGB (tolerance 12 absorbs auto-exposure noise),
+  strong perspective is not corrected (axis-aligned affine only), occlusion proves
+  nothing.
+- **Calibration**: dark room + lit panel → `calibrate --frame shot.jpg --out
+  calibration.json --overlay overlay.png` auto-detects the 15 key faces; in a bright
+  room pass `--panel x,y,w,h` measured from the overlay (reference 1280×720 pose:
+  `--panel 505,150,285,345`, deck rotated 90° in frame). Hints: `--grid 5x3`,
+  `--orientation`, `--face-luma lo,hi`. Verify `overlay.png` (green rects inside the
+  key faces). The JSON stores the panel rect, per-target ROIs (`key:0..14`, `keys`,
+  `led:N` with cell masks) and the assumptions.
+- **Golden checks**: `compare --expected key:0=#ff0000 --actual shot.jpg
+  --calibration calibration.json` (colour spec, per-target mean-RGB delta vs
+  tolerance 12, exit 7 on mismatch, `--json` for NDJSON) or
+  `compare --expected golden.jpg --actual shot.jpg` (per-ROI golden image).
+  `check --target key:0 --expected key:0=#ff0000 …` = capture + compare in one step.
+  Recorded live-deck run: `tools/verify/demo/run.log` (real deck, key:0 set to
+  #ff0000: compare exits 7 with the exact deltas because this unit's M4315 LCDs do
+  not render pushed images — the oracle catching a device-side non-render — while
+  LED zones and golden compares pass).
+- **CI excludes the hardware path**: CI runs only `deckstack_verify.py selftest`
+  (synthetic frame, no deck and no camera needed; it also exercises a real capture
+  when a camera is present). `devices`/`capture`/`calibrate`/`compare`/`check`
+  against the live deck are hardware-gated, phase 2+ only, like `tests/hw/smoke.py`
+  (`DS_HARDWARE=1`).

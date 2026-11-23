@@ -1,0 +1,93 @@
+== binaries: /var/home/catwars/repos/deckstack/target/debug (/var/home/catwars/repos/deckstack/target/debug/ds /var/home/catwars/repos/deckstack/target/debug/ds-daemon )
+== starting daemon on hid:
+ok running pid=1137865 rev=0 device=hid: socket=/tmp/dsv-demo-run/daemon.sock
+daemon: connected hid: pid 1137865
+== set key:0 image #ff0000 + brightness 100, knob LEDs #00ff00
+{
+  "ok": true,
+  "rev": 1
+}
+ok rev=2
+{
+  "ok": true,
+  "rev": 3
+}
+{
+  "ok": true,
+  "rev": 4
+}
+{
+  "ok": true,
+  "rev": 5
+}
+== daemon write log (pushed lines):
+{"level":"debug","msg":"pushed Image { target: Key(0), source: Color { rgb: [255, 0, 0] } } for /controls/keys/0/image","target":"ds-daemon::device","ts_ms":1795460760650}
+{"level":"debug","msg":"pushed LedColor { kind: Knobs, rgb: [0, 255, 0] } for /controls/knobs/0/led","target":"ds-daemon::device","ts_ms":1795460760671}
+{"level":"debug","msg":"pushed LedColor { kind: Knobs, rgb: [0, 255, 0] } for /controls/knobs/1/led","target":"ds-daemon::device","ts_ms":1795460760673}
+{"level":"debug","msg":"pushed LedColor { kind: Knobs, rgb: [0, 255, 0] } for /controls/knobs/2/led","target":"ds-daemon::device","ts_ms":1795460760695}
+== deckstack-verify devices:
+video devices (v4l2-ctl --list-devices + --info):
+  /dev/video0  driver=v4l2 loopback bus=platform:v4l2loopback-000 card=OBS Virtual Camera  [loopback/virtual]
+  /dev/video2  driver=uvcvideo bus=usb-0000:02:00.0-4     card=AUKEY PC—W1: AUKEY PC—W1
+  /dev/video3  driver=uvcvideo bus=usb-0000:02:00.0-4     card=AUKEY PC—W1: AUKEY PC—W1
+default camera: /dev/video2  (override: --device PATH or $DSV_CAMERA)
+== deckstack-verify capture --out /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/frame.jpg:
+captured /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/frame.jpg (214649 bytes, 1280x720) from /dev/video2
+== deckstack-verify calibrate (--panel 505,150,285,345):
+calibrate: bg_luma=233 face=[138,188] cells=320x180 comps=77
+overlay: /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/overlay.png
+calibration written: /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/calibration.json
+  frame 1280x720, panel rect [505, 150, 790, 495], grid 3x5 (image) orientation 90 deg
+  targets: 15 key windows, keys (panel), 6 led zones
+== deckstack-verify compare --expected key:0=#ff0000,led:1=#00ff00 (json):
+{"target": "key:0", "expected": [255, 0, 0], "actual": [189.1, 188.7, 208.4], "delta_mean": 154.36, "delta_max": 208.4, "tolerance": 12.0, "pass": false}
+{"target": "led:1", "expected": [0, 255, 0], "actual": [136.0, 165.4, 212.3], "delta_mean": 145.95, "delta_max": 212.3, "tolerance": 12.0, "pass": false}
+{"summary": {"targets": 2, "passed": 0, "failed": 2, "all_pass": false}}
+compare rc=7 (7 = mismatch, expected here for key:0 — see README 'Limits')
+== deckstack-verify compare --expected led:1=#00ff00 (LED zone only):
+FAIL led:1    expected rgb(0, 255, 0) actual rgb(136.0, 165.4, 212.3) delta mean 145.95 max 212.3 (tol 12.0)
+0/1 targets within tolerance 12.0 — MISMATCH
+compare led rc=7
+== deckstack-verify check --target key:0 --expected key:0=#ff0000:
+capture kept at /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/check-frame.jpg
+FAIL key:0    expected rgb(255, 0, 0) actual rgb(179.3, 184.3, 213.7) delta mean 157.90 max 213.7 (tol 12.0)
+0/1 targets within tolerance 12.0 — MISMATCH
+check rc=7 (7 = mismatch: the M4315 LCD does not render pushed images on this unit — see README 'Limits')
+== deckstack-verify compare --expected /var/home/catwars/repos/deckstack/.worktrees/DS-027/tools/verify/demo/frame.jpg (golden) --actual check-frame.jpg:
+   (second capture of the unchanged deck; per-target noise must be within tolerance)
+PASS key:0    expected rgb(189.1, 188.7, 208.4) actual rgb(179.3, 184.3, 213.7) delta mean 6.47 max 9.7 (tol 12.0)
+PASS key:1    expected rgb(173.2, 174.6, 201.3) actual rgb(164.4, 172.2, 206.2) delta mean 5.31 max 8.7 (tol 12.0)
+PASS key:10   expected rgb(89.0, 75.4, 66.8) actual rgb(85.5, 74.9, 72.2) delta mean 3.13 max 5.4 (tol 12.0)
+PASS key:11   expected rgb(80.5, 64.9, 57.3) actual rgb(76.1, 64.4, 61.9) delta mean 3.19 max 4.7 (tol 12.0)
+PASS key:12   expected rgb(72.7, 56.2, 51.4) actual rgb(67.1, 55.6, 54.8) delta mean 3.15 max 5.5 (tol 12.0)
+PASS key:13   expected rgb(67.1, 52.1, 51.2) actual rgb(61.4, 51.6, 52.2) delta mean 2.40 max 5.8 (tol 12.0)
+PASS key:14   expected rgb(70.2, 55.1, 51.6) actual rgb(65.3, 53.9, 54.4) delta mean 2.98 max 5.0 (tol 12.0)
+PASS key:2    expected rgb(149.8, 158.7, 187.8) actual rgb(141.0, 155.9, 192.3) delta mean 5.36 max 8.8 (tol 12.0)
+PASS key:3    expected rgb(131.3, 146.3, 178.1) actual rgb(121.2, 142.0, 181.3) delta mean 5.87 max 10.2 (tol 12.0)
+PASS key:4    expected rgb(144.1, 147.3, 174.3) actual rgb(134.4, 144.2, 176.4) delta mean 4.95 max 9.7 (tol 12.0)
+PASS key:5    expected rgb(105.7, 86.2, 73.5) actual rgb(101.7, 86.3, 80.8) delta mean 3.83 max 7.3 (tol 12.0)
+PASS key:6    expected rgb(93.4, 72.6, 64.9) actual rgb(84.5, 71.6, 68.2) delta mean 4.40 max 8.9 (tol 12.0)
+PASS key:7    expected rgb(80.7, 62.5, 55.2) actual rgb(73.2, 61.3, 60.3) delta mean 4.56 max 7.5 (tol 12.0)
+PASS key:8    expected rgb(65.4, 53.3, 52.7) actual rgb(60.3, 52.3, 54.0) delta mean 2.51 max 5.1 (tol 12.0)
+PASS key:9    expected rgb(79.4, 62.8, 58.8) actual rgb(72.9, 59.8, 60.2) delta mean 3.65 max 6.6 (tol 12.0)
+PASS keys     expected rgb(104.3, 95.3, 98.1) actual rgb(98.2, 94.1, 102.7) delta mean 3.92 max 6.0 (tol 12.0)
+FAIL led:0    expected rgb(150.2, 173.4, 218.3) actual rgb(124.4, 166.0, 226.1) delta mean 13.67 max 25.8 (tol 12.0)
+PASS led:1    expected rgb(136.0, 165.4, 212.3) actual rgb(118.4, 162.8, 225.3) delta mean 11.07 max 17.6 (tol 12.0)
+PASS led:2    expected rgb(133.1, 241.3, 196.5) actual rgb(125.5, 235.5, 204.1) delta mean 7.03 max 7.7 (tol 12.0)
+PASS led:3    expected rgb(118.5, 226.2, 179.6) actual rgb(111.9, 221.0, 184.2) delta mean 5.43 max 6.6 (tol 12.0)
+PASS led:4    expected rgb(114.5, 226.9, 178.2) actual rgb(109.4, 225.4, 186.9) delta mean 5.09 max 8.8 (tol 12.0)
+PASS led:5    expected rgb(175.3, 103.9, 115.3) actual rgb(164.2, 102.8, 116.5) delta mean 4.49 max 11.1 (tol 12.0)
+21/22 targets within tolerance 12.0 — MISMATCH
+golden-compare rc=7
+== stopping daemon (SIGTERM):
+{"level":"info","msg":"handback: sent 034900 to Dial (dial MHDD01AA221252301435) — leave software mode","target":"ds-daemon::guard","ts_ms":1795460820532}
+{"level":"info","msg":"shutdown step close","target":"ds-daemon::guard","ts_ms":1795460820532}
+{"level":"info","msg":"device handed back, transport closed","target":"ds-daemon::guard","ts_ms":1795460820554}
+ds daemon status after stop rc=6 (6 = E_UNREACHABLE, expected)
+== demo artifacts:
+razem 2384
+-rw-r--r--. 1 catwars catwars   31376 11-23 20:06 calibration.json
+-rw-r--r--. 1 catwars catwars  210619 11-23 20:06 check-frame.jpg
+-rw-r--r--. 1 catwars catwars  214649 11-23 20:06 frame.jpg
+-rw-r--r--. 1 catwars catwars 1972999 11-23 20:06 overlay.png
+-rw-------. 1 catwars catwars    3878 11-23 20:06 run_live_demo.sh
