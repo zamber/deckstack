@@ -1847,7 +1847,7 @@
   {
     "id": "DS-063",
     "title": "Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples",
-    "state": "doing",
+    "state": "review",
     "phase": 6,
     "lane": "agents",
     "size": "S",
