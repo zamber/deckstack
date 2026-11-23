@@ -1697,7 +1697,7 @@
   {
     "id": "DS-054",
     "title": "Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs",
-    "state": "doing",
+    "state": "review",
     "phase": 5,
     "lane": "plugins",
     "size": "M",
