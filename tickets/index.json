@@ -1804,7 +1804,7 @@
   {
     "id": "DS-062",
     "title": "CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "test",
     "size": "M",
@@ -1819,9 +1819,9 @@
       "docs/components/cli.md",
       "tests/conformance/run.py"
     ],
-    "branch": "ticket/DS-062",
-    "worktree": ".worktrees/DS-062",
-    "pr": "prs/DS-062.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
