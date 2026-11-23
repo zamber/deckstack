@@ -2505,7 +2505,8 @@
       "crates/ds-daemon/src/guard.rs",
       "crates/ds-daemon/src/frames/writer.rs",
       "crates/ds-daemon/src/frames/service.rs",
-      "crates/ds-daemon/src/frames/animate.rs"
+      "crates/ds-daemon/src/frames/animate.rs",
+      "crates/ds-device/src/hid/reader.rs"
     ],
     "branch": "ticket/DS-097",
     "worktree": ".worktrees/DS-097",
