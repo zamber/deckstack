@@ -20,10 +20,15 @@
 //!   stop/drain on shutdown.
 //! - [`telemetry`] — the ≤ 1 Hz sampler writing non-durable
 //!   `/telemetry/streams/<target>` stats into the state store (never persisted, no rev).
+//! - [`animate`] — the animation plane (DS-034): multi-frame decode of animated GIF/APNG
+//!   and of a directory of stills at `--fps` under the contractual limits (≤ 300 frames,
+//!   ≤ 30 fps, ≥ 0.02 s per frame, ≤ 16 MB wire, ≤ 4096×4096, bounded total decode), paced
+//!   pushes through the service queues, and the DSF1 `frames`/`fps`/`loop` meta mapping.
 //!
 //! Encoding is deterministic for a pinned `jpeg-encoder` version, which is what makes the
 //! golden vectors under `tests/golden/` exact-byte fixtures (see `tests/golden/README.md`).
 
+pub mod animate;
 pub mod chunk;
 pub mod encode;
 pub mod service;
