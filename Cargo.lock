@@ -362,6 +362,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ds-bench"
+version = "0.1.0"
+dependencies = [
+ "ds-client",
+ "ds-daemon",
+ "ds-device",
+ "ds-ipc",
+ "ds-protocol",
+ "ds-state",
+ "ds-vdev",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "ds-client"
 version = "0.1.0"
 dependencies = [
