@@ -204,6 +204,14 @@ pub fn live_children() -> usize {
     registry().lock().unwrap().live.len()
 }
 
+/// Is PID still tracked as a live exec child of this process?
+///
+/// Per-child, unlike [`live_children`]: tests share one registry, so a global count
+/// races any other test that spawns at the same time.
+pub fn is_live_child(pid: u32) -> bool {
+    registry().lock().unwrap().live.contains_key(&pid)
+}
+
 /// SIGKILL every tracked exec-child process group (called on daemon exit from
 /// `lib.rs`). Children also die on their own via RLIMIT_CPU, so this is a belt-and-
 /// braces cleanup, never a blocking wait.
@@ -242,7 +250,13 @@ mod tests {
             exit_status(pid),
             Some(WaitStatus::Exited(Pid::from_raw(pid as i32), 0))
         );
-        assert_eq!(live_children(), 0);
+        // Per-child, not the global count: other tests in this binary (plugins, exec
+        // policy) spawn children concurrently and would make `live_children() == 0` race.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while is_live_child(pid) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(!is_live_child(pid), "child {pid} still tracked as live");
     }
 
     #[test]
