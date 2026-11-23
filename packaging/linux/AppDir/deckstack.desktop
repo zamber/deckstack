@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=deckstack
+GenericName=Macro deck control
+Comment=Control a Cooler Master MasterHub macro deck from the command line (ds CLI)
+Exec=ds
+Icon=deckstack
+Terminal=true
+Categories=Utility;System;
+Keywords=macro;deck;keyboard;hid;
+StartupNotify=false

@@ -1,0 +1,7 @@
+#!/bin/sh
+# AppRun for the deckstack AppImage (DS-083).
+# Resolves its own directory (AppImages mount the AppDir at a random path) and
+# execs the bundled ds CLI; every other bundled binary is in usr/bin next to it.
+set -eu
+HERE=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
+exec "$HERE/usr/bin/ds" "$@"
