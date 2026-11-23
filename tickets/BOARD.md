@@ -53,8 +53,8 @@ Generated: 2026-11-23 - 68 tickets.
 | DS-062 | done | 6 | test | M | vibe/DS-062 | DS-016, DS-040, DS-041 | CLI self-description + error contract conformance tests: --help at every level, ds schema, ds describe, exit codes 0-8, --json/--ndjson rules, actionable errors |
 | DS-063 | done | 6 | agents | S | vibe/DS-063 | DS-060, DS-061, DS-062 | Python/CLI client helper for agents (thin wrapper over ds API / ds-mcp discovery), with examples |
 | DS-064 | done | 6 | docs | M | vibe/DS-064 | DS-060, DS-061, DS-062 | Operator runbook: start/stop/restart, logs, token management, recovery after crash, status, upgrade, troubleshooting |
-| DS-070 | review | 7 | integrations | L | vibe/DS-070 | DS-050, DS-052, DS-054 | lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes |
-| DS-071 | backlog | 7 | porting | M | - | DS-041, DS-070 | Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin |
+| DS-070 | done | 7 | integrations | L | vibe/DS-070 | DS-050, DS-052, DS-054 | lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes |
+| DS-071 | ready | 7 | porting | M | - | DS-041, DS-070 | Selective porting inventory + one button port: old-app behaviours listed with evidence, Salon key ported as bindings + lights plugin |
 | DS-072 | done | 7 | platforms | M | vibe/DS-072 | DS-020, DS-026 | Windows port breakdown (TODO doc only — do not implement): named-pipe IPC + ACLs, hidapi winhid, overlapped writes, job objects, packaging, test plan |
 | DS-073 | done | 7 | platforms | M | vibe/DS-073 | DS-020, DS-026 | macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan |
 | DS-074 | ready | 7 | web | M | - | DS-013, DS-032 | Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI |
