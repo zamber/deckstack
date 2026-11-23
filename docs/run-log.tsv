@@ -36,3 +36,4 @@ ts	phase	decision	why	evidence	result
 2026-11-22T23:32:29Z	phase3	DS-032 ds stream CLI merged	frame service + telemetry made the stream verbs possible	cargo test -p ds; merge e00eda1; PR prs/DS-032.md	done
 2026-11-23T00:05:25Z	phase4	DS-062 CLI self-description + error contract suite merged	every capability must be discoverable and every exit code stable	conformance suite green; merge b7a31c7	done
 2026-11-23T00:25:22Z	phase4	DS-080 fuzz + limits suites merged	limits and malformed input need executable coverage before phase 3 matures	tests/limits + tests/fuzz; merge 0ba8827; pr.sh now syncs the board in the merge path (79cf16a)	done
+2026-11-23T00:27:15Z	phase2	DS-024 guard/handback merged	daemon exit must leave the deck in a clean state	cargo test -p ds-daemon + DS_HARDWARE smoke; merge 0438291	done
