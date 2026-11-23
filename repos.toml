@@ -1,7 +1,7 @@
 # deckstack repo boundaries (owner steering 2026-11-22, delta 8).
 # The alpha core lives in this umbrella monorepo. The repos below are SEPARATE publish
-# targets; none of them exists as a separate repo yet — "in-tree" means developed in this
-# repo during alpha, "to create" means not started. Do not claim they exist.
+# targets; all but deckstack-lights are still in-tree/to-create — "in-tree" means
+# developed in this repo during alpha, "to create" means not started.
 
 [umbrella]
 name = "deckstack"
@@ -38,9 +38,9 @@ owner = "steward"
 
 [[repo]]
 name = "deckstack-lights"
-path = "integrations/lights/ (to create post-alpha)"
-status = "post-alpha"
-development = "to create — see docs/80-integrations.md; developed as its own repo from day one"
-publish = "n/a until created"
+path = "../deckstack-lights (sibling checkout — own repo from day one, created by DS-070)"
+status = "landed (ticket DS-070)"
+development = "own repo from day one — see docs/80-integrations.md"
+publish = "git tag vX.Y.Z on its own main; CI runs tests/run.py (fake HueMux, end-to-end through the daemon)"
 owner = "steward"
-description = "lights.lan integration as a deckstack plugin (separate process, manifest, host-mediated HTTP)"
+description = "lights.lan integration as a deckstack plugin: lights.set {room, light, on, brightness, color}, capability net:lights.lan only, host-mediated HTTP, no shipped scenes/presets"
