@@ -54,7 +54,7 @@ graph TD
   DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::done
   DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::done
   DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::done
-  DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::doing
+  DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::done
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
   DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::backlog
@@ -196,7 +196,7 @@ Critical path length: 10 tickets.
 - **cli** (2): DS-016(done), DS-032(done)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
-- **docs** (2): DS-064(doing), DS-094(done)
+- **docs** (2): DS-064(done), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(ready)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
