@@ -44,7 +44,7 @@ Generated: 2026-11-23 - 65 tickets.
 | DS-044 | done | 4 | router | M | vibe/DS-044 | DS-040, DS-041 | Transactional event ingest: /focus mirrored from app/focus/changed in the same transaction that dispatches bindings (S7) |
 | DS-045 | done | 4 | test | L | vibe/DS-045 | DS-042, DS-044 | Action conformance chains A/B + event latency bench (p99 <= 5 ms under stream load, key->plugin->visual <= 2 s) |
 | DS-050 | doing | 5 | plugins | L | vibe/DS-050 | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
-| DS-051 | review | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
+| DS-051 | done | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | ready | 5 | plugins | L | - | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
 | DS-053 | backlog | 5 | test | M | - | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
 | DS-054 | backlog | 5 | plugins | M | - | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |

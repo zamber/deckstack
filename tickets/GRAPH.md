@@ -46,7 +46,7 @@ graph TD
   DS044["DS-044 Transactional event ingest: /focus mirrored from app/focu..."]:::done
   DS045["DS-045 Action conformance chains A/B + event latency bench (p99 ..."]:::done
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::doing
-  DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::review
+  DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::done
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::ready
   DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::backlog
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::backlog
@@ -202,7 +202,7 @@ Critical path length: 10 tickets.
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
 - **platforms** (2): DS-072(ready), DS-073(ready)
-- **plugins** (4): DS-050(doing), DS-051(review), DS-052(ready), DS-054(backlog)
+- **plugins** (4): DS-050(doing), DS-051(done), DS-052(ready), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
