@@ -1221,7 +1221,10 @@
     "touches": [
       "new:crates/ds-vdev/src/throttle.rs",
       "new:tests/bench/backpressure.rs",
-      "docs/components/virtual-device.md"
+      "docs/components/virtual-device.md",
+      "crates/ds-vdev/src/lib.rs",
+      "crates/ds-vdev/src/hub.rs",
+      "crates/ds-vdev/Cargo.toml"
     ],
     "branch": "ticket/DS-035",
     "worktree": ".worktrees/DS-035",
