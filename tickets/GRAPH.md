@@ -53,7 +53,7 @@ graph TD
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::done
   DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::done
   DS062["DS-062 CLI self-description + error contract conformance tests: ..."]:::done
-  DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::doing
+  DS063["DS-063 Python/CLI client helper for agents (thin wrapper over ds..."]:::done
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::doing
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
@@ -189,7 +189,7 @@ Critical path length: 10 tickets.
 
 ## Parallel lanes
 
-- **agents** (1): DS-063(doing)
+- **agents** (1): DS-063(done)
 - **bench** (1): DS-033(ready)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(backlog)
