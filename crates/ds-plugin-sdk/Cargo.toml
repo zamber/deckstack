@@ -1,0 +1,26 @@
+[package]
+name = "ds-plugin-sdk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+description = "Rust SDK for deckstack plugins: serve() speaks the newline-JSON plugin wire protocol of docs/contracts/plugins.md (manifest: schemas/plugin-manifest.json)."
+
+# Dependency-light on purpose (ticket DS-051): serde/serde_json only. The host validates
+# manifests and action params against the full JSON Schema; the SDK validates the manifest
+# shape itself and checks the documented JSON-Schema subset of `params` before dispatch.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The plugin wire contract test lives with the other contract corpora under
+# tests/contract/plugins/ (ticket touches); cargo accepts a target path outside the
+# package, so `cargo test -p ds-plugin-sdk --test plugins` and `cargo test --test plugins`
+# both run it.
+[[test]]
+name = "plugins"
+path = "../../tests/contract/plugins/plugins.rs"
+
+# Inherit the workspace lint config from the root Cargo.toml.
+[lints]
+workspace = true
