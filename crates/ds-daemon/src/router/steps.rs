@@ -16,7 +16,7 @@
 //! |---|---|
 //! | `set` | one state transaction through the [`StateHandle`] (the state task is the single writer), schema-validated against `schemas/state.json` on commit — one rev bump; a schema-invalid value is rejected with `E_SCHEMA` and **state is untouched** |
 //! | `emit` | validates the topic, publishes it on the bus (subscribers see it) and **re-enters the router synchronously** with depth + 1; the bus copy of an emit-published event is skipped by the engine's own subscription (marker map), so every event is dispatched exactly once |
-//! | `plugin` | stubbed until the plugin host lands (DS-050): typed `E_CAP` error, never crashes the router |
+//! | `plugin` | the DS-050 host seam: `id.action` + `args` invoked on the plugin host (bounded 2 s timeout); typed E_* errors, never blocks the router unboundedly |
 //! | `exec` | the DS-043 policy gate (`crate::policy`): argv-only shape, `/policy/exec` allow/deny (deny wins, shells pre-denied), cwd confined to `/policy/fs/roots` + `/tmp`, admin scope + `allow_exec:true` on the binding, then a fire-and-forget argv-only `execve` with rlimits and a scrubbed env; every attempt is audited (`deck/system/exec`) and a refusal is a typed error — no process is ever spawned through a shell |
 //! | `sleep` | bounded `ms` (1..=60000); the remaining steps continue on a **timer thread**, so the router/bus thread never blocks |
 //!
@@ -306,8 +306,15 @@ impl Engine {
                 Ok(StepOutcome::Continue)
             }
             "plugin" => {
-                // Stub until the plugin host lands (DS-050): typed error, never a crash,
-                // never an invocation.
+                // The DS-050 plugin host seam: the step invokes `id.action` with the
+                // step's `args` (JSON payload) through the registered plugin host
+                // (lazily created at ~/.local/share/deckstack/plugins on first use).
+                // The host bounds the call by its 2 s invoke timeout, so the router
+                // thread never blocks unboundedly; protocol errors map to the
+                // documented E_* codes (unknown plugin/action E_PATH, crash/not
+                // running E_DEVICE, cap violation E_CAP, args/schema E_SCHEMA,
+                // timeout E_LIMIT). With no host serving the plugin the typed E_CAP
+                // stub below is returned, exactly like the pre-DS-050 stub.
                 let id = step.get("id").and_then(Value::as_str).unwrap_or("");
                 let action = step.get("action").and_then(Value::as_str).unwrap_or("");
                 if id.is_empty() || action.is_empty() {
@@ -315,13 +322,9 @@ impl Engine {
                         "plugin step needs non-empty 'id' and 'action' (invoke by id.action)",
                     ));
                 }
-                Err(IpcError::new(
-                    ErrorCode::ECap,
-                    format!(
-                        "plugin step '{id}.{action}' cannot run yet: the plugin host lands with \
-                         DS-050 (stubbed E_CAP; the router is unaffected)"
-                    ),
-                ))
+                let args = step.get("args").cloned().unwrap_or_else(|| json!({}));
+                crate::plugins::invoke_with(&self.state, &self.bus, id, action, &args)
+                    .map(|_| StepOutcome::Continue)
             }
             "exec" => {
                 // DS-043 policy gate: argv-only shape is re-enforced here (bind-time

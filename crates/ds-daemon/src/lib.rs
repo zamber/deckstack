@@ -25,6 +25,11 @@
 //! - [`router`] — the event bus + router (DS-040): device input reports become
 //!   `deck/control/*` events, committed state changes become state events, the `emit`
 //!   op publishes `app/*`/`deck/*` topics; IPC `subscribe`/`unsubscribe` register on it.
+//! - [`plugins`] — the DS-050 plugin host: one sandboxed OS process per plugin
+//!   (rlimits + Landlock in a re-exec'd child, argv-only), hello/register handshake,
+//!   capability enforcement per request/effect, host-mediated network, watchdog
+//!   (respawn ≤ 3/10 min), per-plugin log ring buffer, lifecycle state under
+//!   `/plugins`, and the `plugin` router step seam.
 //! - [`daemon`] — the glue: arg parsing + assembling the tasks + the run loop. `run` is
 //!   wrapped here (see below) so the DS-024 guard supervises it.
 //! - [`lifecycle`] — data dir resolution + permissions, token, pid file, structured logs,
@@ -67,6 +72,15 @@ pub mod daemon {
         {
             std::process::exit(crate::policy::spawn::exec_child_main(&args[1..]));
         }
+        // DS-050: the plugin-child marker, same re-exec pattern as the exec child —
+        // the spawned plugin process applies rlimits + Landlock and execve's the
+        // manifest's argv (never a shell).
+        if args
+            .first()
+            .is_some_and(|a| a == crate::plugins::spawn::PLUGIN_CHILD_ARG)
+        {
+            std::process::exit(crate::plugins::spawn::plugin_child_main(&args[1..]));
+        }
         super::daemon_impl::parse_args(args)
     }
 
@@ -74,7 +88,8 @@ pub mod daemon {
     /// writers drained, device handed back, exit 0; a critical-task panic → the same
     /// handback, exit [`crate::guard::CRASH_EXIT_CODE`]. On the way out, every tracked
     /// exec-child process group is SIGKILLed (DS-043; the children also die on their
-    /// own via RLIMIT_CPU).
+    /// own via RLIMIT_CPU) **and every plugin process group is SIGKILLed** (DS-050:
+    /// daemon exit never leaves a plugin process behind).
     pub fn run(opts: RunOptions) -> std::io::Result<i32> {
         let device = device_uri(&opts.device)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
@@ -84,6 +99,7 @@ pub mod daemon {
             crate::guard::GuardContext { device, data_dir },
         );
         crate::policy::spawn::kill_all_tracked();
+        crate::plugins::shutdown_all();
         Ok(result)
     }
 }
@@ -94,6 +110,7 @@ pub mod frames;
 pub mod guard;
 pub mod ipc;
 pub mod lifecycle;
+pub mod plugins;
 pub mod policy;
 pub mod router;
 pub mod state;
