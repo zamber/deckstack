@@ -1547,7 +1547,8 @@
       "docs/contracts/plugins.md",
       "docs/components/plugin-host.md",
       "crates/ds-daemon/src/lib.rs",
-      "crates/ds-daemon/Cargo.toml"
+      "crates/ds-daemon/Cargo.toml",
+      "crates/ds-daemon/src/router/steps.rs"
     ],
     "branch": "ticket/DS-050",
     "worktree": ".worktrees/DS-050",
