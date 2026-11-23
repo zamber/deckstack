@@ -256,6 +256,9 @@ cmd_review() {
   echo "-- full diff --"
   git diff "$MB...$ref"
 
+  # A ticket's submit commit sets its own state to review, so after a clean rebase the
+  # generated board can be stale against the branch copies. Normalize before the gate.
+  ( cd "$ROOT/$wt" && python3 tools/tickets.py sync >/dev/null 2>&1 ) || true
   if ! run_checks "$ROOT/$wt"; then
     cat "$TMP/checks.txt"
     die "tools/check.sh failed in $wt; review aborted"
