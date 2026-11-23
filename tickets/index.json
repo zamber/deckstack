@@ -1615,7 +1615,7 @@
   {
     "id": "DS-052",
     "title": "ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml",
-    "state": "doing",
+    "state": "review",
     "phase": 5,
     "lane": "plugins",
     "size": "L",
