@@ -19,6 +19,20 @@ serde_json = "1"
 sha2 = "0.10"
 thiserror = "2"
 
+# DS-035: the repo-level backpressure integration test lives at tests/bench/backpressure.rs
+# and is wired as an explicit test target of this package (the same pattern ds-protocol uses
+# for tests/protocol/ and ds-device for tests/hw/):
+#   cargo test -p ds-vdev --test backpressure
+[[test]]
+name = "backpressure"
+path = "../../tests/bench/backpressure.rs"
+
+# The backpressure test drives the real daemon frame service against a VdevServer (the
+# ds-vdev <-> ds-daemon cycle is dev-only on both sides, which cargo allows).
+[dev-dependencies]
+ds-daemon = { path = "../ds-daemon" }
+ds-state = { path = "../ds-state" }
+
 # Inherit the workspace lint config from the root Cargo.toml.
 [lints]
 workspace = true
