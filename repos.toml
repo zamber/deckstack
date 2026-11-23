@@ -33,7 +33,7 @@ name = "deckstack-plugin-py"
 path = "plugins-py/"
 status = "alpha (phase 5)"
 development = "in-tree during alpha; published separately as a PyPI package"
-publish = "git subtree split --prefix=plugins-py --branch release/plugin-py; maturin/wheel to PyPI as ds-plugin-py"
+publish = "git subtree split --prefix=plugins-py --branch release/plugin-py; python -m build (pure-Python wheel, setuptools) to PyPI as ds-plugin-py"
 owner = "steward"
 
 [[repo]]
