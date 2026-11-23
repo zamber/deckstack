@@ -46,9 +46,20 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 Verify the rule took effect on the plugged-in deck:
 
 ```sh
-ls -l /dev/hidraw*                 # uaccess nodes carry an ACL for the logged-in user
-udevadm info /dev/hidraw<N>        # check the tag; replug if the device was already attached
+ls -l /dev/hidraw*                 # uaccess nodes show "+" and crw-rw----
+getfacl /dev/hidraw<N>             # must list user:<you>:rw-
+udevadm info /dev/hidraw<N>        # TAGS and CURRENT_TAGS contain :uaccess:seat:
 ```
+
+Rule ordering matters: `73-seat-late.rules` only schedules the ACL builtin for devices that
+already carry the `uaccess` tag when it runs. A rule numbered later (this one is `99-`) must
+schedule the builtin itself with `RUN{builtin}+="uaccess"`, otherwise the tag is set but no
+ACL is applied and the node stays `root:root 0600`. Never rely on `TAG+="uaccess"` alone from
+a late file.
+
+The vendor app must not be running: the HubDeck/MasterHub desktop app claims the deck's USB
+interfaces through libusb, and while it holds them the hidraw nodes are absent (interfaces
+bound to `usbfs`) and `usbhid` cannot rebind. Stop it before running the daemon on `hid:`.
 
 **Group fallback** (systems without logind/`uaccess`): use the commented rule variant
 `GROUP="deckstack", MODE="0660"` in the rules file, then
