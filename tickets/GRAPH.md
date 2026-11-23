@@ -29,7 +29,7 @@ graph TD
   DS023["DS-023 Hot-plug rescan, reconnect, re-push, unresponsive-device ..."]:::done
   DS024["DS-024 Guard/handback: clean device state on daemon exit, SIGTER..."]:::done
   DS025["DS-025 udev rules, device permissions, install docs (Linux)"]:::done
-  DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::ready
+  DS026["DS-026 Hardware smoke suite: enumerate, frame, replug, handback ..."]:::doing
   DS027["DS-027 deckstack-verify camera harness: discovery, calibration, ..."]:::backlog
   DS028["DS-028 Camera golden checks for key:0, panel, LED + calibration ..."]:::backlog
   DS029["DS-029 Safety conformance: forbidden commands, hardware-mode rea..."]:::done
@@ -209,7 +209,7 @@ Critical path length: 10 tickets.
 - **security** (2): DS-043(doing), DS-081(backlog)
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(ready), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(doing), DS-029(done), DS-045(ready), DS-053(backlog), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(ready)
 - **verify** (2): DS-027(backlog), DS-028(backlog)
 - **web** (1): DS-074(ready)
@@ -217,7 +217,6 @@ Critical path length: 10 tickets.
 
 ## Ready set (state=ready, deps done - claimable now)
 
-- DS-026 - Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py) (lane test)
 - DS-033 - Streaming bench: 32 fps x 60 s sustained on throttled vdev, query p99 <= 10 ms, drops counted, memory soak (lane bench)
 - DS-034 - Animation/GIF pipeline: multi-frame decode, <=300 frames @ <=30 fps, loop meta, per-target limits (lane frames)
 - DS-035 - vdev throttling/backpressure tests: --throttle-kbps, drop-after, credit exhaustion, in-flight never torn (lane vdev)
