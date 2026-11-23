@@ -9,8 +9,33 @@ agent steering as first-class. Evidence about the two existing implementations:
 [`docs/discovery/`](docs/discovery/) (read-only; prefixes `hubdeck/` = `~/repos/hubdeck`,
 `upstream/` = `~/repos/hubdeck-upstream`).
 
-**Status: planning, alpha scope.** Documents, schemas and examples only — no working
-software yet. Nothing here edits the two hub repos.
+**Status: alpha scope, working software.** The daemon, CLI, virtual device, and
+conformance suites exist and run (see "Run it"). Nothing here edits the two hub repos.
+
+## Run it
+
+Operator guide: **[docs/runbook.md](docs/runbook.md)** — install/build, first start on the
+virtual device, real hardware (udev + `hid:` URI), systemd user unit, logs, status/health,
+token handling, restart/upgrade, crash recovery, backup/restore, troubleshooting.
+
+```sh
+cargo build --release --workspace                       # target/release/{ds,ds-daemon,ds-vdev,ds-vdevctl}
+python3 tests/e2e/run.py --no-bench                     # end-to-end demo: boots ds-vdev + ds-daemon
+                                                        # on a temp dir and drives a key image through it
+# or by hand:
+target/release/ds-vdev --socket /tmp/vdev.sock &
+target/release/ds daemon start --device virtual:/tmp/vdev.sock
+target/release/ds daemon status                         # ok running pid=… rev=… device=…
+target/release/ds set /controls/keys/0/image --json '{"kind":"color","value":"#3cc86e"}'
+target/release/ds daemon stop
+```
+
+Current capabilities (CLI-first, no web UI / plugin UI in the alpha — out of scope by
+`docs/00-scope.md`): `ds get|set|watch|schema|describe|status`, `ds bind|unbind`,
+`ds daemon start|stop|status`, `ds stream stats|stop` (frame-plane push is wired in the
+CLI but the daemon does not bind `stream.sock` yet); `ds token|emit|events|plugin` are
+later-phase verbs, refused with exit 1 until their tickets land. Linux only; no
+`ds migrate`; empty state at first start.
 
 ## Working on this repo (agents)
 
@@ -35,6 +60,7 @@ The flow was proven end to end on DS-000 (`prs/DS-000.md`, `prs/DS-000.review.md
 
 | You are… | Start at |
 |---|---|
+| An operator running the daemon | [docs/runbook.md](docs/runbook.md) (start/stop, logs, tokens, recovery, troubleshooting) |
 | An agent picking up a ticket | [AGENTS.md](AGENTS.md) → [docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md) → your ticket |
 | A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton → [docs/60-roadmap.md](docs/60-roadmap.md) |
 | Checking what is in/out of alpha | [docs/00-scope.md](docs/00-scope.md) (one hop from here and from PLAN) |
