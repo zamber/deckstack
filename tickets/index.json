@@ -2092,7 +2092,7 @@
   {
     "id": "DS-080",
     "title": "Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion",
-    "state": "review",
+    "state": "done",
     "phase": 6,
     "lane": "test",
     "size": "L",
@@ -2106,9 +2106,9 @@
       "new:tests/fuzz/",
       "new:tests/limits/"
     ],
-    "branch": "ticket/DS-080",
-    "worktree": ".worktrees/DS-080",
-    "pr": "prs/DS-080.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
