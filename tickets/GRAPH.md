@@ -57,7 +57,7 @@ graph TD
   DS064["DS-064 Operator runbook: start/stop/restart, logs, token managem..."]:::done
   DS070["DS-070 lights.lan plugin repo (deckstack-lights): fake HueMux, l..."]:::backlog
   DS071["DS-071 Selective porting inventory + one button port: old-app be..."]:::backlog
-  DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::doing
+  DS072["DS-072 Windows port breakdown (TODO doc only — do not implement)..."]:::review
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::ready
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
@@ -201,7 +201,7 @@ Critical path length: 10 tickets.
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
-- **platforms** (2): DS-072(doing), DS-073(ready)
+- **platforms** (2): DS-072(review), DS-073(ready)
 - **plugins** (4): DS-050(done), DS-051(done), DS-052(doing), DS-054(backlog)
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
