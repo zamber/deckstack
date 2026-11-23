@@ -48,7 +48,7 @@ graph TD
   DS050["DS-050 Plugin host in ds-daemon: spawn, hello/register handshake..."]:::done
   DS051["DS-051 Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action..."]:::done
   DS052["DS-052 ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugin..."]:::done
-  DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::review
+  DS053["DS-053 Plugin abuse tests: fork bomb, memory, cap violation, fs ..."]:::done
   DS054["DS-054 Example plugin + plugin docs + packaging: the plugins.md ..."]:::done
   DS060["DS-060 ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backen..."]:::done
   DS061["DS-061 ds-mcp: stdio MCP bridge over the daemon API (tools/list,..."]:::done
@@ -61,7 +61,7 @@ graph TD
   DS073["DS-073 macOS port breakdown (TODO doc only — do not implement): ..."]:::done
   DS074["DS-074 Optional debug/web client over the WS/HTTP adapter (post-..."]:::ready
   DS080["DS-080 Fuzz + limits tests for IPC/state/images: malformed NDJSO..."]:::done
-  DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::backlog
+  DS081["DS-081 Security conformance mapping T1-T12: every threat row get..."]:::ready
   DS082["DS-082 Performance gates in CI on vdev: wire ds-bench budgets (q..."]:::done
   DS083["DS-083 Release packaging: tar/AppImage for Linux, systemd unit i..."]:::done
   DS090["DS-090 Workflow hardening smoke: second end-to-end run after the..."]:::done
@@ -218,10 +218,10 @@ Critical path length: 10 tickets.
 - **porting** (1): DS-071(backlog)
 - **protocol** (1): DS-010(done)
 - **router** (4): DS-040(done), DS-041(done), DS-042(done), DS-044(done)
-- **security** (2): DS-043(done), DS-081(backlog)
+- **security** (2): DS-043(done), DS-081(ready)
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
-- **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(review), DS-062(done), DS-080(done), DS-093(done)
+- **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(done)
 - **verify** (2): DS-027(doing), DS-028(ready)
 - **web** (1): DS-074(ready)
@@ -232,3 +232,4 @@ Critical path length: 10 tickets.
 - DS-028 - Camera golden checks for key:0, panel, LED + calibration procedure (lane verify)
 - DS-070 - lights.lan plugin repo (deckstack-lights): fake HueMux, lights.set actions, net:lights.lan-only policy, no presets/scenes (lane integrations)
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
+- DS-081 - Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status (lane security)

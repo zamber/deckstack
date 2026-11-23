@@ -1661,7 +1661,7 @@
   {
     "id": "DS-053",
     "title": "Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11)",
-    "state": "review",
+    "state": "done",
     "phase": 5,
     "lane": "test",
     "size": "M",
@@ -1675,9 +1675,9 @@
       "docs/20-security.md",
       "tests/conformance/run.py"
     ],
-    "branch": "ticket/DS-053",
-    "worktree": ".worktrees/DS-053",
-    "pr": "prs/DS-053.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
@@ -2152,7 +2152,7 @@
   {
     "id": "DS-081",
     "title": "Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status",
-    "state": "backlog",
+    "state": "ready",
     "phase": 6,
     "lane": "security",
     "size": "L",
@@ -2170,7 +2170,7 @@
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "docs/20-security.md section 2 threat table is updated so every row T1-T12 names its executable test (path + command), not prose: T1 auth/scopes (DS-012/018 cases), T2 code-in-config negative fixtures (DS-041/validate.sh), T3 plugin isolation (DS-053), T4 image bombs (DS-080), T5 exec refusal (DS-043), T6 traversal (DS-043/053 + schema fixtures), T7 adapter Host/bearer (DS-074 tests or adapter cases), T8 forbidden commands (DS-029), T9 token rotation (DS-012 conformance), T10 vendor busy-check (DS-024/smoke), T11 net glob matrix (DS-053), T12 pipe ACL (Windows-only \u2014 marked as such, tested in DS-072 phase)",
       "tests/conformance/security/ runs the mapping end to end on vdev: a runner that executes each referenced case and prints a T1-T12 status table (green/red/skip-with-reason); exit nonzero on any red",

@@ -46,7 +46,7 @@ Generated: 2026-11-23 - 68 tickets.
 | DS-050 | done | 5 | plugins | L | vibe/DS-050 | DS-042, DS-043 | Plugin host in ds-daemon: spawn, hello/register handshake, manifest validation, caps, rlimits+Landlock, watchdog, lifecycle |
 | DS-051 | done | 5 | plugins | M | vibe/DS-051 | DS-042, DS-043 | Rust plugin SDK (ds-plugin-sdk): serve(manifest), @action-equivalent registration, effect builders, get/set_state, http(), protocol tests |
 | DS-052 | done | 5 | plugins | L | vibe/DS-052 | DS-042, DS-043 | ds-plugin-py: Python SDK + hubdeck-compat wrapper (plugins-py/), PyPI package per repos.toml |
-| DS-053 | review | 5 | test | M | vibe/DS-053 | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
+| DS-053 | done | 5 | test | M | vibe/DS-053 | DS-050, DS-052 | Plugin abuse tests: fork bomb, memory, cap violation, fs traversal, oversized net URL, timeout/degraded, net glob edges (T3/T5/T6/T11) |
 | DS-054 | done | 5 | plugins | M | vibe/DS-054 | DS-050, DS-052 | Example plugin + plugin docs + packaging: the plugins.md section 7 demo end to end, install flow, README/docs |
 | DS-060 | done | 6 | senders | M | vibe/DS-060 | DS-040, DS-041 | ds-focus sender: KWin D-Bus + wlr-foreign-toplevel backends, settle 300 ms, ds emit app/focus/changed, --inject for tests, latency <= 500 ms |
 | DS-061 | done | 6 | senders | M | vibe/DS-061 | DS-040, DS-041 | ds-mcp: stdio MCP bridge over the daemon API (tools/list, deck_set/deck_get/deck_bind/deck_emit/deck_watch/deck_stream_push/deck_plugin_list/deck_schema/deck_status) |
@@ -59,7 +59,7 @@ Generated: 2026-11-23 - 68 tickets.
 | DS-073 | done | 7 | platforms | M | vibe/DS-073 | DS-020, DS-026 | macOS port breakdown (TODO doc only — do not implement): ds-platform NSWorkspace+AX, ds-device macOS paths, SET_IDLE, pipelined pictures, app bundle, test plan |
 | DS-074 | ready | 7 | web | M | - | DS-013, DS-032 | Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI |
 | DS-080 | done | 6 | test | L | vibe/DS-080 | DS-012, DS-018, DS-031 | Fuzz + limits tests for IPC/state/images: malformed NDJSON, oversized frames, schema edges, decode bombs, queue exhaustion |
-| DS-081 | backlog | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
+| DS-081 | ready | 6 | security | L | - | DS-029, DS-043, DS-053 | Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status |
 | DS-082 | done | 6 | ci | M | vibe/DS-082 | DS-020, DS-033, DS-045 | Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job |
 | DS-083 | done | 6 | packaging | M | vibe/DS-083 | DS-019, DS-025, DS-082 | Release packaging: tar/AppImage for Linux, systemd unit install, per-component subtree-split repos + tags, ds-plugin-py wheel, checksums, release.sh |
 | DS-090 | done | 0 | workflow | S | worker-smoke|R07&R08\CMT | - | Workflow hardening smoke: second end-to-end run after the R01-R09 review fixes |
