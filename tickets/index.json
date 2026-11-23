@@ -2179,11 +2179,11 @@
   {
     "id": "DS-082",
     "title": "Performance gates in CI on vdev: wire ds-bench budgets (query p99, S1 no-churn, event latency, throughput, memory soak) into the Linux CI job",
-    "state": "ready",
+    "state": "doing",
     "phase": 6,
     "lane": "ci",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-082",
     "depends_on": [
       "DS-020",
       "DS-033",
@@ -2194,9 +2194,9 @@
       "new:.github/workflows/ci.yml",
       "docs/30-testing.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-082",
+    "worktree": ".worktrees/DS-082",
+    "pr": "prs/DS-082.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
