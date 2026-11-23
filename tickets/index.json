@@ -892,7 +892,7 @@
   {
     "id": "DS-027",
     "title": "deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/)",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "verify",
     "size": "L",
@@ -904,9 +904,9 @@
       "new:tools/verify/",
       "docs/90-verification.md"
     ],
-    "branch": "ticket/DS-027",
-    "worktree": ".worktrees/DS-027",
-    "pr": "prs/DS-027.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
