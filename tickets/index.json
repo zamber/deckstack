@@ -1457,13 +1457,14 @@
     ],
     "touches": [
       "new:crates/ds-daemon/src/router/ingest.rs",
-      "new:tests/conformance/focus_ingest/"
+      "new:tests/conformance/focus_ingest/",
+      "crates/ds-daemon/src/router/mod.rs"
     ],
     "branch": null,
     "worktree": null,
     "pr": null,
     "created": "2026-11-22",
-    "updated": "2026-11-22",
+    "updated": "2026-11-23",
     "acceptance": [
       "on app/focus/changed the router writes the payload into /focus {app, title, pid, at_rev} and dispatches matching bindings in ONE state transaction \u2014 a when on path /focus/app sees the new value in the same dispatch (S7)",
       "conformance: ds-focus --inject (or ds emit app/focus/changed) with a binding conditioned on /focus/app -> the binding fires on the new value; a second binding reading /focus via get after the event sees at_rev == dispatch rev",
