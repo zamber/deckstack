@@ -2,7 +2,8 @@
 
 The single onboarding route for a coding agent (or an agent operator) that wants to drive
 a MasterHub deck through deckstack. Everything on this page is reachable from the `ds`
-CLI with no UI (R1): install → permissions → daemon → MCP bridge → tools → errors.
+CLI with no UI (R1): install → permissions → daemon → connect (MCP/ds-py) → **write
+micro-apps** (`docs/microapps.md`) → tools → errors.
 
 - **Alpha status, Linux only.** The alpha runs on Linux. Deliberately absent: any web UI,
   a hosted service, plugins published on PyPI (`clients/ds-py` is copied, not installed),
@@ -172,6 +173,22 @@ with DeckClient(socket="…/daemon.sock", data_dir="…") as ds:   # or ds="/abs
 ```
 See `clients/ds-py/README.md`; examples in `examples/agents/`.
 
+### 4.3 Write a micro-app (the authoring route)
+
+Connecting is step one; the main goal is writing small programs that drive the deck on
+demand — a status strip, a focus panel, a git indicator. The authoring route is
+**`docs/microapps.md`**: learn the API from `ds --help` / `ds <verb> --help` (each verb
+help carries usage, arguments with defaults, one runnable example, the exit codes it can
+return, and a `ds schema`/`ds describe` pointer), `ds schema <name>`, and
+`ds describe <path>` — no source reading needed. Then copy `examples/microapps/`
+(`status_strip.py`, `focus_panel.py`, `gitdeck.py`: stdlib-only, `--once`/`--loop`,
+`--socket`/`--data-dir`, cleanup, clear `[exit N]` errors) and adapt. The guide covers
+the state path map, `ds watch --ndjson` events, images and the target table, bindings,
+script-vs-plugin, rate limits (the 1 Hz attention rule), and error handling.
+`python tests/conformance/microapps/run.py` proves the examples end to end against vdev.
+MCP (§4.1) stays the optional native-control path; the CLI is the primary authoring
+surface.
+
 ## 5. The tool table (10 tools)
 
 `docs/components/mcp-bridge.md` is **normative**; the authoritative argument schemas are the
@@ -260,5 +277,8 @@ yet). Follow the bridge doc for the MCP surface.
 ```sh
 python tests/conformance/agent-onboarding/run.py     # scripted proof, RESULT: OK, exit 0
 python examples/agents/mcp/demo.py                  # ~40-line MCP demo against vdev
+python tests/conformance/microapps/run.py           # DS-099: help content + micro-app examples
+                                                     # against vdev, RESULT: OK, exit 0
 python tests/conformance/run.py -k onboarding        # same suite inside the big harness
+python tests/conformance/run.py -k microapps         # the authoring suite inside the harness
 ```

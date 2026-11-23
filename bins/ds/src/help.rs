@@ -1,5 +1,12 @@
 //! `--help` texts — present at every level (top, verb, group, group+verb) per
 //! `docs/contracts/cli.md` §1 / `docs/AGENT-WORKFLOW.md` §CLI self-description.
+//!
+//! Shape contract (DS-099): every verb help carries Usage, its arguments/flags
+//! with their defaults, exactly ONE runnable Example, the Exit codes it can
+//! return, and a pointer to `ds schema`/`ds describe`. Per-verb help stays
+//! short (<= 25 lines); group help keeps one line per subcommand; `ds --help`
+//! is the index. Detail lives in `docs/contracts/cli.md` and the authoring
+//! guide `docs/microapps.md`.
 
 /// The help text for a topic: "top", a verb, "daemon", or "daemon <sub>".
 pub fn text(topic: &str) -> String {
@@ -74,6 +81,9 @@ E_SCOPE/E_CAP · 5 E_LIMIT · 6 E_UNREACHABLE (start it with: ds daemon start) �
 7 E_DEVICE · 8 E_INTERNAL/E_VERSION.
 
 Errors are actionable and go to stderr:  ds: path not found: /x  [exit 2]
+
+Write small programs that drive the deck (status strips, focus panels, key
+indicators) against this CLI: see docs/microapps.md and examples/microapps/.
 ";
 
 const GET_HELP: &str = "\
@@ -82,74 +92,104 @@ ds get — read a state path (docs/contracts/state.md §1)
 Usage:
   ds get <path> [--fields a,b] [--rev N] [--json] [--compact]
 
-  /telemetry/* works and returns no rev (S1). --rev N fails with exit 3
-  (E_CONFLICT) when the current rev is not N.
+Arguments:
+  <path>           state path, e.g. /controls/keys/0 (schema: `ds describe <path>`)
+  --fields a,b     project only these fields (default: all fields)
+  --rev N          succeed only if the current rev is N, else exit 3 (E_CONFLICT)
+  --json           one object {\"path\":…,\"rev\":…,\"value\":…} (default: human,
+                   one line per fact); --compact makes it one line
+  /telemetry/*     works and returns no rev (S1)
 
-Output:
-  human   the value, one line per fact (scalars plainly, objects as key: value)
-  --json  exactly one object: {\"path\":…,\"rev\":…,\"value\":…}
-
-Examples:
-  ds get /controls/keys/0
+Example:
   ds get /controls/keys/0 --json
-  ds get /controls/keys/0 --fields image,label --json
+
+Exit codes: 0 ok · 1 usage/schema · 2 E_PATH · 3 E_CONFLICT (--rev mismatch) ·
+            4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE (start it with: ds daemon start)
+Discover more: ds schema state · ds describe /controls/keys/0 · docs/microapps.md
 ";
 
 const SET_HELP: &str = "\
-ds set — write a state path (one transaction, needs mutate scope)
+ds set — write a state path in one transaction (needs mutate scope)
 
 Usage:
   ds set <path> <value> [--if-rev N] [--json]
   ds set <path> --file <image-file> [--if-rev N]
 
-  <value> is inline JSON when it parses, else a bare scalar string:
-    ds set /controls/keys/0/label '\"Salon\"'
-    ds set /controls/keys/3/brightness 80
-    ds set /controls/keys/0/image --json '{\"kind\":\"color\",\"value\":\"#ff0000\"}'
-  --file sends {\"kind\":\"file\",\"path\":…} for image paths; the file is
-  canonicalized and must live under /policy/fs/roots (or /tmp), else exit 4.
-  --if-rev N makes the write conditional; a mismatch exits 3 with current_rev.
+Arguments:
+  <path>           state path, e.g. /controls/keys/0/image
+  <value>          inline JSON when it parses, else a bare scalar string
+  --file f         image file → {\"kind\":\"file\",\"path\":…}; canonicalized, must
+                   live under /policy/fs/roots (or /tmp), else exit 4
+  --if-rev N       conditional write (default: last-write-wins); mismatch → exit 3
+                   with current_rev in the payload
+  --json           one object {\"ok\":true,\"rev\":N} (default: human `ok rev=N`)
 
-Output:
-  human   ok rev=N
-  --json  {\"ok\":true,\"rev\":N}
+Example:
+  ds set /controls/keys/0/image --json '{\"kind\":\"color\",\"value\":\"#ff0000\"}'
+
+Exit codes: 0 ok · 1 usage/schema (bad value) · 2 E_PATH · 3 E_CONFLICT (--if-rev) ·
+            4 E_AUTH/E_SCOPE/E_CAP (--file outside /policy/fs/roots) · 5 E_LIMIT ·
+            6 E_UNREACHABLE
+Discover more: ds schema state · ds describe /controls/keys/0/image · docs/microapps.md
 ";
 
 const WATCH_HELP: &str = "\
-ds watch — stream state events on one connection (persistent)
+ds watch — stream state/topic events on one connection (persistent)
 
 Usage:
   ds watch <path> [--ndjson] [--from-rev N] [--max-events N]
 
-  Streaming verb: only --ndjson is accepted; --json here is a usage error (exit 1).
-  Default (human) prints one line per event; --ndjson prints one JSON event object
-  per line, no wrapper. Runs until Ctrl-C or --max-events N.
+Arguments:
+  <path>           state path (/controls, /controls/keys/0) or topic
+                   (/app/focus/changed, /deck/control/keys/*)
+  --ndjson         one JSON event object per line, no wrapper (default: human
+                   `event <path> rev=N`); --json here is a usage error (exit 1)
+  --from-rev N     replay from rev N (default: now)
+  --max-events N   exit after N events (default: run until Ctrl-C)
 
 Example:
   ds watch /controls --ndjson | head -5
+
+Exit codes: 0 ok (after --max-events or Ctrl-C) · 1 usage (--json on watch) ·
+            2 E_PATH · 4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE
+Discover more: ds schema ipc · ds describe /controls · docs/microapps.md §events
 ";
 
 const SCHEMA_HELP: &str = "\
-ds schema — print a JSON Schema from schemas/ (embedded at compile time)
+ds schema — print a JSON Schema from schemas/ (embedded; no daemon needed)
 
 Usage:
   ds schema <state|ipc|stream-frame|plugin-manifest|binding> [--json] [--compact]
 
-Output is the schema itself (pretty JSON; --compact for one line). No daemon needed.
+Arguments:
+  <name>           one of: state, ipc, stream-frame, plugin-manifest, binding
+                   (required — no default)
+  --json           the same schema as one object (default: pretty JSON)
+  --compact        single line
+
+Example:
+  ds schema state --compact
+
+Exit codes: 0 ok · 1 usage (unknown name — the error lists the valid names)
+Discover more: ds describe <path> answers with these schemas · docs/microapps.md
 ";
 
 const DESCRIBE_HELP: &str = "\
-ds describe — schema + current value + allowed verbs for a path
+ds describe — schema + current value + allowed verbs for one path
 
 Usage:
   ds describe <path> [--json] [--compact]
 
-Output:
-  human   path / rev / value / verbs / schema lines
-  --json  one object: {\"path\":…,\"rev\":…,\"value\":…,\"verbs\":[…],\"schema\":…}
+Arguments:
+  <path>           any existing state path, e.g. /controls/keys/0 (else exit 2)
+  --json           one object {\"path\",\"value\",\"verbs\",\"schema\"[,\"rev\"]}
+                   (default: human `path:/rev:/value:/verbs:/schema:` lines)
 
 Example:
   ds describe /controls/keys/0 --json
+
+Exit codes: 0 ok · 1 usage · 2 E_PATH · 4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE
+Discover more: ds schema state · ds --help · docs/microapps.md
 ";
 
 const STATUS_HELP: &str = "\
@@ -158,83 +198,98 @@ ds status — daemon health plus client info
 Usage:
   ds status [--json] [--compact]
 
-Same control op as `ds daemon status`, plus the client name. Daemon down → exit 6
-with 'start it with: ds daemon start'.
+Arguments:
+  --json           one JSON status object (default: human
+                   `ok running pid=… rev=… device=… socket=… client=ds/…`)
+
+Example:
+  ds status --json
+
+Exit codes: 0 ok · 1 usage · 4 E_AUTH · 6 E_UNREACHABLE — daemon down prints:
+            start it with: ds daemon start  [exit 6]
+Discover more: ds daemon status --help · ds schema ipc · docs/agents.md §3
 ";
 
 const BIND_HELP: &str = "\
-ds bind — append a binding to /bindings and print its daemon-assigned id (DS-041)
+ds bind — append a binding to /bindings, print its daemon-assigned id (DS-041)
 
 Usage:
-  ds bind <topic> --do '<step>' [--do '<step>' …] [--when '<cond>'] [--json] [--compact]
+  ds bind <topic> --do '<step>' [--do '<step>' …] [--when '<cond>'] [--json]
 
-  <topic> is an event topic (actions.md §1): deck/control/keys.0/down, app/focus/changed,
-  … — wildcards (`*`) are allowed as whole segments. Each --do '<step>' is either a full
-  JSON step object or the shorthand:
-    set <path> <json-value>            e.g. --do 'set /controls/keys/1/image {\"kind\":\"color\",\"value\":\"#ff0000\"}'
-    emit <topic> [json-payload]        e.g. --do 'emit app/demo/red {}'
-    plugin <id.action> [json-args]     e.g. --do 'plugin demo.bump {\"by\":1}'
-    exec <argv…>                       e.g. --do 'exec /usr/bin/ffmpeg -i v.mp4'  (one token = one argv entry)
-    sleep <ms>                         e.g. --do 'sleep 200'
-  --when '<cond>' is a JSON condition, e.g. '{\"payload\":\"app\",\"op\":\"eq\",\"value\":\"code\"}'
-  (exactly one of path/payload; op exists|eq|neq|gt|lt; value required unless op=exists).
+Arguments:
+  <topic>          event topic (docs/contracts/actions.md §1), e.g.
+                   deck/control/keys.0/down or app/focus/changed; `*` as a whole
+                   segment is a wildcard
+  --do '<step>'    repeatable; shorthand: set <path> <json> | emit <topic> [payload] |
+                   plugin <id.action> [args] | exec <argv…> | sleep <ms> — or a full
+                   JSON step object; {\"do\":\"eval\",…} is rejected (exit 1)
+  --when '<cond>'  optional JSON condition {\"path\"|\"payload\",\"op\",\"value\"}
+  --json           one object {\"ok\":true,\"rev\":N,\"result\":{\"id\":\"bNNNN\"}}
+                   (default: human `ok rev=N id=bNNNN`)
 
-  Steps are schema-validated against schemas/binding.json on the client AND the daemon;
-  code-ish steps ({\"do\":\"eval\",…}) are rejected with exit 1. Step execution lands with
-  DS-042 — bind only stores and validates them.
+Example:
+  ds bind app/focus/changed --do 'set /controls/keys/3/image {\"kind\":\"color\",\"value\":\"#00ff00\"}'
 
-Output:
-  human   ok rev=N id=b0001
-  --json  {\"ok\":true,\"rev\":N,\"result\":{\"id\":\"b0001\"}}
-
-Examples:
-  ds bind deck/control/keys.0/down --do 'plugin demo.bump {\"by\":1}' --json
-  ds bind app/focus/changed --when '{\"payload\":\"app\",\"op\":\"eq\",\"value\":\"code\"}' \\
-      --do 'set /controls/keys/3/image {\"kind\":\"color\",\"value\":\"#00ff00\"}'
-  ds get /bindings --json          # list all
-  ds watch /bindings --ndjson      # stream changes
+Exit codes: 0 ok · 1 usage/schema (bad topic/step) · 2 E_PATH · 4 E_AUTH/E_SCOPE ·
+            5 E_LIMIT · 6 E_UNREACHABLE
+Discover more: ds schema binding · ds get /bindings --json · docs/microapps.md
 ";
 
 const UNBIND_HELP: &str = "\
 ds unbind — remove bindings from /bindings (DS-041)
 
 Usage:
-  ds unbind <id> [--json] [--compact]            remove one binding by id (bNNNN)
-  ds unbind --topic <topic> [--json] [--compact] remove ALL bindings with this exact topic
+  ds unbind <id> [--json] [--compact]
+  ds unbind --topic <topic> [--json] [--compact]
 
-One transaction per invocation (rev +1, one /bindings event). An unknown id, or a topic
-with no binding, fails with E_PATH → exit 2.
+Arguments:
+  <id>             binding id bNNNN (exactly one of <id> / --topic)
+  --topic <topic>  remove ALL bindings with this exact topic
+  --json           one object {\"ok\":true,\"rev\":N,\"result\":{\"removed\":[…]}}
+                   (default: human `ok rev=N removed=b0001`)
+  One transaction per call (rev +1, one /bindings event).
 
-Output:
-  human   ok rev=N removed=b0001
-  --json  {\"ok\":true,\"rev\":N,\"result\":{\"removed\":[\"b0001\"]}}
-
-Examples:
+Example:
   ds unbind b0001
-  ds unbind --topic deck/control/keys.0/down --json
+
+Exit codes: 0 ok · 1 usage · 2 E_PATH (unknown id / no binding for the topic) ·
+            4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE
+Discover more: ds schema binding · ds bind --help · docs/microapps.md
 ";
 
 const DAEMON_HELP: &str = "\
 ds daemon — control the ds-daemon process
 
 Usage:
-  ds daemon start [--device URI] [--foreground]
-  ds daemon stop
-  ds daemon status
+  ds daemon start [--device URI] [--foreground]     spawn ds-daemon, wait for socket
+  ds daemon stop                                    stop over the control socket
+  ds daemon status                                  status op + socket/pid state
   ds daemon <sub> --help
+
+Exit codes: the top-level table (`ds --help`); daemon down → 6 with the exact
+`ds daemon start` hint.
+Discover more: ds schema ipc · docs/agents.md §3 · docs/microapps.md
 ";
 
 const DAEMON_START_HELP: &str = "\
-ds daemon start — spawn ds-daemon and wait for the control socket
+ds daemon start — spawn ds-daemon and wait for the control socket (≤ 5 s)
 
 Usage:
   ds daemon start [--device virtual:PATH|auto] [--foreground] [--data-dir DIR]
 
-Spawns `ds-daemon run --data-dir <dir> [--device <uri>]` (binary: $DS_DAEMON_BIN, else
-the ds-daemon next to the ds binary, else ds-daemon on PATH), redirects its stderr to
-<dir>/daemon.log, waits (≤ 5 s) for daemon.sock + a successful daemon status op, then
-prints the status. --foreground runs it attached. --device auto maps to none in
-phase 1 (only virtual:/hid: URIs exist; hardware is DS-021).
+Arguments:
+  --device URI     virtual:/tmp/vdev.sock (CI/examples), hid: (real deck, DS-021),
+                   auto = none in phase 1 (default: no device)
+  --foreground     run attached instead of detached
+  --data-dir DIR   data dir (default $XDG_RUNTIME_DIR/deckstack, fallback
+                   ~/.local/state/deckstack); stderr → <dir>/daemon.log
+
+Example:
+  ds daemon start --device virtual:/tmp/vdev.sock --data-dir /tmp/deck
+
+Exit codes: 0 ok · 1 usage (cannot spawn; startup timeout — see <dir>/daemon.log) ·
+            6 E_UNREACHABLE · 7 E_DEVICE (hid: permission / vendor app busy)
+Discover more: ds schema ipc · ds daemon status --help · docs/agents.md §3
 ";
 
 const DAEMON_STOP_HELP: &str = "\
@@ -243,8 +298,15 @@ ds daemon stop — stop the daemon over the control socket (admin scope)
 Usage:
   ds daemon stop [--json]
 
-Sends {\"op\":\"daemon\",\"action\":\"stop\"}. Daemon down → exit 6.
-Output: human `ok stopping`, or --json {\"ok\":true,\"result\":{\"stopping\":true}}.
+Arguments:
+  --json           one object {\"ok\":true,\"result\":{\"stopping\":true}}
+                   (default: human `ok stopping`)
+
+Example:
+  ds daemon stop
+
+Exit codes: 0 ok · 1 usage · 4 E_AUTH/E_SCOPE (admin scope needed) · 6 E_UNREACHABLE
+Discover more: ds schema ipc · ds daemon status --help · docs/agents.md §3
 ";
 
 const DAEMON_STATUS_HELP: &str = "\
@@ -253,101 +315,146 @@ ds daemon status — daemon status op plus socket/pid state
 Usage:
   ds daemon status [--json] [--compact]
 
-Output: human `ok running pid=… rev=… device=… socket=…`, or --json one object
-(the daemon status result plus socket/pid_file). Daemon down → exit 6:
+Arguments:
+  --json           one JSON status object (default: human
+                   `ok running pid=… rev=… device=… socket=…`)
+
+Example:
+  ds daemon status --json
+
+Exit codes: 0 ok · 1 usage · 4 E_AUTH · 6 E_UNREACHABLE — daemon down prints:
   ds: daemon unreachable at <socket> — start it with: ds daemon start  [exit 6]
+Discover more: ds status --help · ds schema ipc · docs/agents.md §3
 ";
 
 const STREAM_HELP: &str = "\
 ds stream — the frame-plane producer verbs (docs/contracts/streaming.md, DS-032)
 
 Usage:
-  ds stream push <target> --file <frame> [--loop] [--fps N] [--credits N]
-  ds stream push <target> --dir <frames-dir> --fps N [--loop] [--credits N]
-  ds stream stats <target> [--json] [--compact]
-  ds stream stop <target> [--json] [--compact]
+  ds stream push <target> --file f [--loop] [--fps N] [--credits N]   send frames
+  ds stream push <target> --dir d --fps N [--loop]                   from a dir
+  ds stream stats <target> [--json]                                  telemetry (no rev)
+  ds stream stop <target> [--json]                                   stop the producer
   ds stream <push|stats|stop> --help
 
-  <target> is the unified vocabulary (S6): keys | key:0-14 | dial — 'panel'/'screen'
-  are not targets. Frames ride the binary DSF1 framing on <dir>/stream.sock after a
-  stream-open; push is never a plain NDJSON op (ipc.md §1.2).
+  <target> is the unified vocabulary (S6): keys | key:0-14 | dial — there is no
+  'panel'/'screen' target. Frames ride DSF1 on <data-dir>/stream.sock (DS-032).
 
-Exit codes: same table as the top level; a missing daemon/stream socket is exit 6
-(E_UNREACHABLE), backpressure timeouts are exit 5 (E_LIMIT), a bad target is exit 1.
+Exit codes: the top-level table (`ds --help`); no daemon/stream socket → 6,
+backpressure timeout → 5, bad target → 1.
+Discover more: ds schema stream-frame · docs/microapps.md §images
 ";
 
 const STREAM_PUSH_HELP: &str = "\
-ds stream push — push frames to a display target over the frame stream socket (DS-032)
+ds stream push — push frames to a display target over the frame stream socket
 
 Usage:
-  ds stream push <target> --file <frame.png|jpg|gif> [--loop]
-  ds stream push <target> --dir <dir> --fps N [--loop] [--credits N]
-  ds stream push <target> --file <video.mp4> [--fps N]     (decoded by external ffmpeg)
+  ds stream push <target> --file <frame.png|jpg|gif> [--loop] [--fps N] [--credits N]
+  ds stream push <target> --dir <frames-dir> --fps N [--loop] [--credits N]
 
-  --file sends one frame. --dir sends every file of the directory in filename order
-  (the %04d-style sequence) at --fps N — capped client-side at 300 frames and 30 fps
-  with a clear error. --loop sets the loop flag in the frame meta. A non-image --file
-  (video) is decoded by spawning ffmpeg argv-only (ffmpeg -y -i <file> <tmp>/%04d.png —
-  no shell, no eval, core never links ffmpeg); a missing ffmpeg is a clear error, and
-  the documented manual equivalent is: ffmpeg -i v.mp4 frames/%04d.png && ds stream
-  push <target> --dir frames/ --fps 30.
+Arguments:
+  <target>         keys | key:0-14 | dial (S6); anything else → exit 1
+  --file f         one frame (≤ 16 MB on the wire); a video is decoded by an
+                   external ffmpeg argv-only spawn (missing ffmpeg → clear error)
+  --dir d          every file in filename order at --fps N (capped client-side:
+                   ≤ 300 frames, ≤ 30 fps)
+  --fps N          1..=30 (required with --dir; default: none)
+  --loop           set the loop flag in the frame meta (default: off)
+  --credits N      credit window 1..=1024 (default: the daemon's)
+  --json           {\"ok\":true,\"target\":…,\"sent\":…,\"frames\":…,…} (default:
+                   human `ok target=<t> sent=<n> …`)
 
-  Transport: control socket stream-open (when served) then DSctl stream-open +
-  DSF1 frames on <socket-dir>/stream.sock; the daemon acks each frame (stream-ack) and
-  re-grants credits (stream-credit) as its queue drains. The producer honours the
-  credit window, waits for replenishment on backpressure (stream-nack E_LIMIT) and
-  exits 5 on a backpressure timeout — it never spins or buffers unboundedly.
-  Frame payloads are capped at 16 MB on the wire.
+Example:
+  ds stream push keys --file examples/key.png
 
-Output:
-  human   ok target=<t> sent=<n> frames=<n> [fps=N] [loop=true]
-  --json  {\"ok\":true,\"target\":…,\"sent\":…,\"frames\":…,\"fps\":…,\"loop\":…}
-
-Examples:
-  ds stream push keys --file frame.png
-  ds stream push keys --dir frames/ --fps 30
-  ds stream push dial --file anim.gif --loop
-  ds stream push keys --file v.mp4 --fps 24
+Exit codes: 0 ok · 1 usage (bad target/rate) · 4 E_AUTH/E_SCOPE · 5 E_LIMIT
+            (backpressure timeout) · 6 E_UNREACHABLE (no daemon/stream socket)
+Discover more: ds schema stream-frame · ds stream stats --help · docs/microapps.md
 ";
 
 const STREAM_STATS_HELP: &str = "\
-ds stream stats — print /telemetry/streams/<target> over the control socket (DS-032)
+ds stream stats — print /telemetry/streams/<target> (telemetry: no rev, S1)
 
 Usage:
   ds stream stats <target> [--json] [--compact]
 
-  <target>: keys | key:0-14 | dial (S6). Reads the stream-stats op (or the
-  /telemetry/streams/<target> path) — telemetry only: the object is printed as-is and
-  never carries a rev, and the read never bumps rev (S1).
+Arguments:
+  <target>         keys | key:0-14 | dial (S6)
+  --json           the stats object itself (default: human, one line per fact:
+                   sent: 960 / dropped: 12 / fps: 32.0 / …)
 
-Output:
-  human   one line per fact: sent: 960 / dropped: 12 / fps: 32.0 / …
-  --json  the stats object itself, e.g.
-          {\"sent\":960,\"dropped\":12,\"fps\":32.0,\"bytes\":6700000,\"queue\":1,
-           \"in_flight\":true,\"last_sha256\":\"…\",\"last_seq\":959,\"writer_ms_p99\":4.1,
-           \"sampled_at\":\"…\"}
+Example:
+  ds stream stats keys --json
 
-A target with no stream yet is E_PATH (exit 2).
+Exit codes: 0 ok · 1 usage (bad target) · 2 E_PATH (no stream for the target yet) ·
+            4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE
+Discover more: ds schema stream-frame · ds describe /telemetry · docs/microapps.md
 ";
 
 const STREAM_STOP_HELP: &str = "\
-ds stream stop — stop the producer of a stream target (DS-032)
+ds stream stop — stop the producer of a stream target
 
 Usage:
   ds stream stop <target> [--json] [--compact]
 
-  Sends stream-stop (control op; DSctl stream-stop on stream.sock when the daemon does
-  not serve the control op). The daemon drains the target's queue and refuses new
-  frames. Exit 0 when the producer is already gone (no stream socket / no session).
+Arguments:
+  <target>         keys | key:0-14 | dial (S6)
+  --json           {\"ok\":true,\"target\":…,\"stopped\":true} (default: human
+                   `ok target=<t> stopped=true`)
 
-Output:
-  human   ok target=<t> stopped=true
-  --json  {\"ok\":true,\"target\":…,\"stopped\":true}
+Example:
+  ds stream stop keys
+
+Exit codes: 0 ok (also when the producer is already gone) · 1 usage (bad target) ·
+            4 E_AUTH/E_SCOPE · 6 E_UNREACHABLE
+Discover more: ds stream push --help · ds schema stream-frame · docs/microapps.md
 ";
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const VERB_TOPICS: [&str; 16] = [
+        "get",
+        "set",
+        "watch",
+        "schema",
+        "describe",
+        "status",
+        "bind",
+        "unbind",
+        "daemon",
+        "daemon start",
+        "daemon stop",
+        "daemon status",
+        "stream",
+        "stream push",
+        "stream stats",
+        "stream stop",
+    ];
+
+    const GROUP_TOPICS: [&str; 2] = ["daemon", "stream"];
+
+    /// The lines of the `Example:` block that are actual commands (`  ds …`).
+    fn example_commands(t: &str) -> Vec<&str> {
+        let mut out = Vec::new();
+        let mut in_example = false;
+        for line in t.lines() {
+            if line.starts_with("Example:") {
+                in_example = true;
+                continue;
+            }
+            if in_example {
+                if line.trim().is_empty() {
+                    break;
+                }
+                if line.starts_with("  ds ") {
+                    out.push(line.trim_start());
+                }
+            }
+        }
+        out
+    }
 
     #[test]
     fn help_exists_at_every_level_and_says_usage() {
@@ -402,5 +509,68 @@ mod tests {
         for n in crate::cli::SCHEMA_NAMES {
             assert!(text("schema").contains(n), "schema help missing {n}");
         }
+    }
+
+    #[test]
+    fn every_verb_help_carries_the_ds099_content_contract() {
+        for topic in VERB_TOPICS {
+            let t = text(topic);
+            // short: <= 25 lines per verb/group help (top is the index, exempt)
+            assert!(
+                t.lines().count() <= 25,
+                "{topic} help is {} lines (> 25)",
+                t.lines().count()
+            );
+            // the exit codes it can return
+            assert!(
+                t.contains("Exit codes:"),
+                "{topic} help has no Exit codes line"
+            );
+            // a pointer to the schema/describe discovery verbs
+            assert!(
+                t.contains("ds schema") || t.contains("ds describe"),
+                "{topic} help does not point at `ds schema`/`ds describe`"
+            );
+            if !GROUP_TOPICS.contains(&topic) {
+                // arguments/flags with their defaults
+                assert!(
+                    t.to_lowercase().contains("default"),
+                    "{topic} help documents no defaults"
+                );
+                // exactly ONE runnable example
+                let ex = example_commands(&t);
+                assert_eq!(
+                    ex.len(),
+                    1,
+                    "{topic} help must have exactly one example, got {ex:?}"
+                );
+                assert!(
+                    ex[0].starts_with("ds "),
+                    "{topic} example is not a ds command: {ex:?}"
+                );
+            } else {
+                // group help keeps one usage line per subcommand
+                let usage = t.split("Usage:").nth(1).unwrap_or("");
+                for sub in match topic {
+                    "daemon" => vec!["ds daemon start", "ds daemon stop", "ds daemon status"],
+                    _ => vec!["ds stream push", "ds stream stats", "ds stream stop"],
+                } {
+                    assert!(
+                        usage.contains(sub),
+                        "{topic} group help missing one-liner for {sub}"
+                    );
+                }
+            }
+        }
+        // the top index points at the micro-app authoring route
+        let top = text("top");
+        assert!(
+            top.contains("docs/microapps.md"),
+            "top help must point at docs/microapps.md"
+        );
+        assert!(
+            top.contains("examples/microapps/"),
+            "top help must point at examples/microapps/"
+        );
     }
 }
