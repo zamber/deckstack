@@ -33,6 +33,11 @@ end to end against vdev (gitdeck.py --once against a temp git repo with ahead/
 behind/dirty transitions, focus_panel.py --once/--loop on app/focus/changed,
 status_strip.py --once) and asserts the resulting key/dial state.
 Use `-k microapps` to run only those cases.
+It also registers the DS-053 plugin-abuse suite (tests/conformance/plugins/): fork
+bomb, memory bomb, capability violation, fs traversal, oversized/bad net URL, invoke
+timeout -> degraded -> restart, net glob edge matrix, crash -> watchdog disable, each
+on a fresh ds-vdev + daemon stack with generated raw-stdio fixture plugins
+(docs/20-security.md T3/T5/T6/T11). Use `-k plugins` to run only those cases.
 
 Usage:
     python3 tests/conformance/run.py [--verbose] [-k SUBSTR ...]
@@ -755,6 +760,18 @@ def _agent_onboarding_suite():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.agent_onboarding_suite()
+def _plugins_suite():
+    """The DS-053 plugin-abuse suite (tests/conformance/plugins/), registered into this
+    run so `python tests/conformance/run.py` also machine-checks the T3/T5/T6/T11
+    plugin-abuse invariants (fork bomb, memory bomb, capability violation, fs
+    traversal, oversized/bad net URL, invoke timeout -> degraded -> restart, net glob
+    edges, crash -> watchdog disable) on ds-vdev + the daemon. `-k plugins` runs only
+    these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from plugins.run import plugins_suite
+    return plugins_suite()
 
 
 def _filter_suite(suite, patterns):
@@ -793,6 +810,7 @@ def main():
         suite.addTests(_cli_suite())
         suite.addTests(_agent_onboarding_suite())
         suite.addTests(_microapps_suite())
+        suite.addTests(_plugins_suite())
         if patterns:
             suite = _filter_suite(suite, patterns)
         runner = unittest.TextTestRunner(stream=sys.stdout, verbosity=0,
