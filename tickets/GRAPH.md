@@ -37,7 +37,7 @@ graph TD
   DS031["DS-031 Frame service: latest-frame-wins queues (1 in flight + 1 ..."]:::done
   DS032["DS-032 ds stream CLI: push/stats/stop verbs, --dir/--fps animati..."]:::done
   DS033["DS-033 Streaming bench: 32 fps x 60 s sustained on throttled vde..."]:::doing
-  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::doing
+  DS034["DS-034 Animation/GIF pipeline: multi-frame decode, <=300 frames ..."]:::done
   DS035["DS-035 vdev throttling/backpressure tests: --throttle-kbps, drop..."]:::done
   DS040["DS-040 Event bus + router: topics, device input events, exact/wi..."]:::done
   DS041["DS-041 Bindings: /bindings array with ids (bNNNN), when/payload ..."]:::done
@@ -197,7 +197,7 @@ Critical path length: 10 tickets.
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
 - **device** (4): DS-014(done), DS-021(done), DS-022(done), DS-023(done)
 - **docs** (2): DS-064(done), DS-094(done)
-- **frames** (3): DS-030(done), DS-031(done), DS-034(doing)
+- **frames** (3): DS-030(done), DS-031(done), DS-034(done)
 - **integrations** (1): DS-070(backlog)
 - **ipc** (2): DS-012(done), DS-013(done)
 - **packaging** (3): DS-019(done), DS-025(done), DS-083(backlog)
