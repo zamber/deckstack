@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- deckstack AppImage icon: a 3x3 macro-pad deck with one highlighted key.
+       Original artwork for the deckstack alpha (DS-083); MIT OR Apache-2.0. -->
+  <rect x="8" y="8" width="240" height="240" rx="28" fill="#101418"/>
+  <g fill="#2a323b" stroke="#3cc86e" stroke-width="4">
+    <rect x="28"  y="28"  width="60" height="60" rx="10"/>
+    <rect x="98"  y="28"  width="60" height="60" rx="10"/>
+    <rect x="168" y="28"  width="60" height="60" rx="10"/>
+    <rect x="28"  y="98"  width="60" height="60" rx="10"/>
+    <rect x="168" y="98"  width="60" height="60" rx="10"/>
+    <rect x="28"  y="168" width="60" height="60" rx="10"/>
+    <rect x="98"  y="168" width="60" height="60" rx="10"/>
+    <rect x="168" y="168" width="60" height="60" rx="10"/>
+  </g>
+  <rect x="98" y="98" width="60" height="60" rx="10" fill="#3cc86e"/>
+</svg>

@@ -1,0 +1,102 @@
+name: release
+
+# Tag-triggered Linux release (DS-083). CI stays test-only (ci.yml, DS-003) —
+# this workflow only runs on version tags and produces the artifacts:
+#   deckstack-<v>-linux-<arch>.tar.gz, matching .AppImage, SHA256SUMS.
+# Trigger: git push origin v0.1.0  (the tag name IS the version, minus the 'v').
+# Nothing is published from a worker checkout; only this tag workflow attaches
+# artifacts to the GitHub release for the tag.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write # create the GitHub release for the tag and upload artifacts
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest # Linux-only alpha (docs/00-scope.md)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release.sh reads HEAD's commit time for SOURCE_DATE_EPOCH
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # Full local gate first: fixture gate + ticket board + cargo + conformance.
+      - name: gate
+        run: sh tools/check.sh
+
+      # appimagetool for the AppImage step of release.sh. It ships as an
+      # AppImage itself; GitHub runners may lack FUSE, so wrap it with
+      # --appimage-extract-and-run. Source: https://github.com/AppImage/appimagetool/releases
+      - name: install appimagetool
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/appimagetool.AppImage" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$HOME/.local/bin/appimagetool.AppImage"
+          printf '#!/bin/sh\nexec "%s" --appimage-extract-and-run "$@"\n' \
+            "$HOME/.local/bin/appimagetool.AppImage" > "$HOME/.local/bin/appimagetool"
+          chmod +x "$HOME/.local/bin/appimagetool"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          appimagetool --version || appimagetool --help || true
+
+      - name: build release
+        env:
+          VERSION: ${{ github.ref_name }} # vX.Y.Z
+        run: |
+          sh packaging/release/release.sh --version "${VERSION#v}" --out dist
+
+      - name: verify checksums
+        run: |
+          cd dist && sha256sum -c SHA256SUMS
+
+      # End-to-end smoke of the tarball, same as the local proof in prs/DS-083.md:
+      # unpack, run bin/ds --version + bin/ds-daemon --version, vdev smoke.
+      - name: tarball smoke (unpack + --version + vdev)
+        run: |
+          rm -rf /tmp/dsrel-prefix && mkdir -p /tmp/dsrel-prefix
+          tar -xzf dist/deckstack-*-linux-*.tar.gz -C /tmp/dsrel-prefix
+          PREFIX_DIR=$(find /tmp/dsrel-prefix -mindepth 1 -maxdepth 1 -type d)
+          "$PREFIX_DIR/bin/ds" --version
+          "$PREFIX_DIR/bin/ds-daemon" --version
+          "$PREFIX_DIR/bin/ds-vdev" --socket /tmp/dsrel-vdev.sock &
+          VDEV_PID=$!
+          sleep 1
+          "$PREFIX_DIR/bin/ds" --data-dir /tmp/dsrel-data --socket /tmp/dsrel-data/daemon.sock \
+            daemon start --device virtual:/tmp/dsrel-vdev.sock
+          "$PREFIX_DIR/bin/ds" --data-dir /tmp/dsrel-data --socket /tmp/dsrel-data/daemon.sock daemon status
+          "$PREFIX_DIR/bin/ds" --data-dir /tmp/dsrel-data --socket /tmp/dsrel-data/daemon.sock daemon stop
+          kill "$VDEV_PID" 2>/dev/null || true
+
+      - name: upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deckstack-release-${{ github.ref_name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      # Attach the same artifacts to the GitHub release of the tag.
+      - name: attach artifacts to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/SHA256SUMS
