@@ -2152,11 +2152,11 @@
   {
     "id": "DS-081",
     "title": "Security conformance mapping T1-T12: every threat row gets an executable test reference and a green/red status",
-    "state": "ready",
+    "state": "doing",
     "phase": 6,
     "lane": "security",
     "size": "L",
-    "owner": null,
+    "owner": "vibe/DS-081",
     "depends_on": [
       "DS-029",
       "DS-043",
@@ -2167,9 +2167,9 @@
       "docs/20-security.md",
       "tests/conformance/run.py"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-081",
+    "worktree": ".worktrees/DS-081",
+    "pr": "prs/DS-081.md",
     "created": "2026-11-22",
     "updated": "2026-11-23",
     "acceptance": [
