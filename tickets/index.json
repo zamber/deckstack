@@ -2640,7 +2640,8 @@
     "touches": [
       "tools/verify/golden/manifest.json",
       "tools/verify/golden/run_golden.py",
-      "docs/90-verification.md"
+      "docs/90-verification.md",
+      "tools/verify/golden/"
     ],
     "branch": "ticket/DS-100",
     "worktree": ".worktrees/DS-100",
