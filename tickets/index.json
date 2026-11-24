@@ -2729,20 +2729,20 @@
   {
     "id": "DS-103",
     "title": "Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA)",
-    "state": "ready",
+    "state": "doing",
     "phase": 7,
     "lane": "agents",
     "size": "S",
-    "owner": null,
+    "owner": "autolith",
     "depends_on": [],
     "touches": [
       "docs/microapps.md",
       "bins/ds/src/help.rs",
       "tests/conformance/cli/"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-103",
+    "worktree": ".worktrees/DS-103",
+    "pr": "prs/DS-103.md",
     "created": "2026-11-24",
     "updated": "2026-11-24",
     "acceptance": [
