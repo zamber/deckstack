@@ -954,7 +954,9 @@
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
-    "blocks": []
+    "blocks": [
+      "DS-100"
+    ]
   },
   {
     "id": "DS-029",
@@ -2617,6 +2619,79 @@
       "python tests/conformance/run.py",
       "python tests/e2e/run.py",
       "sh tests/fixtures/validate.sh",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": [
+      "DS-101"
+    ]
+  },
+  {
+    "id": "DS-100",
+    "title": "Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict",
+    "state": "ready",
+    "phase": 2,
+    "lane": "verify",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-028"
+    ],
+    "touches": [
+      "tools/verify/golden/manifest.json",
+      "tools/verify/golden/run_golden.py",
+      "docs/90-verification.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "every golden state in tools/verify/golden/manifest.json pins all 15 key indices and all knob/roller LED rings, so a golden no longer depends on what the device showed before the run",
+      "a documented LED-off sequence actually clears the rings on this M4315 unit, or the limitation is proven device-side with the exact command output in the PR record",
+      "run_golden.py --strict passes every golden twice, at least 10 minutes apart, on the reference pose",
+      "docs/90-verification.md documents the confirmed procedure and the strict mode"
+    ],
+    "verification": [
+      "python3 tools/verify/golden/run_golden.py --strict   (twice, >= 10 min apart)",
+      "python3 tools/verify/deckstack_verify.py selftest",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-101",
+    "title": "Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance",
+    "state": "ready",
+    "phase": 7,
+    "lane": "agents",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-099"
+    ],
+    "touches": [
+      "new:examples/microapps/now_playing.py",
+      "examples/microapps/README.md",
+      "docs/microapps.md",
+      "tests/conformance/microapps/run.py"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "examples/microapps/now_playing.py is a stdlib-only micro-app with --once/--loop/--socket/--data-dir, cleanup, and a documented fallback when no MPRIS player is on the bus",
+      "it renders track/artist/state on the deck (keys and/or dial) through ds set at <= 1 Hz and reacts to player changes",
+      "tests/conformance/microapps/run.py runs it against vdev with --once and asserts the resulting state, with a stub player or the documented no-player path",
+      "docs/microapps.md and examples/microapps/README.md list the example and how to adapt it"
+    ],
+    "verification": [
+      "python tests/conformance/microapps/run.py",
+      "python tests/conformance/run.py",
       "sh tools/check.sh",
       "python3 tools/tickets.py validate"
     ],
