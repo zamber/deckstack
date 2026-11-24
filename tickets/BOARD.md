@@ -73,4 +73,4 @@ Generated: 2026-11-24 - 70 tickets.
 | DS-098 | done | 6 | agents | M | vibe/DS-098 | DS-061, DS-063, DS-083 | Agent onboarding: one route from zero to a working deck session, plus a living agent guide |
 | DS-099 | done | 6 | agents | L | vibe/DS-099 | DS-016, DS-062, DS-098 | Deck micro-app authoring: --help-first discovery, scripting guide, runnable examples, help content audit |
 | DS-100 | ready | 2 | verify | M | - | DS-028 | Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict |
-| DS-101 | review | 7 | agents | M | vibe/DS-101 | DS-099 | Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance |
+| DS-101 | done | 7 | agents | M | vibe/DS-101 | DS-099 | Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance |

@@ -75,7 +75,7 @@ graph TD
   DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::done
   DS099["DS-099 Deck micro-app authoring: --help-first discovery, scripti..."]:::done
   DS100["DS-100 Camera goldens: fully specified golden states (every key ..."]:::ready
-  DS101["DS-101 Micro-app gallery: now-playing strip (MPRIS over D-Bus) e..."]:::review
+  DS101["DS-101 Micro-app gallery: now-playing strip (MPRIS over D-Bus) e..."]:::done
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -205,7 +205,7 @@ Critical path length: 11 tickets.
 
 ## Parallel lanes
 
-- **agents** (4): DS-063(done), DS-098(done), DS-099(done), DS-101(review)
+- **agents** (4): DS-063(done), DS-098(done), DS-099(done), DS-101(done)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(done)
