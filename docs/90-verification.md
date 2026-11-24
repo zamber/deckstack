@@ -162,3 +162,62 @@ The harness is `python3 tools/verify/deckstack_verify.py <devices|capture|calibr
   when a camera is present). `devices`/`capture`/`calibrate`/`compare`/`check`
   against the live deck are hardware-gated, phase 2+ only, like `tests/hw/smoke.py`
   (`DS_HARDWARE=1`).
+
+## Golden camera checks (tools/verify/golden/, DS-028)
+
+Committed goldens pin the three representative visual states: **key0** (key:0 set from a
+fresh daemon, LEDs off), **panel** (all 15 key windows backlit `#ffffff`, LEDs off) and
+**led** (knob 0-2 + roller 0-1 LED rings static `#00ff00`, panel at its backlit default).
+Each golden is a 1280x720 capture from the reference pose plus a per-target comparison
+over the calibrated ROIs; the state that produced it is in `manifest.json`, and
+`run_golden.py` re-applies that state to a **fresh daemon data dir** before every check,
+so the durable state starts empty (empty-state invariant).
+
+These are test fixtures only: nothing under `tools/verify/golden/` is installed as a deck
+default, shipped in a state file, or loaded by the daemon.
+
+```sh
+python3 tools/verify/golden/run_golden.py                 # all goldens, exit 0 pass / 7 mismatch
+python3 tools/verify/golden/run_golden.py --only key0,led # one or two
+python3 tools/verify/golden/run_golden.py --keep /tmp/f    # keep the captured frames
+```
+
+Requires the deck on `hid:` (DS-028's runs used the daemon in the repo's `target/debug`)
+and the AUKEY camera; `DSV_CAMERA` overrides the node and `DS_BIN_DIR` the binaries.
+Each golden runs against a fresh data dir, sets the manifest state with `ds set`, waits
+`settle_ms`, captures, and compares every target at the golden's `tolerance` (20: stable
+same-state noise measured at delta ~9-13 per target; the median-selected golden and the
+min-over-attempts rule suppress the single-frame glare spikes that reach ~90 on one key
+face). The recorded run is in `prs/DS-028.md`.
+
+**Device limitation (measured 2026-11-24)**: on this M4315 unit the key windows keep the
+last pushed colour per index instead of returning to a per-index default, so a fresh
+daemon data dir does not mean a fresh device: the same manifest state captured minutes
+apart renders different keys differently (key0 matched 17/17 targets immediately after
+recording, then failed on the untouched keys 1-14 and `led:0`; the panel golden failed
+15/17, the led golden 3/17), and the LED rings ignore `mode: "off"` (they hold the last
+colour across daemon restarts). A golden is therefore a *recorded fixture* until every
+state also pins every key index and a working LED-off path exists; each golden carries a
+`skip_reason` and `run_golden.py` reports it as `SKIP` (exit 0) unless `--strict` is
+passed. The comparison mechanics themselves are proven: `--record` regenerates the
+calibration and all goldens, and a wrong state fails with the per-target deltas.
+
+**Calibration procedure** (re-run after any camera/deck/lighting change):
+
+1. Light the panel: all 15 keys `#ffffff`, knob 0-2 + roller 0-1 LEDs static `#ff00ff`
+   at brightness 100 (the `calibration.state` block in `manifest.json`), capture
+   `tools/verify/golden/cal-frame.jpg`.
+2. `python3 tools/verify/deckstack_verify.py calibrate --frame tools/verify/golden/cal-frame.jpg
+   --out tools/verify/golden/calibration.json --overlay tools/verify/golden/overlay.png
+   --panel 395,148,205,347 --led-region 150,300,220,260 --orientation 90`
+   (`--led-region` keeps saturated room clutter out of the LED-zone detection; `--panel`
+   is the reference pose rect measured from the overlay). Check `overlay.png`: green
+   rects inside the key faces, magenta cells on the LED rings.
+3. Regenerate goldens deliberately: `run_golden.py --record` re-captures
+   `cal-frame.jpg`, `calibration.json`, `overlay.png` and every golden, updating
+   `manifest.json` (`record_command`). Never hand-edit a golden.
+
+CI runs none of this (hardware-gated, phase 2+); CI keeps `deckstack_verify.py selftest`,
+which needs no deck and no camera. The check wiring is the harness's existing
+`check --expected <golden.jpg> --calibration <calibration.json> --tolerance 20`
+(`manifest.json` carries the exact equivalent command per golden).

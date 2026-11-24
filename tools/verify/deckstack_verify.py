@@ -11,6 +11,7 @@ Subcommands:
   devices                              list video devices (v4l2-ctl) + pick the default
   capture --out f.jpg [...]            one still (or a short clip / frame burst) via ffmpeg
   calibrate --frame f.jpg --out cal.json [--overlay o.png] [--grid CxR] [--panel x,y,w,h]
+            [--led-region x,y,w,h] [--orientation 0|90|180|270] [--face-luma lo,hi]
   compare --expected <spec> --actual f.jpg [--calibration cal.json] [--tolerance N] [--json]
   check --target key:0 --expected ...  capture + compare in one step
   selftest                             full pipeline on a synthetic frame (+ camera if present)
@@ -477,14 +478,15 @@ def components(mask, cols, rows, min_cells):
 
 
 def calibrate_core(img, grid_hint=None, panel_hint=None, orientation=None,
-                   face_luma=None, detect_leds=True, verbose=False):
+                   face_luma=None, detect_leds=True, led_region=None, verbose=False):
     """Detect panel + key grid + LED zones in an Image.
 
     Returns a calibration dict (JSON-serialisable). Assumptions (documented in
     README): roughly frontal camera (axis-aligned affine device->image mapping);
     key faces are brighter or more saturated than the bezel gaps and form the
     N_KEYS largest lit blobs (or one big panel blob); LED zones are saturated
-    blobs outside the panel.
+    blobs outside the panel, optionally restricted to `led_region` (x0, y0, x1, y1)
+    in image pixels (DS-028: ignore saturated blobs elsewhere in the room).
     """
     cell = max(4, min(img.w, img.h) // 180)
     cols, rows, cells = cell_grid(img, cell)
@@ -655,6 +657,11 @@ def calibrate_core(img, grid_hint=None, panel_hint=None, orientation=None,
             cx, cy = c["center"]
             return px0 / cell <= cx <= px1 / cell and py0 / cell <= cy <= py1 / cell
         zcomps = [c for c in zcomps if not overlaps_panel(c)]
+        if led_region:
+            lx0, ly0, lx1, ly1 = led_region
+            zcomps = [c for c in zcomps
+                      if lx0 / cell <= c["center"][0] <= lx1 / cell
+                      and ly0 / cell <= c["center"][1] <= ly1 / cell]
         zcomps.sort(key=lambda c: (c["center"][1], c["center"][0]))
         for i, c in enumerate(zcomps[:8]):
             x0, y0, x1, y1 = c["bbox"]
@@ -730,13 +737,22 @@ def cmd_calibrate(args):
             eprint("--face-luma must be lo,hi")
             return EXIT_USAGE
         face_luma = (int(m.group(1)), int(m.group(2)))
+    led_region = None
+    if args.led_region:
+        m = re.match(r"^(\d+),(\d+),(\d+),(\d+)$", args.led_region.strip())
+        if not m:
+            eprint("--led-region must be x,y,w,h in pixels")
+            return EXIT_USAGE
+        x, y, w, h = (int(m.group(i)) for i in range(1, 5))
+        led_region = (x, y, x + w, y + h)
     frame = args.frame
     if not os.path.exists(frame):
         eprint("frame not found: %s" % frame)
         return EXIT_USAGE
     img = load_image(frame)
     cal = calibrate_core(img, grid_hint=grid_hint, panel_hint=panel_hint,
-                         orientation=orientation, face_luma=face_luma, verbose=True)
+                         orientation=orientation, face_luma=face_luma,
+                         led_region=led_region, verbose=True)
     out = args.out
     Path(out).write_text(json.dumps(cal, indent=1) + "\n")
     if args.overlay:
@@ -1144,6 +1160,9 @@ def build_parser():
                      help="device rotation in the image (default: auto from panel aspect)")
     cal.add_argument("--face-luma", default=None,
                      help="key-face luma band 'lo,hi' in image pixels (default: auto from background)")
+    cal.add_argument("--led-region", default=None,
+                     help="restrict LED-zone detection to image rect x,y,w,h (DS-028: ignore "
+                          "saturated blobs elsewhere in the room); blobs outside are dropped")
     cal.add_argument("--json", action="store_true", help="also print the calibration JSON")
     cal.set_defaults(func=cmd_calibrate)
 
