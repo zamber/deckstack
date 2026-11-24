@@ -74,7 +74,7 @@ graph TD
   DS097["DS-097 ds-daemon: resolve module ids from the connected transpor..."]:::done
   DS098["DS-098 Agent onboarding: one route from zero to a working deck s..."]:::done
   DS099["DS-099 Deck micro-app authoring: --help-first discovery, scripti..."]:::done
-  DS100["DS-100 Camera goldens: fully specified golden states (every key ..."]:::doing
+  DS100["DS-100 Camera goldens: fully specified golden states (every key ..."]:::ready
   DS101["DS-101 Micro-app gallery: now-playing strip (MPRIS over D-Bus) e..."]:::done
   DS001 --> DS006
   DS005 --> DS006
@@ -227,10 +227,11 @@ Critical path length: 11 tickets.
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
 - **vdev** (2): DS-017(done), DS-035(done)
-- **verify** (3): DS-027(done), DS-028(done), DS-100(doing)
+- **verify** (3): DS-027(done), DS-028(done), DS-100(ready)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)
 
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
+- DS-100 - Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict (lane verify)
