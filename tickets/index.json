@@ -2771,7 +2771,8 @@
     "touches": [
       "crates/ds-vdev/",
       "bins/ds-vdevctl/",
-      "docs/components/virtual-device.md"
+      "docs/components/virtual-device.md",
+      "tests/conformance/microapps/run.py"
     ],
     "branch": "ticket/DS-104",
     "worktree": ".worktrees/DS-104",
