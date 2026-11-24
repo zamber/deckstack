@@ -78,7 +78,7 @@ graph TD
   DS101["DS-101 Micro-app gallery: now-playing strip (MPRIS over D-Bus) e..."]:::done
   DS102["DS-102 agents.md §3: client verbs take --socket, not --data-dir;..."]:::done
   DS103["DS-103 Micro-app state cleanup: document `ds set <path> '{}'` as..."]:::done
-  DS104["DS-104 vdev frames: text visuals never appear in `ds-vdevctl fra..."]:::doing
+  DS104["DS-104 vdev frames: text visuals never appear in `ds-vdevctl fra..."]:::review
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -229,7 +229,7 @@ Critical path length: 11 tickets.
 - **senders** (2): DS-060(done), DS-061(done)
 - **state** (2): DS-011(done), DS-096(done)
 - **test** (9): DS-018(done), DS-020(done), DS-026(done), DS-029(done), DS-045(done), DS-053(done), DS-062(done), DS-080(done), DS-093(done)
-- **vdev** (3): DS-017(done), DS-035(done), DS-104(doing)
+- **vdev** (3): DS-017(done), DS-035(done), DS-104(review)
 - **verify** (3): DS-027(done), DS-028(done), DS-100(done)
 - **web** (1): DS-074(ready)
 - **workflow** (8): DS-000(done), DS-001(done), DS-002(done), DS-005(done), DS-006(done), DS-090(done), DS-091(done), DS-092(done)

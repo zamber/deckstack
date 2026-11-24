@@ -95,6 +95,23 @@ credit window is armed).
 `orientation`); the hub encodes each into the module's raw input report
 (`01 <tag> <len u16 LE> <payload…>`, 64 B) and broadcasts it to every connected host.
 
+## Frames in phase 1
+
+`ds-vdev` stores a frame when it reassembles a chunked image report: `02 35` for the
+panel, `02 36 <index>` for a key, and `02 45` for the dial. `ds-vdevctl frames` prints one
+line per stored frame: `<target> <sha256> <bytes>B seq=<n>`.
+
+The phase-1 daemon sends chunked image reports for `{"kind":"color"}` and
+`{"kind":"file"}` visuals only. It logs and skips `{"kind":"text"}`, `{"kind":"icon"}`,
+and `{"kind":"frame"}` visuals. The `plan_push` function in
+`crates/ds-daemon/src/device.rs` returns `None` for those visuals. The daemon sends no
+output report for a text visual. `ds-vdev` stores no frame for it. A text visual stays in
+the state document. `ds get /controls/keys/<n>` shows it. `ds-vdevctl frames` cannot show
+a text visual.
+
+`ds-vdevctl frames` with no target prints every stored frame and exits 0.
+`ds-vdevctl frames <target>` exits 1 when the target has no stored frame.
+
 ## Throttle and backpressure knobs (DS-035)
 
 All slowdown knobs live in `crates/ds-vdev/src/throttle.rs` and are deterministic: the
