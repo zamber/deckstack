@@ -2762,7 +2762,7 @@
   {
     "id": "DS-104",
     "title": "vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do",
-    "state": "review",
+    "state": "done",
     "phase": 7,
     "lane": "vdev",
     "size": "M",
@@ -2774,9 +2774,9 @@
       "docs/components/virtual-device.md",
       "tests/conformance/microapps/run.py"
     ],
-    "branch": "ticket/DS-104",
-    "worktree": ".worktrees/DS-104",
-    "pr": "prs/DS-104.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-24",
     "updated": "2026-11-24",
     "acceptance": [

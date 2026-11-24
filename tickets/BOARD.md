@@ -76,4 +76,4 @@ Generated: 2026-11-24 - 73 tickets.
 | DS-101 | done | 7 | agents | M | vibe/DS-101 | DS-099 | Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance |
 | DS-102 | done | 7 | agents | S | autolith | - | agents.md §3: client verbs take --socket, not --data-dir; document a private daemon correctly |
 | DS-103 | done | 7 | agents | S | autolith | - | Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA) |
-| DS-104 | review | 7 | vdev | M | autolith | - | vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do |
+| DS-104 | done | 7 | vdev | M | autolith | - | vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do |
