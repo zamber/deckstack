@@ -22,6 +22,11 @@ dir and machine-checks the DS-099 deliverables:
         re-renders on a watched event (the `ds watch --ndjson` path)
     040 status_strip.py --once: keys 0-3 get load/mem/time/uptime labels
         (asserted via `ds get`), one JSON line on stdout
+    050 now_playing.py --once with an unreachable session bus: the documented
+        no-player fallback is rendered (grey "no player" key 0, keys 1/2, dial)
+        and asserted via `ds get` — a real player is never required
+    051 now_playing.py --once with a stub `gdbus` on PATH (canned ListNames +
+        GetAll): keys 0-2 + dial assert the playing/title/artist render
 
 Usage:
     python tests/conformance/microapps/run.py [--verbose] [-k SUBSTR ...]
@@ -584,6 +589,72 @@ class MicroApps(unittest.TestCase):
         self.assertEqual(img0["kind"], "color")
         self.assertRegex(img0["value"], r"^#[0-9a-f]{6}$")
         print("status_strip --once: keys 0-3 labels + colour asserted")
+
+    # ---- 050 now_playing.py --once, documented no-player fallback ------------
+
+    def _run_now_playing(self, *extra, env_extra=None, timeout=60):
+        env = dict(os.environ)
+        if env_extra:
+            env.update(env_extra)
+        return subprocess.run(
+            [sys.executable, str(EXAMPLES / "now_playing.py")] + list(extra)
+            + ["--socket", str(self.stack.sock), "--data-dir", str(self.stack.data),
+               "--ds-bin", str(self.bins / "ds")],
+            capture_output=True, text=True, timeout=timeout, env=env,
+        )
+
+    def test_050_now_playing_no_player_fallback(self):
+        # unreachable session bus -> the documented no-player path, exit 0
+        p = self._run_now_playing("--once", env_extra={
+            "DBUS_SESSION_BUS_ADDRESS": "unix:path=%s/no-such-bus.sock" % self.stack.tmp,
+        })
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        out = json.loads(p.stdout.strip().splitlines()[-1])
+        self.assertEqual(out, {"player": None, "title": "no player",
+                               "artist": "", "status": "stopped"}, out)
+        self.assertEqual(self.key(0, "label"), "no player")
+        self.assertEqual(self.key(0, "image"), {"kind": "color", "value": "#888888"})
+        self.assertEqual(self.key(1, "label"), "no player")
+        self.assertEqual(self.key(2, "label"), "-")
+        self.assertEqual(self.get_json("/controls/dial/label")["value"], "no player")
+        dial_img = self.get_json("/controls/dial/image")["value"]
+        self.assertEqual(dial_img["kind"], "text")
+        self.assertEqual(dial_img["value"], "no player")
+        print("now_playing --once: no-player fallback asserted on keys 0-2 + dial")
+
+    # ---- 051 now_playing.py --once with a stub gdbus (no real player) --------
+
+    def test_051_now_playing_stub_player(self):
+        # /tmp explicitly: $TMPDIR here is a noexec mount, the stub must run
+        stub_dir = Path(tempfile.mkdtemp(prefix="ds-np-stub-", dir="/tmp"))
+        self.addCleanup(shutil.rmtree, stub_dir, True)
+        stub = stub_dir / "gdbus"
+        stub.write_text(
+            "#!/usr/bin/env python3\n"
+            "import sys\n"
+            "a = sys.argv[1:]\n"
+            "if any('ListNames' in x for x in a):\n"
+            "    print(\"(['org.freedesktop.DBus', 'org.mpris.MediaPlayer2.fake'],)\")\n"
+            "elif any('GetAll' in x for x in a):\n"
+            "    print(\"({'PlaybackStatus': <'Playing'>, 'Metadata': <{'xesam:title': "
+            "<'Test Song'>, 'xesam:artist': <['Test Artist']>}>},)\")\n"
+            "else:\n"
+            "    sys.exit(1)\n"
+        )
+        stub.chmod(0o755)
+        p = self._run_now_playing("--once", env_extra={"PATH": "%s:%s" % (stub_dir, os.environ["PATH"])})
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        out = json.loads(p.stdout.strip().splitlines()[-1])
+        self.assertEqual(out, {"player": "org.mpris.MediaPlayer2.fake",
+                               "title": "Test Song", "artist": "Test Artist",
+                               "status": "playing"}, out)
+        self.assertEqual(self.key(0, "label"), "playing")
+        self.assertEqual(self.key(0, "image"), {"kind": "color", "value": "#00cc44"})
+        self.assertEqual(self.key(1, "label"), "Test Song")
+        self.assertEqual(self.key(2, "label"), "Test Artist")
+        self.assertEqual(self.get_json("/controls/dial/label")["value"], "playing")
+        self.assertEqual(self.get_json("/controls/dial/image")["value"]["value"], "Test Song")
+        print("now_playing --once: stub-MPRIS player rendered on keys 0-2 + dial")
 
 
 class LineResult(unittest.TextTestResult):
