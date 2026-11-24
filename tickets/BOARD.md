@@ -29,7 +29,7 @@ Generated: 2026-11-24 - 68 tickets.
 | DS-025 | done | 2 | packaging | S | vibe/DS-025 | DS-020 | udev rules, device permissions, install docs (Linux) |
 | DS-026 | done | 2 | test | M | vibe/DS-026 | DS-023, DS-024 | Hardware smoke suite: enumerate, frame, replug, handback (DS_HARDWARE=1 tests/hw/smoke.py) |
 | DS-027 | done | 2 | verify | L | vibe/DS-027 | DS-026 | deckstack-verify camera harness: discovery, calibration, capture, compare, CLI (tools/verify/) |
-| DS-028 | review | 2 | verify | M | vibe/DS-028 | DS-026 | Camera golden checks for key:0, panel, LED + calibration procedure |
+| DS-028 | done | 2 | verify | M | vibe/DS-028 | DS-026 | Camera golden checks for key:0, panel, LED + calibration procedure |
 | DS-029 | done | 2 | test | L | vibe/DS-029 | DS-022 | Safety conformance: forbidden commands, hardware-mode reads, backlight 0, no raw escape |
 | DS-030 | done | 3 | frames | M | vibe/DS-030 | DS-013, DS-020 | JPEG baseline 4:4:4 encoder + chunking (device wire format) with golden-frame tests |
 | DS-031 | done | 3 | frames | L | vibe/DS-031 | DS-013, DS-015, DS-020 | Frame service: latest-frame-wins queues (1 in flight + 1 waiting), writer threads, telemetry, 256 MiB cap |

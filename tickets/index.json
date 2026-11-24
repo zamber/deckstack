@@ -925,7 +925,7 @@
   {
     "id": "DS-028",
     "title": "Camera golden checks for key:0, panel, LED + calibration procedure",
-    "state": "review",
+    "state": "done",
     "phase": 2,
     "lane": "verify",
     "size": "M",
@@ -938,9 +938,9 @@
       "docs/90-verification.md",
       "tools/verify/deckstack_verify.py"
     ],
-    "branch": "ticket/DS-028",
-    "worktree": ".worktrees/DS-028",
-    "pr": "prs/DS-028.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-22",
     "updated": "2026-11-24",
     "acceptance": [
