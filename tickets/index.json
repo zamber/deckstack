@@ -2664,11 +2664,11 @@
   {
     "id": "DS-101",
     "title": "Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance",
-    "state": "ready",
+    "state": "doing",
     "phase": 7,
     "lane": "agents",
     "size": "M",
-    "owner": null,
+    "owner": "vibe/DS-101",
     "depends_on": [
       "DS-099"
     ],
@@ -2678,9 +2678,9 @@
       "docs/microapps.md",
       "tests/conformance/microapps/run.py"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-101",
+    "worktree": ".worktrees/DS-101",
+    "pr": "prs/DS-101.md",
     "created": "2026-11-24",
     "updated": "2026-11-24",
     "acceptance": [
