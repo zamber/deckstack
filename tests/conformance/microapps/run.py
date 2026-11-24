@@ -27,6 +27,7 @@ dir and machine-checks the DS-099 deliverables:
         and asserted via `ds get` — a real player is never required
     051 now_playing.py --once with a stub `gdbus` on PATH (canned ListNames +
         GetAll): keys 0-2 + dial assert the playing/title/artist render
+        frame for it. A text visual stays in the state document. The vdev stores no frame.
 
 Usage:
     python tests/conformance/microapps/run.py [--verbose] [-k SUBSTR ...]
@@ -391,6 +392,13 @@ class MicroApps(unittest.TestCase):
     def key(self, k, leaf):
         return self.get_json("/controls/keys/%d/%s" % (k, leaf))["value"]
 
+    def vdevctl(self, *args, timeout=OP_TIMEOUT_S):
+        return subprocess.run(
+            [str(self.stack.bins / "ds-vdevctl"), "--socket", str(self.stack.vdev_sock)]
+            + list(args),
+            capture_output=True, text=True, timeout=timeout,
+        )
+
     # ---- 010 help CONTENT for every verb ------------------------------------
 
     def test_010_help_content_for_every_verb(self):
@@ -655,6 +663,27 @@ class MicroApps(unittest.TestCase):
         self.assertEqual(self.get_json("/controls/dial/label")["value"], "playing")
         self.assertEqual(self.get_json("/controls/dial/image")["value"]["value"], "Test Song")
         print("now_playing --once: stub-MPRIS player rendered on keys 0-2 + dial")
+
+    # ---- 060 frames for pushed visuals ---------------------------------------
+
+    def test_060_frames_only_for_pushed_visuals(self):
+        # a colour visual is pushed as a chunked image and stored as a frame
+        self.jout(self.ds("set", "/controls/keys/12/image", "--json",
+                          '{"kind":"color","value":"#3cc86e"}'))
+        deadline = time.monotonic() + 5
+        p = self.vdevctl("frames", "key:12")
+        while p.returncode != 0 and time.monotonic() < deadline:
+            time.sleep(0.1)
+            p = self.vdevctl("frames", "key:12")
+        self.assertEqual(p.returncode, 0, "no frame for key:12: %s" % p.stderr)
+        self.assertIn("key:12", p.stdout)
+        # a text visual stays in state. The daemon sends no output report for it
+        self.jout(self.ds("set", "/controls/keys/13/image", "--json",
+                          '{"kind":"text","value":"CPU 2%"}'))
+        self.assertEqual(self.key(13, "image")["kind"], "text")
+        p = self.vdevctl("frames", "key:13")
+        self.assertEqual(p.returncode, 1, "key:13 produced a frame: %s" % p.stdout)
+        self.assertIn("no frame", p.stderr)
 
 
 class LineResult(unittest.TextTestResult):
