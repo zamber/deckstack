@@ -86,6 +86,11 @@ ds watch /deck/control/keys/* --ndjson      # wildcard: * eats exactly one segme
   queued events — read fast, or use `--max-events` batches.
 - `ds watch` needs no polling loop in your app: the daemon pushes. Prefer
   watch over polling (see §7).
+- D-Bus is **not** a daemon topic — there is no `app/mpris/*` stream. To show
+  an external bus source (e.g. the first MPRIS player) on the deck, poll it
+  argv-only from a script micro-app at ≤ 1 Hz and `ds set` the result:
+  `examples/microapps/now_playing.py` is the worked example (gdbus/dbus-send
+  probe, documented "no player" fallback when the bus or a player is absent).
 
 ## 4. Images and the target table
 
@@ -225,5 +230,6 @@ Run it: `python3 clock_key.py &` then `ds get /controls/keys/14 --json`.
 Copy-adapt `examples/microapps/` instead of starting from zero:
 `status_strip.py` (poll /proc → keys), `focus_panel.py` (`ds watch
 /app/focus/changed --ndjson` → dial), `gitdeck.py` (argv-only `git` → keys
-0-3). The conformance proof that they run against a virtual deck:
-`python3 tests/conformance/microapps/run.py`.
+0-3), `now_playing.py` (argv-only D-Bus/MPRIS probe → keys 0-2 + dial, with a
+documented no-player fallback). The conformance proof that they run against a
+virtual deck: `python3 tests/conformance/microapps/run.py`.
