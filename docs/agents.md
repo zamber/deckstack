@@ -80,19 +80,37 @@ Keep `ds` and `ds-daemon` in the same directory (or set `DS_DAEMON_BIN=/abs/path
 
 ## 3. Start the daemon
 
-Where things live (defaults; `ds --socket PATH --data-dir DIR` and `ds-mcp --socket/--data-dir`
-override per invocation):
+The paths below are defaults. `--socket`, `--data-dir`, and `--token-file` override them.
 
 | Path | Meaning |
 |---|---|
-| data dir | `$XDG_RUNTIME_DIR/deckstack` (fallback `~/.local/state/deckstack`), dir 0700 |
-| `<data-dir>/daemon.sock` | NDJSON control socket, 0600 — what `ds`/`ds-mcp`/`ds-py` connect to |
-| `<data-dir>/token` | per-install auth token, 0600, ≥16 chars, generated at first start — never print/log it |
-| `<data-dir>/daemon.pid`, `<data-dir>/daemon.log` | pid file + daemon stderr log |
-| `<data-dir>/state.json` | the durable state document (back this up; `state.json.corrupt-<ts>` files are quarantined forensic copies) |
-| `<data-dir>/stream.sock` | DSF1 frame-stream socket (not bound by the phase-1 daemon — see §6) |
+| data dir | `$XDG_RUNTIME_DIR/deckstack`, or `~/.local/state/deckstack` when unset. Mode 0700. |
+| `<data-dir>/daemon.sock` | NDJSON control socket, 0600. With the default data dir, this is the socket clients dial. |
+| `<data-dir>/token` | per-install auth token, 0600, ≥16 chars, generated at first start. Never print it or write it to a log. |
+| `<data-dir>/daemon.pid`, `<data-dir>/daemon.log` | pid file and daemon stderr log |
+| `<data-dir>/state.json` | the durable state document. Back it up. Files named `state.json.corrupt-<ts>` are quarantined copies kept for forensics. |
+| `<data-dir>/stream.sock` | DSF1 frame-stream socket. The phase-1 daemon does not bind it. See §6. |
 
-**Virtual device (no hardware, what CI and the examples use):**
+With no flags, `ds` dials `$XDG_RUNTIME_DIR/deckstack/daemon.sock`. `ds daemon start`
+writes the daemon's files to the same data dir.
+
+Pass `--data-dir DIR` to `ds daemon start` to put the daemon's files in DIR. The control
+socket is then `DIR/daemon.sock`. Every later `ds` command that connects to that daemon
+needs `--socket DIR/daemon.sock`, including `daemon stop` and `daemon status`.
+`--data-dir` alone does not change which socket a client verb dials.
+
+To keep the daemon's files under a private data dir:
+
+```sh
+ds daemon start --device virtual:/tmp/vdev.sock --data-dir /tmp/deck
+ds --socket /tmp/deck/daemon.sock daemon status --json
+ds --socket /tmp/deck/daemon.sock get /controls/keys/0
+```
+
+`ds-mcp` and `ds-py` accept `--socket` and `--data-dir`. `--socket` wins. If `--socket` is
+absent, they use `<data-dir>/daemon.sock`.
+
+**Virtual device:** no hardware needed. CI and the examples use it.
 ```sh
 ds-vdev --socket /tmp/vdev.sock &                        # virtual MasterHub
 ds daemon start --device virtual:/tmp/vdev.sock          # detached; logs to <data-dir>/daemon.log
@@ -102,19 +120,19 @@ ds daemon start --device virtual:/tmp/vdev.sock          # detached; logs to <da
 ds daemon start --device hid:                            # every attached module
 # or one node: ds daemon start --device hid:/dev/hidraw0
 ```
-(`hid:` opens every attached MasterHub module; `hid:<os-path>` exactly one. `--device auto`
-maps to `none` in phase 1; `--device none` starts with no device.)
+`hid:` opens every attached MasterHub module. `hid:<os-path>` opens exactly one. `--device
+auto` maps to `none` in phase 1. `--device none` starts with no device.
 
-Then check, and optionally run it under systemd (`packaging/systemd/deckstack.service`,
-`DECKSTACK_DEVICE=hid:` in `~/.config/deckstack/env`, `systemctl --user enable --now
-deckstack.service` — see `docs/runbook.md` §7):
+Then check the daemon. You can also run it under systemd. See `docs/runbook.md` §7. It covers
+`packaging/systemd/deckstack.service`, the `DECKSTACK_DEVICE=hid:` entry in
+`~/.config/deckstack/env`, and `systemctl --user enable --now deckstack.service`.
 ```sh
 ds daemon status --json
 # {"device":"virtual:…","device_status":"connected virtual:…","pid":…,"running":true,
 #  "rev":0,"server":"ds-daemon/0.1.0","socket":…,…}
 ds daemon stop                                            # clean stop; socket+pid file removed
 ```
-`ds daemon start` waits ≤5 s for the socket + a successful status op; on timeout read
+`ds daemon start` waits up to 5 s for the socket and a successful status op. On timeout, read
 `<data-dir>/daemon.log`.
 
 ## 4. Connect an agent
