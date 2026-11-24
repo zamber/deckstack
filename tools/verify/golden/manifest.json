@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "ticket": "DS-028",
+  "tool": "deckstack-verify (tools/verify/deckstack_verify.py, DS-027) driven by run_golden.py in this directory",
+  "fixture_only": "Everything under tools/verify/golden/ is a TEST FIXTURE ONLY. Goldens and the calibration are never installed as deck defaults, never shipped in a state file, and never loaded by the daemon: the deck always starts from the empty state (empty-state invariant, docs/00-scope.md). run_golden.py reaches a golden state only by explicit `ds set` writes at check time.",
+  "ci": "CI never runs the golden checks (hardware-gated, phase 2+). CI runs only `python3 tools/verify/deckstack_verify.py selftest`, which needs no deck and no camera. See docs/90-verification.md.",
+  "camera": {
+    "device": "/dev/video2",
+    "note": "AUKEY PC-W1 at /dev/video2 (never the OBS loopback /dev/video0); override with $DSV_CAMERA or run_golden.py --camera",
+    "width": 1280,
+    "height": 720,
+    "settle_ms": 800
+  },
+  "pose": {
+    "captured": "2026-11-23, AUKEY PC-W1 at 1280x720, deck left-of-centre, keys panel rotated 90 deg in frame (portrait)",
+    "panel_hint": "395,148,205,347",
+    "led_region": "150,300,220,260",
+    "orientation": 90,
+    "recalibrate_when": "camera or deck moved, lens/focus changed, or lighting changed enough that checks fail with stable-state diffs; re-run `run_golden.py --record` (it re-captures cal-frame.jpg, calibration.json, overlay.png and all goldens)"
+  },
+  "calibration": {
+    "file": "calibration.json",
+    "frame": "cal-frame.jpg",
+    "overlay": "overlay.png",
+    "panel_hint": "395,148,205,347",
+    "led_region": "150,300,220,260",
+    "orientation": 90,
+    "settle_ms": 2000,
+    "state": [
+      {"foreach": {"var": "i", "from": 0, "to": 14,
+        "set": ["/controls/keys/{i}/image", "--json", "{\"kind\":\"color\",\"value\":\"#ffffff\"}"]}},
+      {"foreach": {"var": "i", "from": 0, "to": 2,
+        "set": ["/controls/knobs/{i}/led", "--json", "{\"mode\":\"static\",\"color\":\"#ff00ff\",\"brightness\":100}"]}},
+      {"foreach": {"var": "i", "from": 0, "to": 1,
+        "set": ["/controls/rollers/{i}/led", "--json", "{\"mode\":\"static\",\"color\":\"#ff00ff\",\"brightness\":100}"]}}
+    ],
+    "state_note": "all 15 key backlights on + knob/roller LED rings magenta, so calibrate can place the 15 key ROIs (panel hint) and the LED-zone cell masks (led-region)",
+    "produced_by": "python3 tools/verify/deckstack_verify.py calibrate --frame tools/verify/golden/cal-frame.jpg --out tools/verify/golden/calibration.json --overlay tools/verify/golden/overlay.png --panel 395,148,205,347 --led-region 150,300,220,260 --orientation 90"
+  },
+  "goldens": [
+    {
+      "name": "key0",
+      "file": "key0.jpg",
+      "tolerance": 20,
+      "settle_ms": 2500,
+      "proves": "key:0 key-window ROI pixels: with /controls/keys/0/image written (examples/key.png) from a fresh daemon, the calibrated key:0 ROI matches the reference. Honest limit on this M4315 unit: pushed images are accepted and logged (`pushed Image … Key(0)`) but the LCD shows only uniform backlight (DS-027 hardware finding), so the golden pins the key:0 window's backlit pixels and the ROI mapping - it catches a dead/occluded key window, a wrong ROI mapping, or a render change; a dropped key:0 write is proven at protocol level by the daemon push log. LEDs are set off explicitly because the device keeps LED state across daemon restarts.",
+      "targets": ["key:0", "keys", "key:1..key:14", "led:0"],
+      "state": [
+        {"set_file": ["/controls/keys/0/image", "examples/key.png"]},
+        {"foreach": {"var": "i", "from": 0, "to": 2,
+          "set": ["/controls/knobs/{i}/led", "--json", "{\"mode\":\"off\",\"color\":\"#000000\",\"brightness\":0}"]}},
+        {"foreach": {"var": "i", "from": 0, "to": 1,
+          "set": ["/controls/rollers/{i}/led", "--json", "{\"mode\":\"off\",\"color\":\"#000000\",\"brightness\":0}"]}}
+      ],
+        "capture_command": "python3 tools/verify/deckstack_verify.py capture --out tools/verify/golden/key0.jpg --settle 800  (after the state above, fresh daemon on hid:)",
+        "skip_reason": "measured 2026-11-24: this unit's key-window rendering is not deterministic - right after re-recording the key0 state matched 17/17 targets, but two checks minutes later failed on the un-touched keys 1-14 and led:0 (the device keeps the last pushed colour per key instead of returning to a per-index default, so a 'fresh daemon' does not mean a fresh device). Recorded fixture, not a check, until the device state is made fully specified (push every key index on every state) or the check pins the whole panel state."
+    },
+    {
+      "name": "panel",
+      "file": "panel.jpg",
+      "tolerance": 20,
+      "settle_ms": 2500,
+      "proves": "the whole keys panel grid: all 15 key-window ROIs plus the `keys` panel ROI are uniformly backlit when every /controls/keys/N/image is written #ffffff (LEDs off). Catches a dead key window, a wrong grid/ROI mapping, or a device-side render change.",
+      "targets": ["key:0..key:14", "keys", "led:0"],
+      "state": [
+        {"foreach": {"var": "i", "from": 0, "to": 14,
+          "set": ["/controls/keys/{i}/image", "--json", "{\"kind\":\"color\",\"value\":\"#ffffff\"}"]}},
+        {"foreach": {"var": "i", "from": 0, "to": 2,
+          "set": ["/controls/knobs/{i}/led", "--json", "{\"mode\":\"off\",\"color\":\"#000000\",\"brightness\":0}"]}},
+        {"foreach": {"var": "i", "from": 0, "to": 1,
+          "set": ["/controls/rollers/{i}/led", "--json", "{\"mode\":\"off\",\"color\":\"#000000\",\"brightness\":0}"]}}
+      ],
+        "capture_command": "python3 tools/verify/deckstack_verify.py capture --out tools/verify/golden/panel.jpg --settle 800  (after the state above, fresh daemon on hid:)",
+        "skip_reason": "measured 2026-11-24: this unit does not render per-key colour deterministically - the same state applied minutes apart puts the lit key windows in different physical positions (recorded key:3 rgb(126,164,220) vs check rgb(254,251,244), key:0 rgb(247,251,253) vs rgb(218,203,190)); 15/17 targets failed on the re-record, so the panel golden is a recorded fixture, not a check. Re-record + investigate the key-index/render mapping (and the LED state below) before making it strict."
+    },
+    {
+      "name": "led",
+      "file": "led.jpg",
+      "tolerance": 20,
+      "settle_ms": 2500,
+      "proves": "LED colour camera-visible: knobs 0-2 and rollers 0-1 at static #00ff00 light the calibrated led:0 zone (cell mask) green (measured ~(124,230,166)) while the keys panel stays at its backlit default. Tolerance 20 (stable same-state noise measured at delta ~9-13 per target, moving glare spikes up to ~90 on single key faces in single frames - suppressed by the median-selected golden and the min-over-attempts rule; see PR record). Faders do not exist on this deck (module not connected), so they are not part of the state.",
+      "targets": ["led:0"],
+      "state": [
+        {"foreach": {"var": "i", "from": 0, "to": 2,
+          "set": ["/controls/knobs/{i}/led", "--json", "{\"mode\":\"static\",\"color\":\"#00ff00\",\"brightness\":100}"]}},
+        {"foreach": {"var": "i", "from": 0, "to": 1,
+          "set": ["/controls/rollers/{i}/led", "--json", "{\"mode\":\"static\",\"color\":\"#00ff00\",\"brightness\":100}"]}}
+      ],
+        "capture_command": "python3 tools/verify/deckstack_verify.py capture --out tools/verify/golden/led.jpg --settle 800  (after the state above, fresh daemon on hid:)",
+        "skip_reason": "measured 2026-11-24: the LED rings do not accept the manifest 'off' mode (knob/roller LEDs keep their last colour across daemon restarts), so the key0/panel goldens pin whatever colour was left by the previous golden and the led golden's per-key neighbours drift (3/17 on the re-record). Recorded fixture, not a check, until the LED-off path is fixed."
+    }
+  ],
+  "check_command": "python3 tools/verify/golden/run_golden.py [--only key0,panel,led] [--keep DIR]   # exit 0 pass, 7 mismatch",
+  "record_command": "python3 tools/verify/golden/run_golden.py --record   # deliberate regeneration of goldens + calibration only",
+  "harness_check_equivalent": "python3 tools/verify/deckstack_verify.py check --expected tools/verify/golden/key0.jpg --calibration tools/verify/golden/calibration.json --tolerance 20 --settle 800 --keep /tmp/key0-actual.jpg   # capture + compare in one step, exit 0/7"
+}

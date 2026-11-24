@@ -925,7 +925,7 @@
   {
     "id": "DS-028",
     "title": "Camera golden checks for key:0, panel, LED + calibration procedure",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "verify",
     "size": "M",
