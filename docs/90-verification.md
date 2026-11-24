@@ -165,9 +165,12 @@ The harness is `python3 tools/verify/deckstack_verify.py <devices|capture|calibr
 
 ## Golden camera checks (tools/verify/golden/, DS-028)
 
-Committed goldens pin the three representative visual states: **key0** (key:0 set from a
-fresh daemon, LEDs off), **panel** (all 15 key windows backlit `#ffffff`, LEDs off) and
-**led** (knob 0-2 + roller 0-1 LED rings static `#00ff00`, panel at its backlit default).
+Committed goldens pin three representative visual states, each with the whole device state
+specified (all 15 key indices plus all knob/roller LED rings), so a golden never depends on
+what the deck showed before the run: **key0** (every key index pinned `#000000`, key:0 then
+written, LED rings static black), **panel** (all 15 key windows `#ffffff`, LED rings static
+black) and **led** (every key index `#000000`, knob 0-2 + roller 0-1 LED rings static
+`#00ff00`).
 Each golden is a 1280x720 capture from the reference pose plus a per-target comparison
 over the calibrated ROIs; the state that produced it is in `manifest.json`, and
 `run_golden.py` re-applies that state to a **fresh daemon data dir** before every check,
@@ -180,6 +183,7 @@ default, shipped in a state file, or loaded by the daemon.
 python3 tools/verify/golden/run_golden.py                 # all goldens, exit 0 pass / 7 mismatch
 python3 tools/verify/golden/run_golden.py --only key0,led # one or two
 python3 tools/verify/golden/run_golden.py --keep /tmp/f    # keep the captured frames
+python3 tools/verify/golden/run_golden.py --strict     # any documented skip becomes a failure
 ```
 
 Requires the deck on `hid:` (DS-028's runs used the daemon in the repo's `target/debug`)
@@ -190,17 +194,13 @@ same-state noise measured at delta ~9-13 per target; the median-selected golden 
 min-over-attempts rule suppress the single-frame glare spikes that reach ~90 on one key
 face). The recorded run is in `prs/DS-028.md`.
 
-**Device limitation (measured 2026-11-24)**: on this M4315 unit the key windows keep the
-last pushed colour per index instead of returning to a per-index default, so a fresh
-daemon data dir does not mean a fresh device: the same manifest state captured minutes
-apart renders different keys differently (key0 matched 17/17 targets immediately after
-recording, then failed on the untouched keys 1-14 and `led:0`; the panel golden failed
-15/17, the led golden 3/17), and the LED rings ignore `mode: "off"` (they hold the last
-colour across daemon restarts). A golden is therefore a *recorded fixture* until every
-state also pins every key index and a working LED-off path exists; each golden carries a
-`skip_reason` and `run_golden.py` reports it as `SKIP` (exit 0) unless `--strict` is
-passed. The comparison mechanics themselves are proven: `--record` regenerates the
-calibration and all goldens, and a wrong state fails with the per-target deltas.
+**Device behaviour (measured 2026-11-24)**: this M4315 unit keeps the last pushed colour per
+key index and ignores the LED `mode: "off"`, so every golden state pins all 15 key indices
+and clears the rings explicitly: `{"mode":"static","color":"#000000","brightness":0}`
+turns a ring off (measured green to black delta mean 43 on `led:0`, while `off` to black and
+black to black stayed at 1.3-4.2). With the states pinned, `run_golden.py --strict` passed
+every golden twice, ten minutes apart, with no skips. A failing check reports the per-target
+deltas; regenerate goldens deliberately with `--record`.
 
 **Calibration procedure** (re-run after any camera/deck/lighting change):
 
