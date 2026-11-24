@@ -76,7 +76,7 @@ graph TD
   DS099["DS-099 Deck micro-app authoring: --help-first discovery, scripti..."]:::done
   DS100["DS-100 Camera goldens: fully specified golden states (every key ..."]:::done
   DS101["DS-101 Micro-app gallery: now-playing strip (MPRIS over D-Bus) e..."]:::done
-  DS102["DS-102 agents.md §3: client verbs take --socket, not --data-dir;..."]:::ready
+  DS102["DS-102 agents.md §3: client verbs take --socket, not --data-dir;..."]:::doing
   DS103["DS-103 Micro-app state cleanup: document `ds set <path> '{}'` as..."]:::ready
   DS104["DS-104 vdev frames: text visuals never appear in `ds-vdevctl fra..."]:::ready
   DS001 --> DS006
@@ -208,7 +208,7 @@ Critical path length: 11 tickets.
 
 ## Parallel lanes
 
-- **agents** (6): DS-063(done), DS-098(done), DS-099(done), DS-101(done), DS-102(ready), DS-103(ready)
+- **agents** (6): DS-063(done), DS-098(done), DS-099(done), DS-101(done), DS-102(doing), DS-103(ready)
 - **bench** (1): DS-033(done)
 - **build** (1): DS-004(done)
 - **ci** (2): DS-003(done), DS-082(done)
@@ -237,6 +237,5 @@ Critical path length: 11 tickets.
 ## Ready set (state=ready, deps done - claimable now)
 
 - DS-074 - Optional debug/web client over the WS/HTTP adapter (post-alpha note): thin client, /api/* + /ws only, 404 at /, no opinionated UI (lane web)
-- DS-102 - agents.md §3: client verbs take --socket, not --data-dir; document a private daemon correctly (lane agents)
 - DS-103 - Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA) (lane agents)
 - DS-104 - vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do (lane vdev)
