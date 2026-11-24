@@ -2629,11 +2629,11 @@
   {
     "id": "DS-100",
     "title": "Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict",
-    "state": "ready",
+    "state": "doing",
     "phase": 2,
     "lane": "verify",
     "size": "M",
-    "owner": null,
+    "owner": "autolith",
     "depends_on": [
       "DS-028"
     ],
@@ -2642,9 +2642,9 @@
       "tools/verify/golden/run_golden.py",
       "docs/90-verification.md"
     ],
-    "branch": null,
-    "worktree": null,
-    "pr": null,
+    "branch": "ticket/DS-100",
+    "worktree": ".worktrees/DS-100",
+    "pr": "prs/DS-100.md",
     "created": "2026-11-24",
     "updated": "2026-11-24",
     "acceptance": [
