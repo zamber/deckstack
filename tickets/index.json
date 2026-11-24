@@ -2697,5 +2697,98 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-102",
+    "title": "agents.md \u00a73: client verbs take --socket, not --data-dir; document a private daemon correctly",
+    "state": "ready",
+    "phase": 7,
+    "lane": "agents",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "docs/agents.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "agents.md \u00a73 states that --data-dir selects the data dir only for daemon start/stop/status (and is where daemon.sock lives by default), while client verbs (get/set/watch/describe/schema) connect to --socket or the XDG default",
+      "every private-daemon example in agents.md that runs a client verb passes --socket <data-dir>/daemon.sock; no client-verb example passes --data-dir alone",
+      "sh tools/check.sh passes"
+    ],
+    "verification": [
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-103",
+    "title": "Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA)",
+    "state": "ready",
+    "phase": 7,
+    "lane": "agents",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "docs/microapps.md",
+      "bins/ds/src/help.rs",
+      "tests/conformance/cli/"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "`ds set --help` states that setting {} clears/empties an object path, while null is rejected with E_SCHEMA exit 1, within the ~25-line per-verb help budget",
+      "docs/microapps.md \u00a72 documents clear/restore with a short snapshot-then-restore snippet (get the old value; set it back, or set {} when the path did not exist)",
+      "the CLI help conformance test asserts the clear line and that `ds set <object-path> null` exits 1 with E_SCHEMA against vdev",
+      "sh tools/check.sh passes"
+    ],
+    "verification": [
+      "python tests/conformance/cli/run.py",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-104",
+    "title": "vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do",
+    "state": "ready",
+    "phase": 7,
+    "lane": "vdev",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "crates/ds-vdev/",
+      "bins/ds-vdevctl/",
+      "docs/components/virtual-device.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "a unit or conformance test pins the vdev frame behaviour per visual kind: a colour image on a key produces an entry in `ds-vdevctl frames`; a text image either produces one too or the test asserts the documented absence",
+      "docs/components/virtual-device.md states which visual kinds are reassembled into frames and that `ds-vdevctl frames <target>` exits 1 when no frame exists for that target",
+      "sh tools/check.sh passes"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "python tests/conformance/run.py",
+      "sh tools/check.sh",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
   }
 ]
