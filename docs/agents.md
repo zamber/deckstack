@@ -256,6 +256,10 @@ Daemon unreachable from an agent: every MCP tool answers `E_UNREACHABLE … ds d
 [exit 6]`; from `ds` the same exit 6 with the hint. Check `ds daemon status`, the socket file,
 and `<data-dir>/daemon.log`.
 
+**Issue bundles:** run `python3 tools/report-issue --out reports/<slug>.md` (or `ds report`
+once DS-108 lands) and attach the bundle to a ticket. The workflow is in
+`skills/report-issue/SKILL.md`; a bug report without the bundle is incomplete.
+
 MCP-level protocol errors (`-32700/-32600/-32601/-32602`) mean the client's framing is wrong,
 not the deck: one JSON-RPC 2.0 object per line, `initialize` first, `notifications/initialized`
 afterwards. stdout of `ds-mcp` is protocol-only — anything else is a bug.

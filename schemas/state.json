@@ -34,6 +34,7 @@
       "properties": {
         "keys": {"type": "object", "patternProperties": {"^(?:[0-9]|1[0-4])$": {"$ref": "#/$defs/screenControl"}}, "additionalProperties": false, "description": "Key indices 0-14 only (15 keys on the screen module); '15', '99' and any other index are rejected at object level (S8 regression tests in tests/fixtures/)."},
         "dial": {"$ref": "#/$defs/screenControl"},
+        "base": {"$ref": "#/$defs/ledControl"},
         "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Knob indices 0-2 only (3 knobs); any other index is rejected at object level (S8)."},
         "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Fader indices 0-4 only (5 faders); any other index is rejected at object level (S8)."},
         "rollers": {"type": "object", "patternProperties": {"^[0-1]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Roller indices 0-1 only (2 rollers); any other index is rejected at object level (S8)."}

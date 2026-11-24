@@ -39,7 +39,7 @@ use ds_device::module::module_info;
 use ds_device::rate::RateLimiter;
 use ds_device::transport::{DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
-use ds_protocol::{LedTarget, ModuleKind};
+use ds_protocol::{LedMode, LedTarget, ModuleKind};
 use mh_device::ModuleId;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -244,6 +244,8 @@ fn cache_key(action: &DeviceAction) -> String {
     match action {
         DeviceAction::Image { target, .. } => format!("image:{target:?}"),
         DeviceAction::LedColor { kind, .. } => format!("led:{kind:?}"),
+        DeviceAction::Backlight { kind, .. } => format!("backlight:{kind:?}"),
+        DeviceAction::BaseLed { .. } => "base-led".to_string(),
     }
 }
 
@@ -252,6 +254,8 @@ fn action_kind(action: &DeviceAction) -> ModuleKind {
     match action {
         DeviceAction::Image { target, .. } => target.module(),
         DeviceAction::LedColor { kind, .. } => *kind,
+        DeviceAction::Backlight { kind, .. } => *kind,
+        DeviceAction::BaseLed { .. } => ModuleKind::Base,
     }
 }
 
@@ -265,6 +269,30 @@ fn send_action_typed(
     image: &RateLimiter,
 ) -> DevResult<()> {
     match action {
+        DeviceAction::Backlight { kind, percent } => {
+            let report = ds_protocol::backlight(*kind, *percent)
+                .ok_or_else(|| Error::Device("no backlight report".into()))?;
+            led.acquire();
+            t.send(module, &report).map(|_| ())
+        }
+        DeviceAction::BaseLed {
+            mode,
+            rgb,
+            brightness,
+        } => {
+            for report in [
+                ds_protocol::led_mode(ModuleKind::Base, LedTarget::All, *mode),
+                ds_protocol::led_color(ModuleKind::Base, LedTarget::All, *rgb),
+                ds_protocol::led_brightness(ModuleKind::Base, LedTarget::All, *brightness),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                led.acquire();
+                t.send(module, &report)?;
+            }
+            Ok(())
+        }
         DeviceAction::LedColor { kind, rgb } => {
             let report = ds_protocol::led_color(*kind, LedTarget::All, *rgb)
                 .ok_or_else(|| Error::Device("no led report".into()))?;

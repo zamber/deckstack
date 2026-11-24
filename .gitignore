@@ -8,3 +8,4 @@ node_modules/
 .review.git/
 .venv/
 tickets/.lock
+reports/

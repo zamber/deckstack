@@ -2791,5 +2791,133 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-105",
+    "title": "Keys/dial backlight and base ring follow the current Hue state",
+    "state": "done",
+    "phase": 7,
+    "lane": "device",
+    "size": "M",
+    "owner": "autolith",
+    "depends_on": [],
+    "touches": [
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-daemon/src/device_task.rs",
+      "crates/ds-state/src/path.rs",
+      "schemas/state.json"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "`/controls/keys/0/brightness` and `/controls/dial/brightness` produce Backlight feature reports (`03 34/44`) on the device task",
+      "`/controls/base/led` accepts `{mode,color,brightness}`, is stored, and produces a BaseLed push (`02 2C/2D/2E`, target 0)",
+      "`cargo test -p ds-daemon --lib` and `cargo test -p ds-state` pass"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon --lib",
+      "cargo test -p ds-state",
+      "journalctl --user -u deckstack.service | grep -E 'Backlight|BaseLed'",
+      "ds get /controls/base/led --json"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-106",
+    "title": "Reconnect the device task after USB disconnect instead of exiting",
+    "state": "ready",
+    "phase": 7,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-device/src/hotplug.rs",
+      "packaging/systemd/deckstack.service"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "A vdev disconnect/restart test shows the daemon returns to `device_status: connected` without a service restart",
+      "The device task keeps draining pushes and publishes `deck/device/<serial>/disconnected` then `connected`",
+      "The systemd watchdog is not required for recovery"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon --lib",
+      "kill/restart ds-vdev with a private socket; ds daemon status --json returns connected",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-107",
+    "title": "Verification inconsistencies: stale goldens, unreachable panel image path, rollers LED",
+    "state": "ready",
+    "phase": 7,
+    "lane": "verify",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "tools/verify/golden/manifest.json",
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-device/src/hid/mod.rs",
+      "schemas/state.json"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "Camera goldens are re-recorded after the feature-report fix and pass with the deck showing the intended states",
+      "The `/controls/keys/image` panel path is either exposed by the write-path validator or documented as unreachable",
+      "Roller LED behaviour is pinned: no silent `no led report` error in the normal M0 path"
+    ],
+    "verification": [
+      "python3 tools/verify/golden/run_golden.py --only key0,panel,led",
+      "ds set /controls/keys/image --file ... (documented outcome)",
+      "cargo test -p ds-daemon --lib"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-108",
+    "title": "ds report: one command to capture a reproducible issue bundle",
+    "state": "ready",
+    "phase": 7,
+    "lane": "workflow",
+    "size": "S",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "skills/report-issue/SKILL.md",
+      "tools/report-issue",
+      "docs/agents.md",
+      "bins/ds/src/cli.rs"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "`ds report --out <path>` collects daemon status, devices, controls, bindings, service state and the recent log into one Markdown bundle",
+      "The bundle includes the exact commands and exit codes, and is safe to attach to a ticket",
+      "`skills/report-issue/SKILL.md` points agents at the command and the ticket workflow"
+    ],
+    "verification": [
+      "ds report --out /tmp/issue.md; test -s /tmp/issue.md",
+      "python3 tools/report-issue --out /tmp/issue.md",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
   }
 ]

@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""One-shot diagnostic bundle for a deckstack issue.
+
+Collects the daemon, device, controls and recent log evidence into one Markdown file.
+The native `ds report` verb is DS-108; this script is the interim path used by the
+`report-issue` skill.
+"""
+import argparse
+import os
+import subprocess
+import time
+from pathlib import Path
+
+DS = os.environ.get("DECKSTACK_DS", str(Path.home() / "Applications/deckstack-0.1.0/bin/ds"))
+REPO = Path(__file__).resolve().parents[1]
+
+
+def run(argv):
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=20)
+        return p.returncode, (p.stdout + p.stderr).strip()
+    except Exception as e:  # missing binary, timeout, permission
+        return 1, "[failed: %s]" % e
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--out", default=None, help="output markdown path")
+    ap.add_argument("--log-lines", type=int, default=120)
+    args = ap.parse_args()
+    out = Path(args.out) if args.out else REPO / "reports" / (
+        "issue-%s.md" % time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    commands = [
+        ("git revision", ["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]),
+        ("git status", ["git", "-C", str(REPO), "status", "--short"]),
+        ("daemon status", [DS, "daemon", "status", "--json"]),
+        ("devices", [DS, "get", "/devices", "--json"]),
+        ("controls", [DS, "get", "/controls", "--json"]),
+        ("bindings", [DS, "get", "/bindings", "--json"]),
+        ("usb", ["lsusb"]),
+        ("hidraw", ["ls", "-l", "/dev/hidraw"]),
+        ("service", ["systemctl", "--user", "status", "deckstack.service",
+                     "salon-deck.service", "--no-pager", "-n", "5"]),
+        ("recent log", ["journalctl", "--user", "-u", "deckstack.service",
+                        "-n", str(args.log_lines), "--no-pager"]),
+    ]
+    lines = [
+        "# deckstack issue bundle",
+        "",
+        "Created: %s UTC" % time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "Host: %s" % os.uname().nodename,
+        "",
+        "Attach this file to a ticket or paste the relevant section into an issue. "
+        "Never report only from chat.",
+        "",
+    ]
+    for title, argv in commands:
+        rc, text = run(argv)
+        lines += ["## %s" % title, "", "```", "$ %s   # exit %d" % (" ".join(argv), rc),
+                  text, "```", ""]
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print(out)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

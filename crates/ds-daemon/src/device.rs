@@ -43,7 +43,7 @@ use ds_device::rate::{RateLimiter, DEFAULT_LED_RATE_PER_S};
 use ds_device::transport::{module_id_for_send, DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
 use ds_device::vtransport::virtual_module_id;
-use ds_protocol::{LedTarget, ModuleKind};
+use ds_protocol::{LedMode, LedTarget, ModuleKind};
 use mh_device::ModuleId;
 use serde_json::Value;
 use std::fs;
@@ -136,6 +136,14 @@ pub enum DeviceAction {
     },
     /// LED color on an M0-family module (knobs/faders/rollers).
     LedColor { kind: ModuleKind, rgb: [u8; 3] },
+    /// Screen backlight on keys or dial (`03 34/44 <pct>`).
+    Backlight { kind: ModuleKind, percent: u8 },
+    /// Base ring LED: mode + colour + brightness (`02 2C/2D/2E`, target 0).
+    BaseLed {
+        mode: LedMode,
+        rgb: [u8; 3],
+        brightness: u8,
+    },
 }
 
 /// The per-device write pacing of the device task: one token bucket for LED/control writes
@@ -172,6 +180,22 @@ pub fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
         ((v >> 8) & 0xff) as u8,
         (v & 0xff) as u8,
     ])
+}
+
+fn led_mode_of(s: &str) -> Option<LedMode> {
+    Some(match s {
+        "off" => LedMode::Off,
+        "static" => LedMode::Static,
+        "breathing" => LedMode::Breathing,
+        "strobe" => LedMode::Strobe,
+        "spring" => LedMode::Spring,
+        "cycling" => LedMode::Cycling,
+        "random" => LedMode::Random,
+        "wave" => LedMode::Wave,
+        "water" => LedMode::Water,
+        "rainbow" => LedMode::Rainbow,
+        _ => return None,
+    })
 }
 
 fn led_color_of(value: &Value) -> Option<[u8; 3]> {
@@ -239,6 +263,30 @@ pub fn plan_push(path: &str, value: &Value) -> Option<DeviceAction> {
             };
             let rgb = led_color_of(value)?;
             Some(DeviceAction::LedColor { kind, rgb })
+        }
+        ["controls", "base", "led"] => {
+            let mode = led_mode_of(value.get("mode")?.as_str()?)?;
+            let rgb = led_color_of(value)?;
+            let brightness = value.get("brightness")?.as_u64()?.min(100) as u8;
+            Some(DeviceAction::BaseLed {
+                mode,
+                rgb,
+                brightness,
+            })
+        }
+        ["controls", "keys", _n, "brightness"] => {
+            let percent = value.as_u64()?.clamp(1, 100) as u8;
+            Some(DeviceAction::Backlight {
+                kind: ModuleKind::Keys,
+                percent,
+            })
+        }
+        ["controls", "dial", "brightness"] => {
+            let percent = value.as_u64()?.clamp(1, 100) as u8;
+            Some(DeviceAction::Backlight {
+                kind: ModuleKind::Dial,
+                percent,
+            })
         }
         _ => None,
     }
@@ -350,6 +398,14 @@ pub fn send_action(
     limits: &RateLimits,
 ) -> Result<(), String> {
     match action {
+        DeviceAction::Backlight { kind, percent } => {
+            let report = ds_protocol::backlight(*kind, *percent).ok_or("no backlight report")?;
+            let module = module_id_for_send(t, *kind).map_err(|e| e.to_string())?;
+            limits.led.acquire();
+            t.send(&module, &report)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }
         DeviceAction::LedColor { kind, rgb } => {
             let report =
                 ds_protocol::led_color(*kind, LedTarget::All, *rgb).ok_or("no led report")?;
@@ -360,6 +416,25 @@ pub fn send_action(
             t.send(&module, &report)
                 .map(|_| ())
                 .map_err(|e| e.to_string())
+        }
+        DeviceAction::BaseLed {
+            mode,
+            rgb,
+            brightness,
+        } => {
+            let module = module_id_for_send(t, ModuleKind::Base).map_err(|e| e.to_string())?;
+            for report in [
+                ds_protocol::led_mode(ModuleKind::Base, LedTarget::All, *mode),
+                ds_protocol::led_color(ModuleKind::Base, LedTarget::All, *rgb),
+                ds_protocol::led_brightness(ModuleKind::Base, LedTarget::All, *brightness),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                limits.led.acquire();
+                t.send(&module, &report).map_err(|e| e.to_string())?;
+            }
+            Ok(())
         }
         DeviceAction::Image { target, source } => {
             let jpeg = encode_image(*target, source)?;
@@ -787,7 +862,20 @@ mod tests {
             ),
             None
         );
-        assert_eq!(plan_push("/controls/keys/0/brightness", &json!(80)), None);
+        assert_eq!(
+            plan_push("/controls/keys/0/brightness", &json!(80)),
+            Some(DeviceAction::Backlight {
+                kind: ModuleKind::Keys,
+                percent: 80
+            })
+        );
+        assert_eq!(
+            plan_push("/controls/dial/brightness", &json!(55)),
+            Some(DeviceAction::Backlight {
+                kind: ModuleKind::Dial,
+                percent: 55
+            })
+        );
         assert_eq!(plan_push("/settings/log/level", &json!("debug")), None);
         assert_eq!(
             plan_push(

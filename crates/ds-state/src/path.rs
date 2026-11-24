@@ -181,6 +181,7 @@ impl Path {
                     "faders" => check_index(self.segments.get(2), 4),
                     "rollers" => check_index(self.segments.get(2), 1),
                     "dial" => Ok(()),
+                    "base" => Ok(()), // base ring LED: /controls/base/led
                     "" => Ok(()), // replacing the whole /controls object
                     other => Err(path_err(format!("unknown control kind '{other}'"))),
                 }
@@ -371,6 +372,14 @@ mod tests {
             .validate_write()
             .is_ok());
         assert!(Path::parse("/focus/app").unwrap().validate_write().is_ok());
+    }
+
+    #[test]
+    fn base_led_write_path_is_valid() {
+        assert!(Path::parse("/controls/base/led")
+            .unwrap()
+            .validate_write()
+            .is_ok());
     }
 
     #[test]
