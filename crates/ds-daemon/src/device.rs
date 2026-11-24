@@ -232,6 +232,12 @@ fn plan_image_source(value: &Value) -> Option<ImageSource> {
 pub fn plan_push(path: &str, value: &Value) -> Option<DeviceAction> {
     let segs: Vec<&str> = path.trim_start_matches('/').split('/').collect();
     match segs.as_slice() {
+        ["controls", "panel", "image"] => {
+            plan_image_source(value).map(|source| DeviceAction::Image {
+                target: ImageTarget::Panel,
+                source,
+            })
+        }
         ["controls", "keys", "image"] => {
             plan_image_source(value).map(|source| DeviceAction::Image {
                 target: ImageTarget::Panel,

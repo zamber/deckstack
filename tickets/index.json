@@ -2919,5 +2919,68 @@
       "python3 tools/tickets.py validate"
     ],
     "blocks": []
+  },
+  {
+    "id": "DS-109",
+    "title": "Atomic keys-panel update path for fast display updates",
+    "state": "done",
+    "phase": 7,
+    "lane": "device",
+    "size": "M",
+    "owner": "autolith",
+    "depends_on": [],
+    "touches": [
+      "schemas/state.json",
+      "crates/ds-state/src/path.rs",
+      "crates/ds-daemon/src/device.rs"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "`/controls/panel/image` accepts a 480x272 image and produces one `Image { target: Panel }` device action",
+      "The panel path is in the state schema and the write-path vocabulary, with a unit test",
+      "A panel update removes the 15-key rolling update: one device push instead of 15"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon --lib",
+      "cargo test -p ds-state --lib",
+      "ds set /controls/panel/image --file panel.png",
+      "python3 tests/bench_panel.py"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-110",
+    "title": "Batch state writes / ds set-batch for multi-path updates",
+    "state": "ready",
+    "phase": 7,
+    "lane": "cli",
+    "size": "M",
+    "owner": null,
+    "depends_on": [],
+    "touches": [
+      "bins/ds/src/cli.rs",
+      "crates/ds-ipc/",
+      "docs/contracts/cli.md"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-24",
+    "updated": "2026-11-24",
+    "acceptance": [
+      "One command submits N state sets in one daemon transaction and reports one resulting rev",
+      "The command accepts a JSON file or stdin and validates every path before the transaction",
+      "The panel path is not required for icon updates; batch covers labels, brightness and other multi-path state"
+    ],
+    "verification": [
+      "cargo test -p ds-cli",
+      "ds set-batch --file /tmp/batch.json returns one rev",
+      "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
   }
 ]
