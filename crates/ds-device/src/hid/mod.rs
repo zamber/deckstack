@@ -32,7 +32,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use ds_protocol::{ModuleKind, Report};
+use ds_protocol::{ModuleKind, Report, ReportKind};
 use hidapi::HidApi;
 use mh_device::ModuleId;
 
@@ -270,6 +270,26 @@ fn track_mode(kind: ModuleKind, flag: &AtomicBool, report: &Report) {
     }
 }
 
+/// Send one padded report through the HID call its kind names: output reports
+/// through `hid_write`, feature reports (software mode, backlight) through
+/// `hid_send_feature_report`. A `0x03` report sent with `hid_write` never enters
+/// software mode: screen modules keep their boot animation and ignore images.
+fn dispatch<W, F, E>(
+    kind: ReportKind,
+    padded: &[u8],
+    write: W,
+    feature: F,
+) -> std::result::Result<usize, E>
+where
+    W: FnOnce(&[u8]) -> std::result::Result<usize, E>,
+    F: FnOnce(&[u8]) -> std::result::Result<(), E>,
+{
+    match kind {
+        ReportKind::Output => write(padded),
+        ReportKind::Feature => feature(padded).map(|()| padded.len()),
+    }
+}
+
 impl Transport for HidTransport {
     fn send(&self, module: &ModuleId, report: &Report) -> Result<usize> {
         // Refuse forbidden reports before any byte leaves the host, then pad like the HID
@@ -287,14 +307,20 @@ impl Transport for HidTransport {
         }
         track_mode(handle.info.kind, &handle.software_mode, report);
         let device = handle.device.lock().unwrap_or_else(|e| e.into_inner());
-        match device.write(&padded) {
+        let sent = dispatch(
+            report.kind(),
+            &padded,
+            |b| device.write(b),
+            |b| device.send_feature_report(b),
+        );
+        match sent {
             Ok(n) => Ok(n),
             Err(e) => {
                 if !handle.closed.swap(true, Ordering::SeqCst) {
                     self.shared
                         .module_gone(&self.modules, format!("write error: {e}"));
                 }
-                Err(Error::Device(format!("hid write to {module}: {e}")))
+                Err(Error::Device(format!("hid send to {module}: {e}")))
             }
         }
     }
@@ -536,5 +562,61 @@ mod tests {
         // after close the ids are gone too
         t.close().unwrap();
         assert!(t.module_id(ModuleKind::Keys).is_none());
+    }
+}
+
+#[cfg(test)]
+mod dispatch_tests {
+    use super::dispatch;
+    use ds_protocol::{ModuleKind, ReportKind};
+    use std::cell::Cell;
+
+    #[test]
+    fn feature_report_uses_the_feature_call() {
+        let (on, _) = ds_protocol::enter_software_mode(ModuleKind::Keys).unwrap();
+        assert_eq!(on.kind(), ReportKind::Feature);
+        let writes = Cell::new(0);
+        let features = Cell::new(0);
+        let n = dispatch(
+            on.kind(),
+            &[0x03, 0x3A, 0x01],
+            |_| {
+                writes.set(writes.get() + 1);
+                Ok::<usize, ()>(1)
+            },
+            |b| {
+                features.set(features.get() + 1);
+                assert_eq!(b[0], 0x03);
+                Ok::<(), ()>(())
+            },
+        )
+        .unwrap();
+        assert_eq!((writes.get(), features.get()), (0, 1));
+        assert_eq!(n, 3);
+    }
+
+    #[test]
+    fn output_report_uses_write() {
+        let led =
+            ds_protocol::led_color(ModuleKind::Faders, ds_protocol::LedTarget::All, [1, 2, 3])
+                .unwrap();
+        assert_eq!(led.kind(), ReportKind::Output);
+        let writes = Cell::new(0);
+        let features = Cell::new(0);
+        let n = dispatch(
+            led.kind(),
+            &[0x02, 0x2D, 1, 2, 3],
+            |_| {
+                writes.set(writes.get() + 1);
+                Ok::<usize, ()>(5)
+            },
+            |_| {
+                features.set(features.get() + 1);
+                Ok::<(), ()>(())
+            },
+        )
+        .unwrap();
+        assert_eq!((writes.get(), features.get()), (1, 0));
+        assert_eq!(n, 5);
     }
 }
