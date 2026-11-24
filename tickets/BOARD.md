@@ -75,5 +75,5 @@ Generated: 2026-11-24 - 73 tickets.
 | DS-100 | done | 2 | verify | M | autolith | DS-028 | Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict |
 | DS-101 | done | 7 | agents | M | vibe/DS-101 | DS-099 | Micro-app gallery: now-playing strip (MPRIS over D-Bus) example + gallery conformance |
 | DS-102 | done | 7 | agents | S | autolith | - | agents.md §3: client verbs take --socket, not --data-dir; document a private daemon correctly |
-| DS-103 | doing | 7 | agents | S | autolith | - | Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA) |
+| DS-103 | review | 7 | agents | S | autolith | - | Micro-app state cleanup: document `ds set <path> '{}'` as the clear operation (null is E_SCHEMA) |
 | DS-104 | ready | 7 | vdev | M | - | - | vdev frames: text visuals never appear in `ds-vdevctl frames` although colours do |
