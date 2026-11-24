@@ -935,13 +935,14 @@
     ],
     "touches": [
       "new:tools/verify/golden/",
-      "docs/90-verification.md"
+      "docs/90-verification.md",
+      "tools/verify/deckstack_verify.py"
     ],
     "branch": "ticket/DS-028",
     "worktree": ".worktrees/DS-028",
     "pr": "prs/DS-028.md",
     "created": "2026-11-22",
-    "updated": "2026-11-23",
+    "updated": "2026-11-24",
     "acceptance": [
       "tools/verify/golden/ holds the golden captures for key:0, the panel (keys), and LED states with a documented calibration procedure",
       "deckstack-verify check passes against the goldens on the real deck (camera-verified)",
