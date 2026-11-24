@@ -2629,7 +2629,7 @@
   {
     "id": "DS-100",
     "title": "Camera goldens: fully specified golden states (every key index + a working LED-off), then check strict",
-    "state": "doing",
+    "state": "review",
     "phase": 2,
     "lane": "verify",
     "size": "M",
