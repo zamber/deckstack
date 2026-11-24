@@ -41,6 +41,8 @@ docs/contracts/cli.md §1-§5 (the normative contract):
     140 `--ndjson` streams for watch: one JSON object per line after a set; human
         watch prints `event <path> rev=N`
     150 no `migrate` verb: `ds migrate …` exits 1 with the scope message
+    160 `set {}` clears an object path. A `null` value is rejected with E_SCHEMA
+         and exit 1.
     200/210/220 (fake control socket) the full E_* -> exit-code table 0-8 with the
         exact `ds: …  [exit N]` stderr shape and the one-object --json error envelope:
         E_DEVICE -> 7, E_VERSION/E_INTERNAL -> 8, malformed reply line -> 8, and every
@@ -977,6 +979,24 @@ class CliContract(unittest.TestCase):
         for args in (("migrate",), ("migrate", "/tmp/old"), ("migrate", "--help")):
             p = self.ds(*args)
             self.assert_exit(p, 1, "no 'migrate' verb")
+
+    # ---- 160 set {} clears, null is E_SCHEMA ---------------------------------
+
+    def test_cli_160_set_empty_object_clears(self):
+        p = self.ds("set", "--help")
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.assertIn("{} clears an object path", p.stdout)
+        # a whole-object write replaces the key
+        self.jout(self.ds("set", "/controls/keys/12", '{"label":"before"}', "--json"))
+        self.assertEqual(self.get_json("/controls/keys/12")["value"]["label"], "before")
+        # {} clears it. Exit 0 and the value is an empty object
+        env = self.jout(self.ds("set", "/controls/keys/12", "{}", "--json"))
+        self.assertEqual(env["ok"], True)
+        self.assertEqual(self.get_json("/controls/keys/12")["value"], {})
+        # null is not a valid screenControl. It returns E_SCHEMA and exit 1
+        p = self.ds("set", "/controls/keys/12", "null", "--json")
+        self.assertEqual(p.returncode, 1, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.err_envelope(p, "E_SCHEMA")
 
 
 class CliEnvelopeMapping(unittest.TestCase):

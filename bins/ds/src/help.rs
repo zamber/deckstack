@@ -120,7 +120,9 @@ Usage:
 
 Arguments:
   <path>           state path, e.g. /controls/keys/0/image
-  <value>          inline JSON when it parses, else a bare scalar string
+  <value>          inline JSON when it parses, else a bare scalar string.
+                   {} clears an object path. A null value is rejected with E_SCHEMA
+                   and exit 1.
   --file f         image file → {\"kind\":\"file\",\"path\":…}; canonicalized, must
                    live under /policy/fs/roots (or /tmp), else exit 4
   --if-rev N       conditional write (default: last-write-wins); mismatch → exit 3

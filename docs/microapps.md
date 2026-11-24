@@ -61,8 +61,33 @@ One JSON document, `/`-separated paths, `*` matches one segment in queries
 | `/streams/<target>` | durable per-target config `{queue_depth}` | frame-plane config, not stats |
 
 Index ranges are closed by the schema itself: keys `0-14`, knobs `0-2`, faders
-`0-4`, rollers `0-1` — `/controls/keys/15` is `E_PATH` (exit 2), not a write.
+`0-4`, rollers `0-1`. `ds set /controls/keys/15 '{}'` exits 2 with `E_PATH`.
 
+### Clearing and restoring a path
+
+A write replaces the whole value at a path. Set an object path to `{}` to clear it. The
+value must match the schema for that path. `null` is not a valid `screenControl`.
+`ds set /controls/keys/0 null` is rejected with `E_SCHEMA` and exit 1.
+
+Snapshot the keys before the first write. Restore the snapshot on exit. With `DS` and
+`ds_set` from §9:
+
+```python
+def ds_get(path):
+    p = subprocess.run(DS + ["get", path, "--json"], capture_output=True, text=True)
+    if p.returncode not in (0, 2):
+        sys.exit("ds get failed [exit %d]: %s" % (p.returncode, p.stderr.strip()))
+    return json.loads(p.stdout)["value"] if p.returncode == 0 else None
+
+snap = {k: ds_get("/controls/keys/%d" % k) for k in keys}
+
+def restore(keys, snap):
+    for k in keys:
+        ds_set("/controls/keys/%d" % k, snap[k] if snap[k] is not None else {})
+```
+
+`ds_get` returns `None` when the path does not exist. `ds get` exits 2 in that case.
+`restore` sets a key to `{}` when the key was absent before the app started.
 ## 3. Events and `ds watch --ndjson`
 
 Topics (`docs/contracts/actions.md` §1): `deck/control/<control>/<gesture>`,
