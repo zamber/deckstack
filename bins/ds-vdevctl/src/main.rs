@@ -3,7 +3,8 @@
 //! ```sh
 //! ds-vdevctl --socket /tmp/vdev.sock frames [target]   # sha256 of each reassembled frame
 //! ds-vdevctl --socket /tmp/vdev.sock reports           # module reports of the deck layout
-//! ds-vdevctl --socket /tmp/vdev.sock writes [n]        # report log (bytes, kind, refused)
+//! ds-vdevctl --socket /tmp/vdev.sock writes [n] [full] # report log (kind, refused; full adds payload)
+//! ds-vdevctl --socket /tmp/vdev.sock clock            # hub clock + wall clock (test time base)
 //! ds-vdevctl --socket /tmp/vdev.sock inject FILE.ndjson
 //! ds-vdevctl --socket /tmp/vdev.sock throttle <kbps|off> [drop-after|off]
 //! ds-vdevctl --socket /tmp/vdev.sock ping
@@ -25,7 +26,8 @@ USAGE:
 COMMANDS:
     frames [target]              sha256 + bytes of each reassembled frame (target: panel|key:N|dial)
     reports                      module reports of the deck layout
-    writes [n]                   last n accepted/refused reports (default 50)
+    writes [n] [full]            last n accepted/refused reports (default 50; full adds the payload of short reports)
+    clock                        hub clock (at_ms) + wall clock (epoch_ms)
     inject <file.ndjson>         replay scripted input events to connected hosts
     throttle <kbps|off> [drop]   set the device write cap / hot-unplug knob (drop: n|off)
     ping                         check the control socket is alive
@@ -69,10 +71,14 @@ fn main() -> ExitCode {
             None => "frames".to_string(),
         },
         "reports" => "reports".to_string(),
-        "writes" => match rest.first() {
-            Some(n) => format!("writes {n}"),
-            None => "writes".to_string(),
-        },
+        "writes" => {
+            if rest.is_empty() {
+                "writes".to_string()
+            } else {
+                format!("writes {}", rest.join(" "))
+            }
+        }
+        "clock" => "clock".to_string(),
         "throttle" => {
             if rest.is_empty() {
                 eprintln!("ds-vdevctl: throttle needs <kbps|off> [drop-after|off]");

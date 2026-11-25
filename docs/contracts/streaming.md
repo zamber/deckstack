@@ -67,8 +67,20 @@ Bench assertion (docs/30-testing.md §5): 32 fps × 60 s ⇒ `rev` delta == 0 an
   refused with `stream-nack` + `E_LIMIT` (the control plane is never killed by frame
   traffic).
 - Animation ≤ 300 frames @ ≤ 30 fps, `loop` in meta.
-- LED writes (same discipline): ≤ `/policy/led_rate_per_s` (default 30/s, interim pending
-  soak OPEN O2, `upstream/PROTOCOL.md:118-121`), always `save=0`.
+- LED writes (same discipline): one token bucket **per module** at `/policy/led_rate_per_s`
+  (default 30/s per module; faders are capped at 25/s on hardware evidence — the faders'
+  firmware takes ~25 LED reports/s and the module dropped off USB at ~50/s,
+  `upstream/PROTOCOL.md:118-124`), always `save=0`. LED-plane state writes never queue
+  behind anything: they go to a latest-wins lane keyed per LED target
+  (`crates/ds-daemon/src/led.rs`, ADR-018), so the newest colour always reaches the device
+  and no stale backlog is ever replayed; a dedicated LED writer thread owns the per-module
+  buckets, so input reads and image pushes never wait on LED pacing. The last
+  mode/colour/brightness sent per module is cached, so a colour-only change is a single
+  `02 2D` report, and per-index paths that address the same module-wide LED collapse into
+  one send. `/controls/rollers/*/led` has no LED command in mh-protocol (the M0 SDK accepts
+  LED targets 0=base, 1=faders, 2=knobs only, `upstream/PROTOCOL.md:38`), so roller writes
+  are a one-shot-warned no-op. Soak: vdev measurements in ADR-018; the real-deck soak
+  remains phase-2 (OPEN O2).
 
 ## 6. Stats
 

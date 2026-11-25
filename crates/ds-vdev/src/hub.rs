@@ -81,6 +81,20 @@ pub struct WriteRecord {
     /// For image-chunk writes: `(chunk index, last)` — the write-log oracle for whole-frame
     /// transfers (DS-035: the device never sees a partial chunk sequence).
     pub chunk: Option<(u16, bool)>,
+    /// The raw report bytes for short (non-chunk) writes, so `writes <n> full` can show the
+    /// payload (LED reports are 8-9 meaningful bytes padded to the module's out_len).
+    /// Empty for image chunks, which would dominate the log's memory.
+    pub data: Vec<u8>,
+}
+
+/// Payload recorded for the write log: short reports only (image chunks are skipped to keep
+/// the log bounded).
+fn record_data(payload: &[u8], chunk: Option<(u16, bool)>) -> Vec<u8> {
+    match chunk {
+        Some(_) => Vec::new(),
+        None if payload.len() <= 64 => payload.to_vec(),
+        None => Vec::new(),
+    }
 }
 
 /// What the connection loop should do after one request frame.
@@ -238,6 +252,7 @@ impl Hub {
                 refused: true,
                 at_ms,
                 chunk: None,
+                data: record_data(&f.payload, None),
             });
             return Outcome {
                 replies: vec![error_frame(
@@ -258,6 +273,7 @@ impl Hub {
                 refused: true,
                 at_ms,
                 chunk: None,
+                data: record_data(&f.payload, None),
             });
             return Outcome {
                 replies: vec![error_frame(
@@ -345,6 +361,7 @@ impl Hub {
             refused,
             at_ms,
             chunk,
+            data: record_data(&f.payload, chunk),
         });
 
         let replies = if let Some(msg) = error {
@@ -508,17 +525,20 @@ impl Hub {
             }
             "reports" => Ok(self.reports()),
             "writes" => {
-                let limit = if rest.is_empty() {
-                    50
-                } else {
-                    rest.parse::<usize>()
-                        .map_err(|_| format!("bad writes limit '{rest}'"))?
+                let mut fields = rest.split_whitespace();
+                let limit = match fields.next() {
+                    None => 50,
+                    Some(n) => n
+                        .parse::<usize>()
+                        .map_err(|_| format!("bad writes limit '{n}'"))?,
                 };
+                // optional "full": append the raw payload of short (non-chunk) reports
+                let full = fields.next() == Some("full");
                 Ok(self
                     .writes(limit)
                     .iter()
                     .map(|w| {
-                        format!(
+                        let mut line = format!(
                             "#{} pid={:#06x} kind={:#04x} len={} at_ms={}{}",
                             w.seq,
                             w.pid,
@@ -526,9 +546,29 @@ impl Hub {
                             w.len,
                             w.at_ms,
                             if w.refused { " refused" } else { "" }
-                        )
+                        );
+                        if full && !w.data.is_empty() {
+                            line.push_str(&format!(
+                                " data={}",
+                                w.data
+                                    .iter()
+                                    .map(|b| format!("{b:02x}"))
+                                    .collect::<String>()
+                            ));
+                        }
+                        line
                     })
                     .collect())
+            }
+            "clock" => {
+                // hub-clock (at_ms, ms since hub start) + wall clock, so a test can map
+                // write-log arrival times onto its own issue timestamps exactly
+                let at_ms = self.lock().started.elapsed().as_millis();
+                let epoch_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                Ok(vec![format!("at_ms={at_ms} epoch_ms={epoch_ms}")])
             }
             "throttle" => {
                 let mut fields = rest.split_whitespace();

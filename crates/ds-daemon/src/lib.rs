@@ -109,6 +109,7 @@ pub mod device_task;
 pub mod frames;
 pub mod guard;
 pub mod ipc;
+pub mod led;
 pub mod lifecycle;
 pub mod plugins;
 pub mod policy;

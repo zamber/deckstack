@@ -28,7 +28,12 @@ HID transport + protocol for the MasterHub family. Thin wrapper over the reused
      `02 <cmd> <chunk u16 LE> <len u16 LE> <idx> <last> <≤312 B>` (`upstream/PROTOCOL.md:87-96`,
      `crates/mh-protocol/src/report.rs:132-171`). cmds: keys `0x36`, panel `0x35`, dial `0x45`.
   4. LED writes `02 2C/2D/2E <target> <idx> … save=0` always (`upstream/PROTOCOL.md:34-38`);
-     rate cap 30/s pending soak test (OPEN O2, `upstream/PROTOCOL.md:118-121`).
+     one rate bucket **per module** at `/policy/led_rate_per_s` (default 30/s; faders 25/s,
+     `upstream/PROTOCOL.md:118-124`), driven by the dedicated LED writer thread behind a
+     latest-wins lane per LED target (`crates/ds-daemon/src/led.rs`, ADR-018) — the newest
+     colour always wins, the device task never sleeps on LED pacing, and a colour-only
+     change is one report. No roller LED command exists (M0 SDK targets are base/faders/
+     knobs only), so `/controls/rollers/*/led` is a one-shot-warned no-op.
   5. SET_IDLE sent at connect on macOS so rollers speak (`upstream/PROTOCOL.md:40`).
   6. Reads on keys/dial only in software mode (`Error::HardwareMode`,
      `upstream/crates/mh-device/src/module.rs:158-166`); identify modules by USB path/serial,

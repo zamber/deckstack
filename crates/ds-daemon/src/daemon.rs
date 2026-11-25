@@ -185,7 +185,7 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     // Device task first so the state task can forward pushes to it from the start.
     let (device_handle, device_thread, device_status) =
         device::spawn(device, shutdown.clone(), bus.clone());
-    let (state, state_thread) = StateTask::spawn(store, Some(device_handle.sender()), bus.clone());
+    let (state, state_thread) = StateTask::spawn(store, Some(device_handle.clone()), bus.clone());
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {

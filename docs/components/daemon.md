@@ -51,8 +51,9 @@ host, the event router, the frame plane. Details: `docs/10-architecture.md`,
   to the device as chunked image reports (`02 <cmd> <chunk u16 LE> <len u16 LE> <index>
   <last> <≤312 B>` inside 320 B output reports — `docs/contracts/streaming.md` §2), built
   with the existing ds-protocol chunkers (`panel_image`/`key_image`/`dial_image`); there is
-  no second chunker. Writes are paced by the per-device rate limit (LED writes at
-  `/policy/led_rate_per_s`, image chunks at the device's ~2.1 MB/s cap).
+  no second chunker. Writes are paced by per-device rate limits: LED-plane writes go
+  through the latest-wins LED lane with one bucket per module at `/policy/led_rate_per_s`
+  (ADR-018), image chunks at the device's ~2.1 MB/s cap.
 
   - `{"kind":"file","path":…}` — the file's bytes are read on the device task and pushed
     **unchanged** (phase-1 liberty, see caveat below). The read is confined to

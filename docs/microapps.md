@@ -202,8 +202,11 @@ state path, the binding reacts.
 - Wire limits: request line ≤ 1 MiB, response ≤ 4 MiB, subscriber queue 1000
   events (overflow → `dropped` events, oldest first), stream frame payload
   ≤ 16 MB, `--dir` pushes capped at 300 frames and 30 fps, `--credits 1..=1024`.
-- `/policy/led_rate_per_s` (default 30, range 1-30) caps LED writes — admin
-  scope. When in doubt: write once per second, watch for the rest.
+- `/policy/led_rate_per_s` (default 30, range 1-30) caps LED writes **per module** —
+  admin scope. LED writes are coalesced latest-wins (the newest colour always reaches the
+  deck, no backlog), so a 20 Hz colour feed is safe; `/controls/rollers/*/led` is accepted
+  but is a no-op (the M032LE has no LED command in the protocol). When in doubt: write
+  once per second, watch for the rest.
 
 ## 8. Errors and exit codes
 

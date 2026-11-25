@@ -9,16 +9,17 @@
 //! `get`), `subscribe`/`unsubscribe` (events pushed to the IPC connection), plus `rev`,
 //! `snapshot` and `persist` for lifecycle/tests.
 //!
-//! Committed `/controls/...` changes are forwarded to the device task as
-//! [`DevicePush`]es over a second bounded channel (dropped + counted when full — the
-//! state task never blocks on the device).
+//! Committed `/controls/...` changes are forwarded to the device task: LED-plane paths go
+//! to the latest-wins [`crate::led::LedLane`] (the newest value always wins, never dropped),
+//! everything else goes as a [`DevicePush`] over a second bounded channel (dropped + counted
+//! when full — the state task never blocks on the device).
 //!
 //! Committed durable changes are also published on the event bus
 //! ([`crate::router::Bus`], DS-040) as state events — one per changed path, carrying the
 //! commit's rev. `/telemetry/*` events never enter the bus (S1): they are delivered only
 //! to the direct store subscriptions of `/telemetry/*` patterns.
 
-use crate::device::DevicePush;
+use crate::device::{DeviceHandle, DevicePush};
 use crate::lifecycle;
 use crate::router::Bus;
 use ds_ipc::error::{ErrorCode, IpcError};
@@ -153,7 +154,7 @@ fn project(value: &Value, fields: Option<&[String]>) -> Value {
 pub struct StateTask {
     store: Store,
     rx: Receiver<StateCommand>,
-    pushes: Option<SyncSender<DevicePush>>,
+    pushes: Option<DeviceHandle>,
     bus: Bus,
     subs: HashMap<String, SubscriptionId>,
     /// High-water mark of allocated binding ids (`b%04d` of this + 1 is next). Initialized
@@ -164,11 +165,12 @@ pub struct StateTask {
 
 impl StateTask {
     /// Spawn the state task on a new thread. `pushes` (when given) receives the
-    /// `/controls/...` change events for the device task; `bus` receives every committed
-    /// durable change as a state event (DS-040).
+    /// `/controls/...` change events for the device task (LED-plane paths via the lane,
+    /// the rest via the bounded channel); `bus` receives every committed durable change
+    /// as a state event (DS-040).
     pub fn spawn(
         store: Store,
-        pushes: Option<SyncSender<DevicePush>>,
+        pushes: Option<DeviceHandle>,
         bus: Bus,
     ) -> (StateHandle, JoinHandle<()>) {
         let (tx, rx) = std::sync::mpsc::sync_channel(STATE_CHANNEL_CAP);
@@ -202,16 +204,24 @@ impl StateTask {
 
     fn run(mut self) {
         // One internal watcher on the root pattern forwards committed /controls changes
-        // to the device task. try_send on a bounded channel: never blocks the state task.
-        if let Some(pushes) = self.pushes.clone() {
+        // to the device task. LED-plane paths go to the latest-wins lane (submit replaces
+        // the pending value for that target — the newest colour is never dropped); every
+        // other push uses try_send on the bounded channel (never blocks the state task).
+        if let Some(fwd) = self.pushes.clone() {
             let cb: ds_state::store::WatchCallback = Arc::new(move |ev: Event| {
                 if ev.telemetry || !ev.path.starts_with("/controls/") {
                     return;
                 }
-                let _ = pushes.try_send(DevicePush::State {
-                    path: ev.path,
+                let path = ev.path;
+                let push = DevicePush::State {
+                    path: path.clone(),
                     value: ev.value,
-                });
+                };
+                if let Some(key) = crate::device::led_lane_key(&path) {
+                    fwd.led.submit(key, push);
+                } else {
+                    let _ = fwd.push(push);
+                }
             });
             if let Err(e) = self.store.subscribe("/", cb) {
                 lifecycle::log(
@@ -544,16 +554,19 @@ mod tests {
         JoinHandle<()>,
         Option<Receiver<DevicePush>>,
         Bus,
+        crate::led::LedLane,
     ) {
         let (push_tx, push_rx) = std::sync::mpsc::sync_channel(8);
         let bus = Bus::new();
-        let (h, t) = StateTask::spawn(Store::fresh(), Some(push_tx), bus.clone());
-        (h, t, Some(push_rx), bus)
+        let lane = crate::led::LedLane::new(crate::lifecycle::Shutdown::manual());
+        let handle = crate::device::DeviceHandle::new_for_tests(push_tx, lane.clone());
+        let (h, t) = StateTask::spawn(Store::fresh(), Some(handle), bus.clone());
+        (h, t, Some(push_rx), bus, lane)
     }
 
     #[test]
     fn get_set_describe_round_trip() {
-        let (h, t, _rx, _bus) = spawn_fresh();
+        let (h, t, _rx, _bus, _lane) = spawn_fresh();
         // empty state at start
         let meta = h.get("/meta", None).unwrap();
         assert_eq!(meta.rev, Some(0));
@@ -603,7 +616,7 @@ mod tests {
 
     #[test]
     fn committed_controls_changes_are_forwarded_to_the_device_channel() {
-        let (h, t, rx, _bus) = spawn_fresh();
+        let (h, t, rx, _bus, _lane) = spawn_fresh();
         h.set(Transaction::new(vec![Op::set(
             "/controls/keys/3/image",
             json!({"kind": "color", "value": "#ff8800"}),
@@ -632,8 +645,45 @@ mod tests {
     }
 
     #[test]
+    fn committed_led_changes_take_the_latest_wins_lane_not_the_channel() {
+        let (h, t, rx, _bus, lane) = spawn_fresh();
+        // three rapid colour commits for the same knob target: the lane keeps only the
+        // newest (superseded counted), the bounded channel stays empty
+        for hex in ["#010203", "#040506", "#070809"] {
+            h.set(Transaction::new(vec![Op::set(
+                "/controls/knobs/1/led",
+                json!({"mode": "static", "color": hex, "brightness": 100}),
+            )]))
+            .unwrap();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(lane.pending_len(), 1, "one pending value per LED target");
+        assert!(lane.superseded_count() >= 2, "replaced pendings counted");
+        assert!(
+            rx.as_ref().unwrap().try_recv().is_err(),
+            "nothing on the channel"
+        );
+        // a non-LED control still uses the channel
+        h.set(Transaction::new(vec![Op::set(
+            "/controls/keys/3/image",
+            json!({"kind": "color", "value": "#ff8800"}),
+        )]))
+        .unwrap();
+        let push = rx
+            .as_ref()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap();
+        match push {
+            DevicePush::State { path, .. } => assert_eq!(path, "/controls/keys/3/image"),
+        }
+        h.stop();
+        t.join().unwrap();
+    }
+
+    #[test]
     fn committed_changes_are_published_on_the_bus_as_state_events() {
-        let (h, t, _rx, bus) = spawn_fresh();
+        let (h, t, _rx, bus, _lane) = spawn_fresh();
         let (sink, rx) = std::sync::mpsc::channel();
         let sink = std::sync::Arc::new(crate::router::FnSink(std::sync::Arc::new(
             move |msg: &serde_json::Value| {
@@ -683,7 +733,7 @@ mod tests {
 
     #[test]
     fn bind_unbind_round_trip_over_the_state_handle() {
-        let (h, t, _rx, bus) = spawn_fresh();
+        let (h, t, _rx, bus, _lane) = spawn_fresh();
         // the committed /bindings change is published on the bus as a state event
         let (sink, rx) = std::sync::mpsc::channel();
         let sink = Arc::new(crate::router::FnSink(Arc::new(move |msg: &Value| {

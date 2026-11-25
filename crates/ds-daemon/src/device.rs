@@ -247,6 +247,41 @@ fn plan_image_source(value: &Value) -> Option<ImageSource> {
     }
 }
 
+/// One-shot warning that `/controls/rollers/<n>/led` is accepted in state but has no device
+/// command (see the `rollers` arm of [`plan_push`]). Logged once per daemon run so a 20 Hz
+/// roller feed does not spam the log.
+fn warn_rollers_led_unsupported_once() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        lifecycle::log(
+            "warn",
+            "ds-daemon::device",
+            "/controls/rollers/*/led is valid state but the M032LE has no LED command in \
+             mh-protocol (M0 SDK LED targets are base/faders/knobs only); the write is a no-op",
+        );
+    });
+}
+
+/// The latest-wins coalescing key of an LED-plane path (the paths [`plan_push`] maps to
+/// `LedColor`/`BaseLed`/`Backlight`), or `None` for every other push (images etc.), which
+/// keep flowing through the bounded channel. Per-index paths that target the same
+/// module-wide LED share one key, so they collapse into a single send.
+pub fn led_lane_key(path: &str) -> Option<String> {
+    let segs: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    match segs.as_slice() {
+        ["controls", "base", "led"] => Some("base-led".to_string()),
+        ["controls", kind, _n, "led"] => match *kind {
+            "knobs" => Some("led:knobs".to_string()),
+            "faders" => Some("led:faders".to_string()),
+            "rollers" => Some("led:rollers".to_string()),
+            _ => None,
+        },
+        ["controls", "keys", _n, "brightness"] => Some("backlight:keys".to_string()),
+        ["controls", "dial", "brightness"] => Some("backlight:dial".to_string()),
+        _ => None,
+    }
+}
+
 /// Translate one state change into a device action; `None` when out of scope (logged by
 /// the caller). Display-target `image` visuals (file and colour) become chunked image
 /// pushes; LED colors stay feature reports.
@@ -285,7 +320,15 @@ pub fn plan_push(path: &str, value: &Value) -> Option<DeviceAction> {
             let kind = match *kind {
                 "knobs" => ModuleKind::Knobs,
                 "faders" => ModuleKind::Faders,
-                "rollers" => ModuleKind::Rollers,
+                // The M032LE rollers have no LED command in mh-protocol: the M0 SDK accepts
+                // LED target 0 = base, 1 = faders, 2 = knobs only (`m0_led_address`), so
+                // `led_color(Rollers, …)` is unrepresentable. The state path stays valid
+                // (schemas/state.json), but the write is a one-shot-warned no-op — no
+                // command is invented.
+                "rollers" => {
+                    warn_rollers_led_unsupported_once();
+                    return None;
+                }
                 _ => return None,
             };
             let rgb = led_color_of(value)?;
@@ -494,10 +537,17 @@ pub fn send_action(
 }
 
 /// Handle of the device task for producers (the state task): bounded, non-blocking.
+///
+/// Non-LED pushes go through the bounded channel ([`DeviceHandle::push`], drop+count when
+/// full); LED-plane pushes go through the latest-wins [`LedLane`] ([`DeviceHandle::led`]),
+/// where the newest value always wins and is never dropped.
+#[derive(Clone)]
 pub struct DeviceHandle {
     tx: SyncSender<DevicePush>,
     /// Number of pushes dropped because the channel was full.
     pub dropped: Arc<AtomicU64>,
+    /// The latest-wins LED lane (dedicated writer thread with the per-module LED caps).
+    pub led: crate::led::LedLane,
 }
 
 impl DeviceHandle {
@@ -516,6 +566,16 @@ impl DeviceHandle {
     /// A clone of the raw sender (the state task holds one).
     pub fn sender(&self) -> SyncSender<DevicePush> {
         self.tx.clone()
+    }
+
+    /// A handle over a raw channel plus a lane nobody writes to (unit tests).
+    #[cfg(test)]
+    pub fn new_for_tests(tx: SyncSender<DevicePush>, led: crate::led::LedLane) -> Self {
+        DeviceHandle {
+            tx,
+            dropped: Arc::new(AtomicU64::new(0)),
+            led,
+        }
     }
 }
 
@@ -536,15 +596,20 @@ pub fn spawn(
 ) -> (DeviceHandle, JoinHandle<()>, DeviceStatus) {
     let (tx, rx) = std::sync::mpsc::sync_channel(DEVICE_CHANNEL_CAP);
     let dropped = Arc::new(AtomicU64::new(0));
+    let led = crate::led::LedLane::new(shutdown.clone());
+    // The dedicated LED writer thread: it owns the per-module LED rate buckets and is the
+    // only place that sleeps on LED pacing, so the device task below never blocks on it.
+    let _led_writer = led.clone().spawn_writer();
     let handle = DeviceHandle {
         tx,
         dropped: Arc::clone(&dropped),
+        led: led.clone(),
     };
     let status: DeviceStatus = Arc::new(Mutex::new(None));
     let status2 = Arc::clone(&status);
     let thread = std::thread::Builder::new()
         .name("ds-device".into())
-        .spawn(move || run_loop(device, rx, shutdown, status2, bus))
+        .spawn(move || run_loop(device, rx, shutdown, status2, bus, led))
         .expect("spawn ds-device thread");
     (handle, thread, status)
 }
@@ -555,10 +620,11 @@ fn run_loop(
     shutdown: Shutdown,
     status: DeviceStatus,
     bus: Bus,
+    led: crate::led::LedLane,
 ) {
     let limits = RateLimits::new();
     let mut decoder = router::InputDecoder::new();
-    let transport: Option<Box<dyn Transport>> = match &device {
+    let transport: Option<Arc<dyn Transport>> = match &device {
         None => {
             *status.lock().unwrap() = Some("none".to_string());
             lifecycle::log("info", "ds-daemon::device", "no device (--device none)");
@@ -566,6 +632,10 @@ fn run_loop(
         }
         Some(uri) => match ds_device::open(uri) {
             Ok(t) => {
+                // share the transport with the LED writer thread (Transport is Send+Sync and
+                // serializes writes internally), so LED sends never block this task
+                let t: Arc<dyn Transport> = Arc::from(t);
+                led.set_transport(Some(t.clone()));
                 *status.lock().unwrap() = Some(format!("connected {uri}"));
                 lifecycle::log(
                     "info",
@@ -651,9 +721,9 @@ fn run_loop(
         // reply), then drain whatever else is queued.
         match rx.recv_timeout(POLL) {
             Ok(push) => {
-                handle_push(transport.as_deref(), &push, &limits);
+                handle_push(transport.as_deref(), &push, &limits, &led);
                 while let Ok(push) = rx.try_recv() {
-                    handle_push(transport.as_deref(), &push, &limits);
+                    handle_push(transport.as_deref(), &push, &limits, &led);
                 }
                 continue;
             }
@@ -703,14 +773,26 @@ fn run_loop(
             None => std::thread::sleep(POLL),
         }
     }
+    led.set_transport(None);
     if let Some(t) = &transport {
         let _ = t.close();
     }
     lifecycle::log("info", "ds-daemon::device", "device task stopped");
 }
 
-fn handle_push(transport: Option<&dyn Transport>, push: &DevicePush, limits: &RateLimits) {
+fn handle_push(
+    transport: Option<&dyn Transport>,
+    push: &DevicePush,
+    limits: &RateLimits,
+    led: &crate::led::LedLane,
+) {
     let DevicePush::State { path, value } = push;
+    // LED-plane pushes never queue behind anything: hand them to the latest-wins lane (the
+    // state task routes them there directly; this is the backstop for channel pushes).
+    if let Some(key) = led_lane_key(path) {
+        led.submit(key, push.clone());
+        return;
+    }
     match plan_push(path, value) {
         Some(action) => match transport {
             Some(t) => {

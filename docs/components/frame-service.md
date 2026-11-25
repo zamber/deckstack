@@ -28,7 +28,8 @@ Contract: `docs/contracts/streaming.md`. Design: ADR-005, D06.
   `upstream/app/src-tauri/src/engine/plugins.rs:266`); animation ≤ 300 frames @ ≤ 30 fps
   (`hubdeck/src/hubdeck/render/images.py:22-23`, `schema.py:727`); device ceilings
   ~32 fps accepted / ~24 fps displayed / ~2.1 MB/s (`upstream/PROTOCOL.md:91-97,244,265`);
-  LED ≤ `/policy/led_rate_per_s` (default 30/s, interim pending OPEN O2).
+  LED ≤ `/policy/led_rate_per_s` **per module** (default 30/s; faders 25/s) via the
+  latest-wins LED lane (`crates/ds-daemon/src/led.rs`, ADR-018, streaming.md §5).
 - **Invariants:** frame bytes never enter the JSON state document; state holds only
   references (`image = {kind:"frame", target, seq, sha256}` or `{kind: color|text|icon|file, …}`);
   live stats are telemetry, not state (`/telemetry/streams/<target>`); frame pushes never

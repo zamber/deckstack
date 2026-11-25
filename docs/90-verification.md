@@ -194,6 +194,15 @@ same-state noise measured at delta ~9-13 per target; the median-selected golden 
 min-over-attempts rule suppress the single-frame glare spikes that reach ~90 on one key
 face). The recorded run is in the 2026-11-22 verification notes.
 
+**Rollers have no LED command (protocol fact, 2026-11-25)**: the official M0 SDK accepts LED
+targets 0 = base (index 0 only), 1 = faders 0-4/`FF`, 2 = knobs 0-2/`FF` and nothing else
+(`upstream/PROTOCOL.md:38`; `mh_protocol::report::m0_led_address` returns `None` for rollers),
+so the `/controls/rollers/{i}/led` writes in `manifest.json`'s states are no-ops since the
+LED lane landed (ADR-018): the daemon accepts the state write and logs one warning, and no
+report leaves the host. Any roller-position pixels inside the `led:0` zone of the `led`
+golden therefore come from the knob rings, not from rollers — flagged for the next hardware
+run; goldens are regenerated deliberately with `--record`, never hand-edited.
+
 **Device behaviour (measured 2026-11-24)**: this M4315 unit keeps the last pushed colour per
 key index and ignores the LED `mode: "off"`, so every golden state pins all 15 key indices
 and clears the rings explicitly: `{"mode":"static","color":"#000000","brightness":0}`
