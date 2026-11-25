@@ -163,6 +163,49 @@ pub fn encode_solid(target: FrameTarget, rgb: [u8; 3]) -> Vec<u8> {
     encode_rgb(target, &pixels, w, h).expect("solid target-size image always encodes")
 }
 
+/// Panel geometry of the M4315 keys module (`docs/contracts/streaming.md` §1,
+/// `upstream/PROTOCOL.md:81`): a 480x272 panel whose 15 key windows are 72x72 tiles at
+/// these top-left corners, row-major key index 0..14 (x varies fastest).
+pub const PANEL_WIDTH: u32 = 480;
+pub const PANEL_HEIGHT: u32 = 272;
+pub const KEY_TILE: u32 = 72;
+pub const KEY_WINDOW_X: [u32; 5] = [5, 104, 203, 303, 402];
+pub const KEY_WINDOW_Y: [u32; 3] = [1, 101, 199];
+
+/// Top-left corner of the 72x72 window of key `n` (0..14, row-major) on the panel.
+pub fn key_window_origin(n: usize) -> (u32, u32) {
+    (
+        KEY_WINDOW_X[n % KEY_WINDOW_X.len()],
+        KEY_WINDOW_Y[n / KEY_WINDOW_X.len()],
+    )
+}
+
+/// Compose the 480x272 RGB panel for the `kind:"colors"` visual: background `#000000`,
+/// each 72x72 key tile filled with its colour (DS-111). Pure pixel fill — no JPEG
+/// involved, so tests can assert exact pixels.
+pub fn compose_panel_colors(colors: &[[u8; 3]; 15]) -> Vec<u8> {
+    let mut rgb = vec![0u8; PANEL_WIDTH as usize * PANEL_HEIGHT as usize * 3];
+    for (n, color) in colors.iter().enumerate() {
+        let (x0, y0) = key_window_origin(n);
+        for y in y0..y0 + KEY_TILE {
+            for x in x0..x0 + KEY_TILE {
+                let off = (y as usize * PANEL_WIDTH as usize + x as usize) * 3;
+                rgb[off..off + 3].copy_from_slice(color);
+            }
+        }
+    }
+    rgb
+}
+
+/// Encode the bulk `colors` visual to the device wire format: compose the 480x272 RGB
+/// panel from the 15 key colours, then encode it as the panel frame (0x35, q80) —
+/// infallible for the fixed panel size.
+pub fn encode_panel_colors(colors: &[[u8; 3]; 15]) -> Vec<u8> {
+    let rgb = compose_panel_colors(colors);
+    encode_rgb(FrameTarget::Panel, &rgb, PANEL_WIDTH, PANEL_HEIGHT)
+        .expect("panel-size composed image always encodes")
+}
+
 /// Encode 8-bit RGB pixels to the device wire format for `target`.
 pub fn encode_rgb(target: FrameTarget, rgb: &[u8], w: u32, h: u32) -> Result<Vec<u8>, EncodeError> {
     if w == 0 || h == 0 || w > u32::from(u16::MAX) || h > u32::from(u16::MAX) {
@@ -775,5 +818,76 @@ mod tests {
         // higher quality => larger (or equal) file for this image
         assert!(key.len() >= dial.len());
         assert!(dial.len() >= panel.len());
+    }
+
+    #[test]
+    fn panel_colors_composer_fills_exactly_the_72x72_key_windows() {
+        // 15 distinct colours, one per key index
+        let mut colors = [[0u8; 3]; 15];
+        for (n, c) in colors.iter_mut().enumerate() {
+            *c = [(n as u8) + 1, (n as u8) * 2 + 10, 255 - n as u8];
+        }
+        let rgb = compose_panel_colors(&colors);
+        assert_eq!(
+            rgb.len(),
+            480 * 272 * 3,
+            "the composed panel is 480x272 RGB"
+        );
+        let px = |x: u32, y: u32| -> [u8; 3] {
+            let off = (y as usize * 480 + x as usize) * 3;
+            [rgb[off], rgb[off + 1], rgb[off + 2]]
+        };
+        for n in 0..15 {
+            let (x0, y0) = key_window_origin(n);
+            assert_eq!((x0, y0), (KEY_WINDOW_X[n % 5], KEY_WINDOW_Y[n / 5]));
+            let c = colors[n];
+            // tile centre, all four corners and edges carry exactly colour N
+            assert_eq!(px(x0 + 36, y0 + 36), c, "centre of key {n}");
+            for (x, y) in [
+                (x0, y0),
+                (x0 + 71, y0),
+                (x0, y0 + 71),
+                (x0 + 71, y0 + 71),
+                (x0, y0 + 36),
+                (x0 + 71, y0 + 36),
+                (x0 + 36, y0),
+                (x0 + 36, y0 + 71),
+            ] {
+                assert_eq!(px(x, y), c, "edge pixel ({x},{y}) of key {n}");
+            }
+            // the pixel just outside the tile stays background
+            assert_eq!(px(x0 + 72, y0 + 36), [0, 0, 0], "right of key {n}");
+            assert_eq!(px(x0 + 36, y0 + 72), [0, 0, 0], "below key {n}");
+        }
+        // gap pixels between/around tiles are #000000
+        for (x, y) in [
+            (0, 0),
+            (479, 271),
+            (4, 1),
+            (5 + 71 + 1, 1),
+            (77, 73),
+            (200, 150),
+            (302, 270),
+        ] {
+            assert_eq!(px(x, y), [0, 0, 0], "gap pixel ({x},{y})");
+        }
+    }
+
+    #[test]
+    fn panel_colors_encode_is_one_panel_sized_baseline_jpeg() {
+        let colors: [[u8; 3]; 15] = [[0x11, 0x22, 0x33]; 15];
+        let jpeg = encode_panel_colors(&colors);
+        assert!(validate_jpeg_baseline_standard(&jpeg).is_ok());
+        let pos = find_marker(&jpeg, 0xC0).unwrap();
+        let seg = &jpeg[pos + 4..];
+        let h = u16::from_be_bytes([seg[1], seg[2]]) as u32;
+        let w = u16::from_be_bytes([seg[3], seg[4]]) as u32;
+        assert_eq!((w, h), (480, 272), "the composed frame is the panel size");
+        // deterministic
+        assert_eq!(jpeg, encode_panel_colors(&colors));
+        // distinct colours produce a distinct frame (not a solid fill)
+        let mut other = colors;
+        other[7] = [0xAA, 0xBB, 0xCC];
+        assert_ne!(jpeg, encode_panel_colors(&other));
     }
 }

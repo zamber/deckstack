@@ -28,6 +28,7 @@ top-level paths:
 /devices/<serial>            {kind, model, pid, slot, connection, last_seen_rev}
 /controls/keys/<0-14>        {image, label, brightness}
 /controls/dial               {image, label, brightness}
+/controls/panel              {image, label, brightness}  (image also accepts the panel-only `colors` visual, DS-111)
 /controls/knobs/<0-2>        {led: {mode, color, brightness}, value}
 /controls/faders/<0-4>       {led, value}
 /controls/rollers/<0-1>      {led, value}
@@ -80,6 +81,19 @@ bytes; changes only on `set`), `file` (absolute path; schema pattern rejects any
 segment — M3; daemon additionally canonicalizes and confines to `/policy/fs/roots`),
 `icon` (`tabler:<name>`), `text` (`{value ≤ 32 chars, fg, bg}`). All validated by
 `schemas/state.json`.
+
+Panel-only, on `/controls/panel/image` only (`$defs/panelVisual` in `schemas/state.json`;
+keys and dial keep `screenControl`/`visual`, so the schema rejects it there before the
+transaction — DS-111):
+
+```json
+{"kind": "colors", "value": ["#rrggbb", "… exactly 15 entries"]}
+```
+
+Row-major key colours 0-14. The daemon composes the 480x272 panel server-side —
+background `#000000`, each 72x72 key tile filled at x=5,104,203,303,402 / y=1,101,199
+(`docs/contracts/streaming.md` §1, `upstream/PROTOCOL.md:81`) — and pushes it as ONE
+`02 35` panel frame; no per-key `0x36` reports are sent.
 
 ## 4. Durability, transactions, revisions
 

@@ -128,6 +128,44 @@ pub fn parse_inline_value(s: &str) -> Value {
     }
 }
 
+/// Whether `s` is exactly `#rrggbb` (the only colour spelling the schema allows).
+pub fn is_hex_color(s: &str) -> bool {
+    match s.strip_prefix('#') {
+        Some(hex) => hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit()),
+        None => false,
+    }
+}
+
+/// Parse the one positional argument of `ds colors`: a JSON array of exactly 15
+/// `#rrggbb` strings (row-major key colours 0-14, DS-111). Any other JSON, arity or
+/// spelling is a usage error — exit 1 before the daemon is contacted.
+pub fn parse_colors_array(s: &str) -> Result<Vec<String>, String> {
+    let v: Value = serde_json::from_str(s)
+        .map_err(|e| format!("colors needs one JSON array of 15 '#rrggbb' strings: {e}"))?;
+    let arr = v.as_array().ok_or_else(|| {
+        "colors needs a JSON array, e.g. ds colors '[\"#ff0000\", … 15]'".to_string()
+    })?;
+    if arr.len() != 15 {
+        return Err(format!(
+            "colors needs exactly 15 colours (one per key 0-14), got {}",
+            arr.len()
+        ));
+    }
+    let mut out = Vec::with_capacity(15);
+    for item in arr {
+        let Some(c) = item.as_str() else {
+            return Err(format!("colors entry {item} is not a '#rrggbb' string"));
+        };
+        if !is_hex_color(c) {
+            return Err(format!(
+                "colors entry {c:?} is not a '#rrggbb' hex colour (e.g. \"#ff0000\")"
+            ));
+        }
+        out.push(c.to_string());
+    }
+    Ok(out)
+}
+
 fn parse_u64(flag: &str, s: &str) -> Result<u64, UsageError> {
     s.parse::<u64>()
         .map_err(|_| UsageError(format!("{flag} needs a non-negative integer, got {s:?}")))
@@ -296,6 +334,38 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
             Command::Set {
                 path,
                 value,
+                if_rev,
+            }
+        }
+        "colors" => {
+            // `ds colors '<json-array>'` (DS-111): bulk key colours as one panel visual —
+            // sugar for the single `ds set /controls/panel/image --json '{"kind":"colors",…}'`
+            reject_ndjson(&g, "colors")?;
+            if file.is_some() {
+                return Err(UsageError(
+                    "colors takes one JSON array argument, not --file (use `ds set <path> --file f`)"
+                        .to_string(),
+                ));
+            }
+            let Some(arg) = rest.first() else {
+                return Err(UsageError(
+                    "colors needs one JSON array of 15 '#rrggbb' strings, e.g. ds colors '[\"#ff0000\", … 15]'"
+                        .to_string(),
+                ));
+            };
+            if rest.len() > 1 {
+                return Err(UsageError(format!(
+                    "colors takes exactly one JSON array, got extra: {}",
+                    rest[1..].join(" ")
+                )));
+            }
+            let colors = parse_colors_array(arg).map_err(UsageError)?;
+            Command::Set {
+                path: "/controls/panel/image".to_string(),
+                value: SetValue::Inline(serde_json::json!({
+                    "kind": "colors",
+                    "value": colors,
+                })),
                 if_rev,
             }
         }
@@ -624,6 +694,7 @@ fn help_command(positionals: &[String]) -> Result<Command, UsageError> {
                 STREAM_SUBS.join(", ")
             ))),
         },
+        "colors" => Ok(Command::Help("colors")),
         v if VERBS.contains(&v) => Ok(Command::Help(match v {
             "get" => "get",
             "set" => "set",
@@ -1141,5 +1212,89 @@ mod tests {
             Command::Help("stream stop")
         );
         assert!(parse_err(&["stream", "bogus", "--help"]).contains("unknown stream subcommand"));
+    }
+
+    /// 15 distinct `#rrggbb` strings, JSON-serialized as the one positional argument.
+    fn colors_arg() -> String {
+        let hexes: Vec<String> = (0..15).map(|i| format!("#{i:02x}a{i:02x}b")).collect();
+        serde_json::to_string(&hexes).unwrap()
+    }
+
+    #[test]
+    fn parses_colors_verb_as_one_panel_set() {
+        let arg = colors_arg();
+        let want = Command::Set {
+            path: "/controls/panel/image".into(),
+            value: SetValue::Inline(json!({
+                "kind": "colors",
+                "value": (0..15).map(|i| format!("#{i:02x}a{i:02x}b")).collect::<Vec<_>>(),
+            })),
+            if_rev: None,
+        };
+        let (c, g) = parse_ok(&["colors", arg.as_str()]);
+        assert_eq!(c, want);
+        assert_eq!(g.mode, OutputMode::Human);
+        // the global --json is the output mode and passes through; --if-rev like set
+        let (c, g) = parse_ok(&["colors", arg.as_str(), "--json"]);
+        assert_eq!(c, want);
+        assert_eq!(g.mode, OutputMode::Json);
+        let (c, _) = parse_ok(&["colors", arg.as_str(), "--if-rev", "41"]);
+        assert_eq!(
+            c,
+            Command::Set {
+                path: "/controls/panel/image".into(),
+                value: SetValue::Inline(json!({
+                    "kind": "colors",
+                    "value": (0..15).map(|i| format!("#{i:02x}a{i:02x}b")).collect::<Vec<_>>(),
+                })),
+                if_rev: Some(41),
+            }
+        );
+        // help resolves at the verb level
+        assert_eq!(parse_ok(&["colors", "--help"]).0, Command::Help("colors"));
+        // usage errors — all exit 1 before the daemon is contacted
+        assert!(parse_err(&["colors"]).contains("needs one JSON array"));
+        assert!(parse_err(&["colors", arg.as_str(), "extra"]).contains("exactly one JSON array"));
+        assert!(parse_err(&["colors", "not json"]).contains("JSON array"));
+        assert!(parse_err(&["colors", "{\"kind\":\"colors\"}"]).contains("JSON array"));
+        assert!(parse_err(&["colors", arg.as_str(), "--file", "/tmp/x.png"]).contains("not --file"));
+        assert!(parse_err(&["colors", arg.as_str(), "--ndjson"]).contains("--ndjson is only valid"));
+        // 14 / 16 entries
+        for n in [14usize, 16] {
+            let hexes: Vec<String> = (0..n).map(|i| format!("#{i:02x}0000")).collect();
+            let a = serde_json::to_string(&hexes).unwrap();
+            let e = parse_err(&["colors", a.as_str()]);
+            assert!(e.contains("exactly 15"), "{n}: {e}");
+        }
+        // a non-#rrggbb entry
+        let mut hexes: Vec<String> = (0..15).map(|i| format!("#{i:02x}0000")).collect();
+        hexes[7] = "red".to_string();
+        let a = serde_json::to_string(&hexes).unwrap();
+        assert!(
+            parse_err(&["colors", a.as_str()]).contains("#rrggbb"),
+            "{}",
+            parse_err(&["colors", a.as_str()])
+        );
+        // non-string entries
+        let a = serde_json::to_string(&vec![1; 15]).unwrap();
+        assert!(parse_err(&["colors", a.as_str()]).contains("not a '#rrggbb' string"));
+    }
+
+    #[test]
+    fn colors_array_and_hex_parsing() {
+        assert!(is_hex_color("#3cc86e"));
+        assert!(is_hex_color("#FFFFFF"));
+        for bad in [
+            "3cc86e", "#fff", "#12345", "#gggggg", "", "#1234567", "#12 456",
+        ] {
+            assert!(!is_hex_color(bad), "{bad:?}");
+        }
+        let hexes: Vec<String> = (0..15).map(|i| format!("#{i:02x}{i:02x}{i:02x}")).collect();
+        let ok = parse_colors_array(&serde_json::to_string(&hexes).unwrap()).unwrap();
+        assert_eq!(ok, hexes);
+        assert!(parse_colors_array("[]").is_err());
+        assert!(parse_colors_array("[\"#000000\"]").is_err());
+        assert!(parse_colors_array("42").is_err());
+        assert!(parse_colors_array("").is_err());
     }
 }

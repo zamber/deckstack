@@ -16,6 +16,7 @@ ds describe <path>
 |---|---|
 | `get` | `ds get <path> [--fields a,b] [--rev N]` — `/telemetry/*` works and returns no rev |
 | `set` | `ds set <path> <value> [--if-rev N] [--file f]` |
+| `colors` | `ds colors '<json-array of 15 "#rrggbb">' [--if-rev N]` — bulk key colours: one `set /controls/panel/image` with the panel-only `{"kind":"colors","value":[…]}` visual; the daemon composes the 480x272 panel and sends one `02 35` push (DS-111). Wrong JSON/arity/hex exits 1 before the daemon is contacted |
 | `bind` | `ds bind <topic> --do '<step>' [--do …] [--when '<cond>']` → prints the new binding id (`bNNNN`) |
 | `unbind` | `ds unbind <id> | --topic <topic>` |
 | `emit` | `ds emit <topic> [json-payload]` |
@@ -54,6 +55,8 @@ There is no `ds test` verb in the production CLI.
 
 ```sh
 ds set /controls/keys/0/image --json '{"kind":"color","value":"#ff0000"}'
+ds colors '["#ff0000","#00ff00","#0000ff", … 15 total]'   # one rev, one panel push (DS-111)
+ds set /controls/panel/image --json '{"kind":"colors","value":["#ff0000", … 15]}'  # the same write
 ds set /controls/keys/0/image --file ~/pic.png            # confined to /policy/fs/roots
 ds set /controls/keys/0/image --json '{"kind":"icon","name":"tabler:bolt"}'
 ds set /controls/keys/0/label '"Salon"'

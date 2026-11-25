@@ -149,6 +149,9 @@ VERB_COVERAGE = {
     "stream push": ("test_cli_110_exit_5_limit",),
     "stream stats": ("test_cli_130_json_single_object",),
     "stream stop": ("test_cli_020_help_mentions_contract_flags",),
+    # DS-111: the colors verb is implemented in cli.rs (not advertised in `ds --help`'s
+    # verb index, so the 010 walk does not discover it); it is covered by its own case.
+    "colors": ("test_cli_170_colors_verb_bulk_panel_push",),
 }
 
 # The full E_* -> exit table of docs/contracts/cli.md §3 (driven through a scripted
@@ -997,6 +1000,98 @@ class CliContract(unittest.TestCase):
         p = self.ds("set", "/controls/keys/12", "null", "--json")
         self.assertEqual(p.returncode, 1, "rc=%d stderr=%s" % (p.returncode, p.stderr))
         self.err_envelope(p, "E_SCHEMA")
+
+    # ---- 170 ds colors: one bulk panel push (DS-111) ---------------------------
+
+    def _vdevctl_frame_sha(self, target):
+        """sha256 of the vdev's current reassembled frame for `target`, or None when the
+        vdev has no frame for it yet (`frames` errors with 'no frame' in that case; the
+        vdev keeps one frame per target, so growth is observed as a sha change)."""
+        p = subprocess.run(
+            [str(self.bins / "ds-vdevctl"), "--socket", str(self.stack.vdev_sock),
+             "frames", target],
+            capture_output=True, text=True, timeout=OP_TIMEOUT_S,
+        )
+        if p.returncode != 0 and "no frame" not in p.stderr:
+            self.fail("vdevctl rc=%d stderr=%s" % (p.returncode, p.stderr))
+        lines = [l for l in p.stdout.splitlines() if l.strip()]
+        return lines[0].split()[1] if lines else None
+
+    def _wait_for(self, cond, timeout_s, what):
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if cond():
+                return
+            time.sleep(0.05)
+        self.fail("timed out after %ss waiting for %s" % (timeout_s, what))
+
+    def test_cli_170_colors_verb_bulk_panel_push(self):
+        hexes = ["#%02x%02x00" % (i, 255 - i) for i in range(15)]
+        arg = json.dumps(hexes)
+        panel_before = self._vdevctl_frame_sha("panel")
+        keys_before = {n: self._vdevctl_frame_sha("key:%d" % n) for n in range(15)}
+
+        # `ds colors '<json-array>'`: one rev, one panel frame, no key frames
+        rev0 = self.rev()
+        p = self.ds("colors", arg)
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.assertRegex(p.stdout.strip(), r"^ok rev=\d+$", "human output: %r" % p.stdout)
+        self.assertEqual(self.rev(), rev0 + 1, "one colors call commits exactly one rev")
+        # the state carries the colors visual on /controls/panel/image
+        self.assertEqual(self.get_json("/controls/panel/image")["value"],
+                         {"kind": "colors", "value": hexes})
+        # the device saw exactly one new panel frame and no per-key 0x36 reports: the
+        # panel frame's sha changed, every key frame's sha is untouched (or absent)
+        self._wait_for(lambda: self._vdevctl_frame_sha("panel") not in (None, panel_before),
+                       10, "a new panel frame on the vdev")
+        for n in range(15):
+            self.assertEqual(self._vdevctl_frame_sha("key:%d" % n), keys_before[n],
+                             "frames key:%d must not change on a colors push" % n)
+        # --json prints the usual one-object envelope
+        out = self.jout(self.ds("colors", arg, "--json"))
+        self.assertEqual(out["ok"], True)
+        self.assertIn("rev", out)
+        # the equivalent `ds set /controls/panel/image --json …` accepts the same value
+        rev_before = self.rev()
+        p = self.ds("set", "/controls/panel/image", "--json",
+                    json.dumps({"kind": "colors", "value": hexes}))
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.assertEqual(self.rev(), rev_before + 1)
+        self.assertEqual(self.get_json("/controls/panel/image")["value"],
+                         {"kind": "colors", "value": hexes})
+
+        # rejections: wrong arity / bad JSON / bad hex exit 1 with rev unchanged
+        rev_before = self.rev()
+        bad_args = [
+            json.dumps(hexes[:14]),                       # 14 entries
+            json.dumps(hexes + ["#000000"]),              # 16 entries
+            json.dumps(["red"] * 15),                     # not #rrggbb
+            json.dumps([1] * 15),                         # not strings
+            "not json",
+            json.dumps({"kind": "colors", "value": hexes}),
+        ]
+        for bad in bad_args:
+            p = self.ds("colors", bad)
+            self.assertEqual(p.returncode, 1, "bad=%s rc=%d" % (bad[:40], p.returncode))
+            self.assertIn("[exit 1]", p.stderr, "stderr=%s" % p.stderr)
+        self.assertEqual(self.rev(), rev_before, "rejected colors calls must not move rev")
+
+        # kind:colors on a key is rejected by the schema before the transaction
+        p = self.ds("set", "/controls/keys/0/image", "--json",
+                    json.dumps({"kind": "colors", "value": hexes}))
+        self.assertEqual(p.returncode, 1, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.err_envelope(p, "E_SCHEMA")
+        self.assertEqual(self.rev(), rev_before, "E_SCHEMA set must not move rev")
+        # … and on the dial
+        p = self.ds("set", "/controls/dial/image", "--json",
+                    json.dumps({"kind": "colors", "value": hexes}))
+        self.assertEqual(p.returncode, 1)
+        self.err_envelope(p, "E_SCHEMA")
+
+        # `ds colors --help` resolves at the verb level (exit 0, Usage block)
+        p = self.ds("colors", "--help")
+        self.assertEqual(p.returncode, 0, "rc=%d stderr=%s" % (p.returncode, p.stderr))
+        self.assertIn("Usage:", p.stdout)
 
 
 class CliEnvelopeMapping(unittest.TestCase):

@@ -35,7 +35,7 @@
         "keys": {"type": "object", "patternProperties": {"^(?:[0-9]|1[0-4])$": {"$ref": "#/$defs/screenControl"}}, "additionalProperties": false, "description": "Key indices 0-14 only (15 keys on the screen module); '15', '99' and any other index are rejected at object level (S8 regression tests in tests/fixtures/)."},
         "dial": {"$ref": "#/$defs/screenControl"},
         "base": {"$ref": "#/$defs/ledControl"},
-        "panel": {"$ref": "#/$defs/screenControl"},
+        "panel": {"$ref": "#/$defs/panelControl", "description": "The whole keys panel (DS-109/DS-111): image accepts every screen visual plus the panel-only bulk `colors` visual. Keys and dial keep screenControl, so `colors` stays panel-only at the schema level."},
         "knobs": {"type": "object", "patternProperties": {"^[0-2]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Knob indices 0-2 only (3 knobs); any other index is rejected at object level (S8)."},
         "faders": {"type": "object", "patternProperties": {"^[0-4]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Fader indices 0-4 only (5 faders); any other index is rejected at object level (S8)."},
         "rollers": {"type": "object", "patternProperties": {"^[0-1]$": {"$ref": "#/$defs/ledControl"}}, "additionalProperties": false, "description": "Roller indices 0-1 only (2 rollers); any other index is rejected at object level (S8)."}
@@ -167,6 +167,21 @@
       "type": "object",
       "properties": {
         "image": {"$ref": "#/$defs/visual"},
+        "label": {"type": "string", "maxLength": 32},
+        "brightness": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Backlight 1-100; 0 is refused on the dial (upstream/PROTOCOL.md:61)."}
+      }
+    },
+    "panelVisual": {
+      "description": "What the panel control shows: every screen visual (DS-109 file path included) plus the panel-only bulk `colors` visual of exactly 15 `#rrggbb` key colours, composed server-side into the 480x272 panel (DS-111). Keys and dial use `visual` only, so `colors` is rejected there before the transaction.",
+      "oneOf": [
+        {"$ref": "#/$defs/visual"},
+        {"type": "object", "required": ["kind", "value"], "properties": {"kind": {"const": "colors"}, "value": {"type": "array", "minItems": 15, "maxItems": 15, "items": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}, "description": "Row-major key colours 0-14; the daemon fills each 72x72 key window of the 480x272 panel (docs/contracts/streaming.md §1)."}}, "additionalProperties": false}
+      ]
+    },
+    "panelControl": {
+      "type": "object",
+      "properties": {
+        "image": {"$ref": "#/$defs/panelVisual"},
         "label": {"type": "string", "maxLength": 32},
         "brightness": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Backlight 1-100; 0 is refused on the dial (upstream/PROTOCOL.md:61)."}
       }

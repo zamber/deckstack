@@ -14,9 +14,12 @@
 //!   on any send/recv does the same immediately;
 //! - **reconnect + re-push** — after a reconnect the task re-pushes the **current** image of
 //!   every display target and the current LED colors from a latest-frame-wins cache (only
-//!   the newest push per target is kept; replacing one is counted). Re-push is a pure
-//!   transport operation: it reads no state document and never bumps `rev` (S1), the
-//!   latest-frame-wins semantics live in the cache, mirroring the frame service's queue;
+//!   the newest push per target is kept; replacing one is counted). A cached Panel image
+//!   and cached Key images are mutually exclusive (DS-111): caching one drops the other
+//!   kind, so a reconnect never replays stale key tiles over a newer bulk panel (or a
+//!   stale panel over a newer key). Re-push is a pure transport operation: it reads no
+//!   state document and never bumps `rev` (S1), the latest-frame-wins semantics live in
+//!   the cache, mirroring the frame service's queue;
 //! - **unresponsive devices** — every send/query is bounded (the transport's own write/query
 //!   timeout plus a host-side deadline, [`hotplug::timed`]); on a timeout the module is
 //!   marked unhealthy, logged, and no further sends go to it (drops counted), and the
@@ -28,7 +31,7 @@
 //! this task's thread — no lock is ever held across it — and a failed push is logged and
 //! dropped, never stalling the state task or the IPC.
 
-use crate::device::{self, DeviceAction, DevicePush, ImageSource};
+use crate::device::{self, DeviceAction, DevicePush, ImageSource, ImageTarget};
 use crate::frames::{self, FrameTarget};
 use crate::lifecycle::{self, Shutdown};
 use crate::router::{self, Bus};
@@ -239,6 +242,28 @@ pub fn spawn_with(
     (handle, thread, status)
 }
 
+/// Panel and key image actions are mutually exclusive in the re-push cache (DS-111):
+/// caching a Panel image drops every cached `Key(_)` image and caching a Key image drops
+/// a cached Panel, so a reconnect can never replay stale key tiles over a newer bulk
+/// panel (or a stale panel over a newer key). The dial is a separate screen and is not
+/// affected. Returns how many cached actions were dropped.
+fn drop_excluded_images(
+    latest: &mut HashMap<String, DeviceAction>,
+    action: &DeviceAction,
+) -> usize {
+    let DeviceAction::Image { target, .. } = action else {
+        return 0;
+    };
+    let excluded: fn(&str) -> bool = match target {
+        ImageTarget::Panel => |k| k.starts_with("image:Key("),
+        ImageTarget::Key(_) => |k| k == "image:Panel",
+        ImageTarget::Dial => return 0,
+    };
+    let before = latest.len();
+    latest.retain(|k, _| !excluded(k));
+    before - latest.len()
+}
+
 /// The per-target re-push cache key of an action (latest-frame-wins per target).
 fn cache_key(action: &DeviceAction) -> String {
     match action {
@@ -303,6 +328,17 @@ fn send_action_typed(
             let ft: FrameTarget = target.frame_target();
             let jpeg = match source {
                 ImageSource::Color { rgb } => frames::encode::encode_solid(ft, *rgb),
+                ImageSource::Colors(colors) => match target {
+                    // panel-only bulk visual (DS-111): compose the 480x272 panel and push
+                    // it as one 0x35; the schema rejects it on keys/dial, this is the
+                    // daemon-side backstop
+                    ImageTarget::Panel => frames::encode::encode_panel_colors(colors),
+                    other => {
+                        return Err(Error::Device(format!(
+                            "the kind:\"colors\" visual is panel-only, not {other:?}"
+                        )))
+                    }
+                },
                 ImageSource::File { path } => {
                     let wire = device::read_image_file(path)
                         .map_err(|e| Error::Device(format!("E_FORMAT: {e}")))?;
@@ -775,6 +811,11 @@ impl Task {
     }
 
     fn cache_action(&mut self, action: &DeviceAction) {
+        // DS-111: a panel image and key images are mutually exclusive in the cache
+        let dropped = drop_excluded_images(&mut self.latest, action);
+        if dropped > 0 {
+            self.superseded.fetch_add(dropped as u64, Ordering::Relaxed);
+        }
         let key = cache_key(action);
         if self.latest.insert(key, action.clone()).is_some() {
             self.superseded.fetch_add(1, Ordering::Relaxed);
@@ -1385,5 +1426,57 @@ mod tests {
         assert_eq!(action_kind(&img), ModuleKind::Keys);
         assert_eq!(action_kind(&led), ModuleKind::Knobs);
         assert_eq!(virtual_module_id(ModuleKind::Keys).kind, ModuleKind::Keys);
+    }
+
+    #[test]
+    fn panel_and_key_images_are_mutually_exclusive_in_the_repush_cache() {
+        let panel = DeviceAction::Image {
+            target: ImageTarget::Panel,
+            source: ImageSource::Colors([[1, 2, 3]; 15]),
+        };
+        let key = |n: u8| DeviceAction::Image {
+            target: ImageTarget::Key(n),
+            source: ImageSource::Color { rgb: [9, 9, 9] },
+        };
+        let dial = DeviceAction::Image {
+            target: ImageTarget::Dial,
+            source: ImageSource::Color { rgb: [5, 5, 5] },
+        };
+        let led = DeviceAction::LedColor {
+            kind: ModuleKind::Knobs,
+            rgb: [4, 5, 6],
+        };
+        let mut latest: HashMap<String, DeviceAction> = HashMap::new();
+
+        // key images cached, then a panel image arrives: all key images are dropped
+        for n in [0u8, 3, 14] {
+            assert_eq!(drop_excluded_images(&mut latest, &key(n)), 0);
+            latest.insert(cache_key(&key(n)), key(n));
+        }
+        latest.insert(cache_key(&dial), dial.clone());
+        latest.insert(cache_key(&led), led.clone());
+        assert_eq!(drop_excluded_images(&mut latest, &panel), 3);
+        assert!(!latest.keys().any(|k| k.starts_with("image:Key(")));
+        assert!(
+            !latest.contains_key("image:Panel"),
+            "panel not inserted yet"
+        );
+        latest.insert(cache_key(&panel), panel.clone());
+        assert!(latest.contains_key("image:Dial"), "the dial is unaffected");
+        assert!(
+            latest.contains_key("led:Knobs"),
+            "led actions are unaffected"
+        );
+
+        // a key image cached afterwards drops the cached panel
+        assert_eq!(drop_excluded_images(&mut latest, &key(7)), 1);
+        assert!(!latest.contains_key("image:Panel"));
+        latest.insert(cache_key(&key(7)), key(7));
+        assert!(latest.contains_key("image:Dial"));
+
+        // non-image actions never drop anything
+        assert_eq!(drop_excluded_images(&mut latest, &led), 0);
+        assert_eq!(drop_excluded_images(&mut latest, &dial), 0);
+        assert!(latest.contains_key("image:Key(7)"));
     }
 }
