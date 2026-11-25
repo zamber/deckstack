@@ -2950,7 +2950,9 @@
       "ds set /controls/panel/image --file panel.png",
       "python3 tests/bench_panel.py"
     ],
-    "blocks": []
+    "blocks": [
+      "DS-111"
+    ]
   },
   {
     "id": "DS-110",
@@ -2980,6 +2982,50 @@
       "cargo test -p ds-cli",
       "ds set-batch --file /tmp/batch.json returns one rev",
       "python3 tools/tickets.py validate"
+    ],
+    "blocks": []
+  },
+  {
+    "id": "DS-111",
+    "title": "Bulk key colours: one colors visual, one panel push",
+    "state": "ready",
+    "phase": 7,
+    "lane": "device",
+    "size": "M",
+    "owner": null,
+    "depends_on": [
+      "DS-109"
+    ],
+    "touches": [
+      "schemas/state.json",
+      "crates/ds-daemon/src/device.rs",
+      "crates/ds-daemon/src/device_task.rs",
+      "crates/ds-daemon/src/frames/encode.rs",
+      "bins/ds/src/cli.rs",
+      "docs/contracts/state.md",
+      "docs/contracts/cli.md",
+      "tests/fixtures/",
+      "tests/conformance/cli/run.py",
+      "new:tests/bench/colors.py"
+    ],
+    "branch": null,
+    "worktree": null,
+    "pr": null,
+    "created": "2026-11-25",
+    "updated": "2026-11-25",
+    "acceptance": [
+      "`ds colors '[\"#rrggbb\", \u2026 15]'` and the equivalent `ds set /controls/panel/image --json '{\"kind\":\"colors\",\"value\":[\u2026]}'` each commit one rev and produce exactly one `Image { target: Panel }` device push",
+      "The composed RGB panel is 480x272 and the 72x72 tile for key N at x=5,104,203,303,402 / y=1,101,199 carries colour N exactly; gaps stay #000000 (unit test of the composer, no JPEG decoding)",
+      "A `colors` panel write sends no per-key `0x36` image reports (`ds-vdevctl frames key:N` does not grow)",
+      "A list with 14 or 16 entries, a non-`#rrggbb` value, or `kind:colors` on a key/dial is rejected before the transaction (E_SCHEMA, exit 1, rev unchanged)",
+      "`tests/bench/colors.py` alternates 5 runs of one colours call and 15 per-key `ds set` calls against ds-vdev, reports median and range with 0 errors, and shows the colours call within 2x of a single panel-file write and at least 3x faster than the 15 per-key writes"
+    ],
+    "verification": [
+      "cargo test -p ds-daemon --lib",
+      "cargo test -p ds-cli",
+      "python3 tests/conformance/cli/run.py -k colors",
+      "python3 tests/bench/colors.py",
+      "sh tools/check.sh"
     ],
     "blocks": []
   }
