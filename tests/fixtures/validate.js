@@ -196,6 +196,23 @@ neg("exec timeout_ms rejected (S11)", (d) => { d.bindings[2].steps[0].timeout_ms
 neg("binding id without b-prefix rejected (S2)", (d) => { d.bindings[0].id = "x1"; });
 neg("eval-like step rejected (R8)", (d) => { d.bindings[0].steps[0] = { do: "eval", code: "x" }; });
 
+// ---- 3b. DS-111: the panel-only bulk `colors` visual (panelVisual/panelControl) ----
+const colors15 = Array.from({ length: 15 }, (_, i) => "#" + ("0" + i.toString(16)).slice(-2).repeat(3));
+const doc_colors = JSON.parse(JSON.stringify(doc));
+doc_colors.controls.panel = { image: { kind: "colors", value: colors15 } };
+check("panel colors visual valid on /controls/panel (DS-111)", doc_colors, STATE, true);
+// the same value on a key or the dial is rejected: keys/dial keep screenControl (visual only)
+neg("colors visual on keys/0 rejected (DS-111)", (d) => { d.controls.keys["0"].image = { kind: "colors", value: colors15 }; });
+neg("colors visual on the dial rejected (DS-111)", (d) => { d.controls.dial.image = { kind: "colors", value: colors15 }; });
+neg("14-entry colors value rejected (DS-111)", (d) => { d.controls.panel = { image: { kind: "colors", value: colors15.slice(0, 14) } }; });
+neg("16-entry colors value rejected (DS-111)", (d) => { d.controls.panel = { image: { kind: "colors", value: [...colors15, "#000000"] } }; });
+neg("non-hex entry in colors value rejected (DS-111)", (d) => { d.controls.panel = { image: { kind: "colors", value: [...colors15.slice(0, 14), "red"] } }; });
+neg("non-string entry in colors value rejected (DS-111)", (d) => { d.controls.panel = { image: { kind: "colors", value: [...colors15.slice(0, 14), 16] } }; });
+// the existing panel visuals still validate on the panel (panelVisual = visual OR colors)
+const doc_panel_file = JSON.parse(JSON.stringify(doc));
+doc_panel_file.controls.panel = { image: { kind: "file", path: "/tmp/panel.png" }, label: "Deck", brightness: 80 };
+check("file visual still valid on /controls/panel (DS-111)", doc_panel_file, STATE, true);
+
 // ---- 4. stream-frame meta ----
 const SF = "https://deckstack.dev/schemas/stream-frame.json/v1";
 check("DSF1 meta example", { target: "keys", seq: 7, ts_ms: 1732000000000, format: "png", w: 480, h: 272, frames: 1, crc32: 123456, max_payload_bytes: 16777216 }, SF, true);

@@ -14,6 +14,7 @@ pub fn text(topic: &str) -> String {
         "get" => GET_HELP.to_string(),
         "set" => SET_HELP.to_string(),
         "watch" => WATCH_HELP.to_string(),
+        "colors" => COLORS_HELP.to_string(),
         "schema" => SCHEMA_HELP.to_string(),
         "describe" => DESCRIBE_HELP.to_string(),
         "status" => STATUS_HELP.to_string(),
@@ -64,6 +65,8 @@ Verbs (phase 3):
                                           frame stream socket (DS-032)
   stream stats <target> [--json]          /telemetry/streams/<target> (no rev)
   stream stop <target>                    stop the producer of a target
+  colors '<json-array>' [--if-rev N]        set all 15 key colours in one panel
+                                            write (exactly 15 #rrggbb; DS-111)
 
 Global flags:
   --socket PATH       control socket (default $XDG_RUNTIME_DIR/deckstack/daemon.sock)
@@ -136,6 +139,29 @@ Exit codes: 0 ok · 1 usage/schema (bad value) · 2 E_PATH · 3 E_CONFLICT (--if
             4 E_AUTH/E_SCOPE/E_CAP (--file outside /policy/fs/roots) · 5 E_LIMIT ·
             6 E_UNREACHABLE
 Discover more: ds schema state · ds describe /controls/keys/0/image · docs/microapps.md
+";
+
+const COLORS_HELP: &str = "\
+ds colors — set all 15 key colours in one panel write (DS-111)
+
+Usage:
+  ds colors '<json-array>' [--if-rev N] [--json]
+
+Arguments:
+  '<json-array>'   JSON array of exactly 15 '#rrggbb' strings, row-major key 0-14
+  --if-rev N       conditional write (default: last-write-wins); mismatch -> exit 3
+                   with current_rev in the payload
+  --json           one object {\"ok\":true,\"rev\":N} (default: human `ok rev=N`)
+
+The daemon composes the 480x272 panel and sends one 02 35 push; no per-key 0x36
+reports. Wrong JSON/arity/hex exits 1 before the daemon is contacted.
+
+Example:
+  ds colors '[\"#ff0000\",\"#00ff00\",\"#0000ff\", … 15]'
+
+Exit codes: 0 ok · 1 usage/schema · 3 E_CONFLICT (--if-rev) · 4 E_AUTH/E_SCOPE ·
+            6 E_UNREACHABLE
+Discover more: ds schema state · ds describe /controls/panel/image · docs/microapps.md
 ";
 
 const WATCH_HELP: &str = "\
@@ -419,7 +445,7 @@ Discover more: ds stream push --help · ds schema stream-frame · docs/microapps
 mod tests {
     use super::*;
 
-    const VERB_TOPICS: [&str; 16] = [
+    const VERB_TOPICS: [&str; 17] = [
         "get",
         "set",
         "watch",
@@ -436,6 +462,7 @@ mod tests {
         "stream push",
         "stream stats",
         "stream stop",
+        "colors",
     ];
 
     const GROUP_TOPICS: [&str; 2] = ["daemon", "stream"];
@@ -481,6 +508,7 @@ mod tests {
             "stream push",
             "stream stats",
             "stream stop",
+            "colors",
         ] {
             let t = text(topic);
             assert!(t.contains("Usage:"), "{topic} help has no Usage line");

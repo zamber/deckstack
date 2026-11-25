@@ -10,7 +10,9 @@
 //!   - `{"kind":"file","path":…}` → the file's bytes, read on the device task (never under
 //!     the state lock), after the `/policy/fs/roots` confinement + 16 MiB size cap check;
 //!     a file outside the roots is refused with a logged error, never a panic;
-//!   - `{"kind":"color","value":"#rrggbb"}` → a solid screen of the target's native size.
+//!   - `{"kind":"color","value":"#rrggbb"}` → a solid screen of the target's native size;
+//!   - `{"kind":"colors","value":[15 × "#rrggbb"]}` (panel only, DS-111) → the daemon
+//!     composes the 480x272 panel from the 15 key colours and pushes it as one `02 35`.
 //!
 //! Both sources are then **re-encoded to the device wire format** by [`crate::frames::encode`]
 //! (baseline JPEG, standard Huffman tables, 4:4:4, q80 panel / q90 key:N / q85 dial —
@@ -124,6 +126,9 @@ pub enum ImageSource {
     File { path: String },
     /// `{"kind":"color","value":"#rrggbb"}` — a minimal solid-colour PNG.
     Color { rgb: [u8; 3] },
+    /// `{"kind":"colors","value":[15 × "#rrggbb"]}` — the panel-only bulk visual (DS-111):
+    /// the daemon composes the 480x272 panel from the 15 key colours server-side.
+    Colors([[u8; 3]; 15]),
 }
 
 /// What a push translates to on the wire.
@@ -212,6 +217,21 @@ fn led_color_of(value: &Value) -> Option<[u8; 3]> {
     }
 }
 
+/// Parse the `value` of a `kind:"colors"` visual: exactly 15 `#rrggbb` strings
+/// (row-major key 0..14). `None` for any other arity or spelling — the schema rejects
+/// those before the transaction, this is the daemon-side backstop.
+pub fn parse_colors_visual(value: &Value) -> Option<[[u8; 3]; 15]> {
+    let arr = value.get("value")?.as_array()?;
+    if arr.len() != 15 {
+        return None;
+    }
+    let mut colors = [[0u8; 3]; 15];
+    for (i, item) in arr.iter().enumerate() {
+        colors[i] = parse_hex_color(item.as_str()?)?;
+    }
+    Some(colors)
+}
+
 /// Translate a visual value into an image source; `None` for the visuals this ticket does
 /// not push (icon/text/frame — logged by the caller).
 fn plan_image_source(value: &Value) -> Option<ImageSource> {
@@ -222,6 +242,7 @@ fn plan_image_source(value: &Value) -> Option<ImageSource> {
         "color" => Some(ImageSource::Color {
             rgb: parse_hex_color(value.get("value")?.as_str()?)?,
         }),
+        "colors" => Some(ImageSource::Colors(parse_colors_visual(value)?)),
         _ => None,
     }
 }
@@ -385,6 +406,15 @@ fn encode_image(target: ImageTarget, source: &ImageSource) -> Result<Vec<u8>, St
     let ft = target.frame_target();
     match source {
         ImageSource::Color { rgb } => Ok(crate::frames::encode::encode_solid(ft, *rgb)),
+        ImageSource::Colors(colors) => match target {
+            // the bulk colours visual composes the whole panel (DS-111); it is valid only
+            // on /controls/panel/image — the schema rejects it on keys/dial, and here is
+            // the daemon-side backstop
+            ImageTarget::Panel => Ok(crate::frames::encode::encode_panel_colors(colors)),
+            other => Err(format!(
+                "the kind:\"colors\" visual is panel-only, not {other:?}"
+            )),
+        },
         ImageSource::File { path } => {
             let wire = read_image_file(path)?;
             crate::frames::encode::encode_frame(ft, &wire).map_err(|e| format!("{}: {e}", e.code()))
@@ -767,6 +797,124 @@ mod tests {
         for bad in ["3cc86e", "#fff", "#12345", "#gggggg", "", "#1234567"] {
             assert_eq!(parse_hex_color(bad), None, "{bad:?}");
         }
+    }
+
+    #[test]
+    fn colors_visual_parsing_requires_exactly_15_hex_strings() {
+        let hexes: Vec<String> = (0..15).map(|i| format!("#{i:02x}{i:02x}{i:02x}")).collect();
+        let good = json!({"kind": "colors", "value": hexes});
+        let parsed = parse_colors_visual(&good).unwrap();
+        for (i, c) in parsed.iter().enumerate() {
+            assert_eq!(*c, [i as u8, i as u8, i as u8]);
+        }
+        // 14 / 16 entries, non-string entries, bad hex: None
+        let mut v = good.clone();
+        v["value"] = json!(hexes[..14]);
+        assert_eq!(parse_colors_visual(&v), None);
+        let mut h16 = hexes.clone();
+        h16.push("#000000".to_string());
+        v["value"] = json!(h16);
+        assert_eq!(parse_colors_visual(&v), None);
+        v["value"] = json!([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+        assert_eq!(parse_colors_visual(&v), None);
+        let mut hbad = hexes.clone();
+        hbad[3] = "red".to_string();
+        v["value"] = json!(hbad);
+        assert_eq!(parse_colors_visual(&v), None);
+        v["value"] = json!("#ff0000");
+        assert_eq!(parse_colors_visual(&v), None);
+        assert_eq!(parse_colors_visual(&json!({"kind": "colors"})), None);
+    }
+
+    #[test]
+    fn plan_push_maps_a_colors_visual_on_the_panel_to_one_image_action() {
+        let hexes: Vec<String> = (0..15).map(|i| format!("#{i:02x}0000")).collect();
+        let visual = json!({"kind": "colors", "value": hexes});
+        let a = plan_push("/controls/panel/image", &visual);
+        let Some(DeviceAction::Image { target, source }) = a else {
+            panic!("colors on the panel must plan an image action, got {a:?}");
+        };
+        assert_eq!(target, ImageTarget::Panel);
+        let ImageSource::Colors(colors) = source else {
+            panic!("source must be Colors, got {source:?}");
+        };
+        assert_eq!(colors[0], [0x00, 0x00, 0x00]);
+        assert_eq!(colors[14], [0x0e, 0x00, 0x00]);
+        // the same visual on a key or the dial still plans (the schema rejects it before
+        // the transaction; encode_image refuses it as the daemon-side backstop)
+        assert!(matches!(
+            plan_push("/controls/keys/2/image", &visual),
+            Some(DeviceAction::Image {
+                target: ImageTarget::Key(2),
+                ..
+            })
+        ));
+        // malformed colors values plan nothing
+        let bad = json!({"kind": "colors", "value": ["#ff0000"]});
+        assert_eq!(plan_push("/controls/panel/image", &bad), None);
+    }
+
+    #[test]
+    fn encode_image_routes_colors_to_the_panel_composer_only() {
+        let colors = [[0x10u8, 0x20, 0x30]; 15];
+        let source = ImageSource::Colors(colors);
+        // panel: exactly the composer output
+        let jpeg = encode_image(ImageTarget::Panel, &source).unwrap();
+        assert_eq!(jpeg, crate::frames::encode::encode_panel_colors(&colors));
+        // key/dial: refused, never a per-key solid of one of the colours
+        for t in [ImageTarget::Key(0), ImageTarget::Dial] {
+            let err = encode_image(t, &source).unwrap_err();
+            assert!(err.contains("panel-only"), "{err}");
+        }
+    }
+
+    #[test]
+    fn send_action_pushes_a_colors_visual_as_one_0x35_panel_transfer() {
+        let mock = MockTransport {
+            sent: StdMutex::new(Vec::new()),
+        };
+        let limits = RateLimits::new();
+        let mut colors = [[0u8; 3]; 15];
+        for (i, c) in colors.iter_mut().enumerate() {
+            *c = [i as u8, 0x80, 0xff - i as u8];
+        }
+        send_action(
+            &mock,
+            &DeviceAction::Image {
+                target: ImageTarget::Panel,
+                source: ImageSource::Colors(colors),
+            },
+            &limits,
+        )
+        .unwrap();
+        let sent = mock.sent.lock().unwrap();
+        let chunks: Vec<&(ModuleId, Vec<u8>)> = sent
+            .iter()
+            .filter(|(m, raw)| m.kind == ModuleKind::Keys && raw[1] == 0x35)
+            .collect();
+        let want = crate::frames::encode::encode_panel_colors(&colors);
+        assert_eq!(
+            chunks.len(),
+            want.len().div_ceil(312),
+            "the composed panel JPEG is chunked into ceil(len/312) 0x35 reports"
+        );
+        assert!(!chunks.is_empty());
+        let mut reassembled = Vec::new();
+        for (i, (_, raw)) in chunks.iter().enumerate() {
+            assert_eq!(
+                u16::from_le_bytes([raw[2], raw[3]]),
+                i as u16,
+                "chunk order"
+            );
+            assert_eq!(raw[6], 0, "panel index");
+            let len = u16::from_le_bytes([raw[4], raw[5]]) as usize;
+            reassembled.extend_from_slice(&raw[8..8 + len]);
+        }
+        assert_eq!(reassembled, want, "one panel transfer, no 0x36 key reports");
+        assert!(
+            sent.iter().all(|(_, raw)| raw[1] != 0x36),
+            "a colors push sends no per-key 0x36 reports"
+        );
     }
 
     #[test]
