@@ -39,7 +39,7 @@ use ds_device::module::module_info;
 use ds_device::rate::RateLimiter;
 use ds_device::transport::{DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
-use ds_protocol::{LedMode, LedTarget, ModuleKind};
+use ds_protocol::{LedTarget, ModuleKind};
 use mh_device::ModuleId;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
