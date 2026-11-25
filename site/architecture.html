@@ -129,9 +129,8 @@
     <p>A frame push updates no durable state and no revision. The daemon writes frame
     statistics into <code>/telemetry</code> at most once per second. At 32 fps there are zero
     state transactions and zero <code>/controls</code> events per frame.</p>
-    <p>The writer sends a picture whole. It replaces only the waiting slot, never the
-    frame already in flight, because abandoning a chunked transfer tears the image on the
-    module.</p>
+    <p>The writer sends a picture whole. It replaces only the waiting slot and never the
+    frame in flight. Abandoning a chunked transfer tears the image on the module.</p>
 
     <h2 id="flow">Input to behaviour</h2>
     <p>A key press becomes an input report. The router looks up bindings for the topic. A
