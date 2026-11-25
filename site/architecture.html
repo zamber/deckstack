@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>deckstack architecture</title>
-  <meta name="description" content="deckstack process model: one daemon owns the deck, a control plane for state and events, a frame plane for screen writes, and a crate layout that keeps device I/O in one place.">
+  <meta name="description" content="deckstack process model: one daemon owns the deck, a control plane for state and events, a frame plane for screen writes, and a crate layout that keeps device input and output in one place.">
   <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -120,7 +120,7 @@
           <tr><td>Encoding</td><td>NDJSON, one request and one response per line</td><td>DSF1 binary: 4 byte magic, JSON metadata, payload</td></tr>
           <tr><td>Content</td><td>state reads and writes, subscriptions, events, plugin messages, admin</td><td>encoded frames and frame metadata</td></tr>
           <tr><td>Latency</td><td>contract target p99 of 10 ms under 32 fps frame load</td><td>throughput class: 32 fps accepted, about 24 fps displayed, 2.1 MB/s device cap</td></tr>
-          <tr><td>Locking</td><td>state lock, never held across I/O</td><td>per-module queue lock, never held across HID writes</td></tr>
+          <tr><td>Locking</td><td>state lock, never held across reads and writes</td><td>per-module queue lock, never held across HID writes</td></tr>
           <tr><td>Backpressure</td><td>a slow subscriber drops events and the drop count is reported</td><td>one frame in flight and one waiting per module. The waiting frame is replaced.</td></tr>
         </tbody>
       </table>
@@ -201,7 +201,7 @@
     <h2 id="write-path">Write path and policy</h2>
     <p><code>ds-device</code> is the only path to HID. The protocol crate makes forbidden
     commands unrepresentable, and the device layer checks the policy document before any
-    byte leaves the host. That covers screen writes, LED writes and the software mode
+    byte leaves the host. The check covers screen writes, LED writes and the software mode
     handshake.</p>
     <ul>
       <li>Exec steps use an absolute argv, with no shell. The binary must be in <code>/policy/exec/allow</code> and not in <code>/policy/exec/deny</code>. The daemon applies rlimits, a working directory inside the allowed roots, and a timeout.</li>

@@ -34,7 +34,7 @@
     </p>
 
     <p class="lead">The MasterHub deck is a 15-key panel with a dial, two rollers and
-    per-key RGB. The software we started from put device I/O, painting, plugins and a
+    per-key RGB. The software we started from put device input and output, painting, plugins and a
     desktop UI in one process. deckstack splits that into a daemon that owns the device
     and a protocol that everything else speaks.</p>
 
@@ -164,9 +164,9 @@ ds watch 'app/salon/key/*' --ndjson
 # paint a key through the daemon
 ds set /controls/keys/0/image --file key0.png</code></pre>
 
-    <p>Two things stay outside the daemon on purpose: the desktop session (KWin for
-    screen colour, ydotool and gdbus for media and window actions) and the HueMux bridge.
-    Neither is deck hardware.</p>
+    <p>Two things stay outside the daemon on purpose. The first is the desktop session.
+    KWin provides the screen colour, and ydotool and gdbus handle media and window
+    actions. The second is the HueMux bridge. Neither is deck hardware.</p>
 
     <div class="note">
       <p>A plugin is the third option. <a href="https://github.com/zamber/deckstack-lights">deckstack-lights</a>
@@ -180,7 +180,7 @@ ds set /controls/keys/0/image --file key0.png</code></pre>
         <thead><tr><th>Part</th><th class="num">Lines</th><th>What it is</th></tr></thead>
         <tbody>
           <tr><td>Rust</td><td class="num">53,775</td><td>9 crates and 5 binaries: daemon, device layer, IPC, state, plugin SDK, CLI, MCP bridge, focus sender, virtual device, bench</td></tr>
-          <tr><td>Python</td><td class="num">22,194</td><td>plugin SDK, Python client, conformance and end-to-end suites</td></tr>
+          <tr><td>Python</td><td class="num">22,310</td><td>plugin SDK, Python client, conformance and end-to-end suites</td></tr>
           <tr><td>Docs</td><td class="num">7,948</td><td>contracts, components, ADRs, discovery notes, reviews</td></tr>
         </tbody>
       </table>

@@ -58,6 +58,8 @@ def area_of(path: str) -> str:
 def count(root: Path) -> dict[str, dict[str, int]]:
     totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for name in tracked_files(root):
+        if name.startswith("site/"):
+            continue
         lang = LANGUAGES.get(Path(name).suffix.lower())
         if lang is None:
             continue
