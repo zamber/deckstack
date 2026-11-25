@@ -35,7 +35,10 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      # Full local gate first: fixture gate + ticket board + cargo + conformance.
+      # hidapi links against libusb on Linux. The runner does not ship the headers.
+      - name: install hidapi build deps
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libudev-dev pkg-config
+
       - name: gate
         run: sh tools/check.sh
 

@@ -29,7 +29,11 @@ jobs:
         with:
           python-version: "3.x"
 
-      # Rust toolchain for the cargo gates (inactive until Cargo.toml lands, DS-004).
+      # hidapi links against libusb on Linux. The runner does not ship the headers.
+      - name: install hidapi build deps
+        run: sudo apt-get update && sudo apt-get install -y libusb-1.0-0-dev libudev-dev pkg-config
+
+      # Rust toolchain for the cargo gates.
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
