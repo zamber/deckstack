@@ -61,7 +61,7 @@ Docs start at [`docs/00-scope.md`](docs/00-scope.md) (normative alpha scope) and
 | Reviewing a load-bearing choice | PLAN.md decision table then the ADR in [docs/adr/](docs/adr/) then [docs/decision-log.tsv](docs/decision-log.tsv) |
 | Implementing a component | [docs/components/](docs/components/) |
 | Implementing a wire format | [docs/contracts/](docs/contracts/) + [schemas/](schemas/) + [tests/fixtures/](tests/fixtures/) |
-| Verifying on hardware | [docs/90-verification.md](docs/90-verification.md) (camera oracle) |
+| Verifying on hardware | [docs/90-verification.md](docs/90-verification.md) (camera check) |
 | Auditing safety | [docs/20-security.md](docs/20-security.md) |
 | Wondering what is unverified | [docs/open-questions.md](docs/open-questions.md) |
 
@@ -121,7 +121,7 @@ lights.lan plugin, is a separate repository post-alpha.
 - **plugin** is a separate OS process with a manifest that talks newline JSON to the daemon.
 - **capability token** is a per-install token with the scopes `read`, `mutate` and `admin`.
   Plugins get smaller capability grants (R8).
-- **camera oracle** is webcam verification of pixels on the live deck
+- **camera check** is webcam verification of pixels on the live deck
   (`docs/90-verification.md`).
 - Citations like `upstream/PROTOCOL.md:244` refer to `PROTOCOL.md:244` in the Tauri
   predecessor.
