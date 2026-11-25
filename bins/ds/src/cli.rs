@@ -108,8 +108,9 @@ pub struct UsageError(pub String);
 pub const SCHEMA_NAMES: [&str; 5] = ["state", "ipc", "stream-frame", "plugin-manifest", "binding"];
 
 /// Verbs (top-level words).
-pub const VERBS: [&str; 10] = [
+pub const VERBS: [&str; 11] = [
     "get", "set", "watch", "schema", "describe", "daemon", "status", "bind", "unbind", "stream",
+    "colors",
 ];
 
 /// Verbs of later phases — recognized, but refused with exit 1 in phase 1.

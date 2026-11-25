@@ -89,7 +89,7 @@ BINARIES = ("ds", "ds-daemon", "ds-vdev", "ds-vdevctl")
 # from day one (DS-062 risk note: exit-code/verb drift must fail loudly here).
 ADVERTISED_VERBS = {
     "get", "set", "watch", "schema", "describe", "daemon", "status", "bind", "unbind",
-    "stream",
+    "stream", "colors",
 }
 EXPECTED_SUBS = {
     "daemon": {"start", "stop", "status"},
@@ -114,6 +114,7 @@ HELP_NEEDLES = {
             "6 E_UNREACHABLE", "7 E_DEVICE", "8 E_INTERNAL", "migrate"),
     "get": ("--fields", "--rev", "--json"),
     "set": ("--if-rev", "--file", "--json"),
+    "colors": ("--if-rev", "--json"),
     "watch": ("--ndjson", "--from-rev", "--max-events", "--json"),
     "schema": tuple(SCHEMA_FILES),
     "describe": ("--json", "verbs", "schema", "value"),
@@ -149,8 +150,7 @@ VERB_COVERAGE = {
     "stream push": ("test_cli_110_exit_5_limit",),
     "stream stats": ("test_cli_130_json_single_object",),
     "stream stop": ("test_cli_020_help_mentions_contract_flags",),
-    # DS-111: the colors verb is implemented in cli.rs (not advertised in `ds --help`'s
-    # verb index, so the 010 walk does not discover it); it is covered by its own case.
+    # DS-111: bulk key colours; test_cli_170 covers the verb.
     "colors": ("test_cli_170_colors_verb_bulk_panel_push",),
 }
 
