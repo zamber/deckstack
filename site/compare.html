@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deckstack comparison</title>
+  <meta name="description" content="How deckstack differs from the Python and Tauri MasterHub implementations it replaces, and how the salon-deck reference deck is built on top of it.">
+  <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">deckstack</a>
+    <nav>
+      <a href="architecture.html">Architecture</a>
+      <a href="interfaces.html">Interfaces</a>
+      <a href="compare.html">Comparison</a>
+      <a href="https://github.com/zamber/deckstack">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Comparison</h1>
+    <p class="tagline">Two implementations came before this one. A third runs on it.</p>
+
+    <ul class="toc">
+      <li><a href="#three">Three implementations</a></li>
+      <li><a href="#right">What the predecessors got right</a></li>
+      <li><a href="#changed">What changed</a></li>
+      <li><a href="#reference">The reference deck</a></li>
+      <li><a href="#size">Size</a></li>
+      <li><a href="#limits">Limits</a></li>
+    </ul>
+
+    <h2 id="three">Three implementations</h2>
+    <p>The deck is the same hardware in all three columns. The difference is where each
+    design puts the device, the state and the control interface.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th></th><th>Python predecessor</th><th>Tauri predecessor</th><th>deckstack</th></tr></thead>
+        <tbody>
+          <tr><td>Process model</td><td>one Python process</td><td>desktop app with a Rust backend</td><td>one daemon plus clients</td></tr>
+          <tr><td>Device owner</td><td>the engine thread</td><td>the app engine</td><td><code>ds-daemon</code>, through <code>ds-device</code></td></tr>
+          <tr><td>Control interface</td><td>Python API and a web editor</td><td>the desktop app</td><td>CLI, Unix socket, MCP</td></tr>
+          <tr><td>Screen path</td><td>HID writes on the engine thread</td><td>module queues inside the app</td><td>DSF1 frames on a separate socket, latest frame wins</td></tr>
+          <tr><td>Plugins</td><td>in process by default</td><td>in the app</td><td>separate process with a manifest</td></tr>
+          <tr><td>Agent access</td><td>script the Python package</td><td>the app is the control interface</td><td>CLI, MCP, focus sender and subscriptions</td></tr>
+          <tr><td>State</td><td>YAML config plus runtime state</td><td>engine state in the app process</td><td>revisioned JSON document</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="right">What the predecessors got right</h2>
+    <p>The Python project mapped the device and built a vocabulary people used: pages,
+    presets, flows and actions. That vocabulary still shapes what a deck is expected to do.</p>
+    <p>The Tauri project wrote the protocol and device layers in Rust, and it got native
+    frame throughput. deckstack reuses those crates, <code>mh-protocol</code> and
+    <code>mh-device</code>, pinned by revision. The HID report format was not rewritten.</p>
+
+    <h2 id="changed">What changed</h2>
+    <div class="card-grid">
+      <div class="card">
+        <h3>One writer</h3>
+        <p>HID ownership moved into <code>ds-device</code> behind the daemon. No client
+        links <code>hidapi</code>. Every screen and LED write goes through one path that
+        checks the safety policy.</p>
+      </div>
+      <div class="card">
+        <h3>Two planes</h3>
+        <p>Control is NDJSON. Frames are DSF1 binary records on a second socket. A frame
+        push updates no durable state and bumps no revision, so queries keep answering
+        while the deck is streaming.</p>
+      </div>
+      <div class="card">
+        <h3>State as a document</h3>
+        <p>State lives at paths with a revision. A write can compare against
+        <code>if_rev</code>. Subscriptions carry the revision that produced each event, so
+        a client can detect a conflict or a gap.</p>
+      </div>
+      <div class="card">
+        <h3>Plugins as processes</h3>
+        <p>A plugin declares its actions and capabilities in a manifest. The host mediates
+        state and network access. A stuck plugin cannot hold the device writer.</p>
+      </div>
+      <div class="card">
+        <h3>Agents as peers</h3>
+        <p>The CLI, the MCP bridge, the focus sender and your scripts speak the same
+        protocol. There is no privileged UI client in the alpha.</p>
+      </div>
+      <div class="card">
+        <h3>Protocol reuse</h3>
+        <p>The device protocol crates come from the upstream Rust project. deckstack adds
+        process boundaries and a state contract around them instead of starting the
+        hardware layer again.</p>
+      </div>
+    </div>
+
+    <h2 id="reference">The reference deck</h2>
+    <p><strong>salon-deck</strong> is the deck that runs on deckstack. It is 2,487 lines
+    of Python across five modules and their tests. The long-lived part is one process of
+    1,025 lines.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Layer</th><th>Where it runs</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Device</td><td><code>ds-daemon</code> and <code>ds-device</code>, Rust</td><td>HID reports, screen encoding, LED writes, safety policy</td></tr>
+          <tr><td>Bindings</td><td><code>ds-daemon</code></td><td>maps key, dial and roller topics to steps</td></tr>
+          <tr><td>Key images</td><td><code>salon_deck.py</code> and <code>deck_ui.py</code></td><td>composes labels and icons, writes them with <code>ds set --file</code></td></tr>
+          <tr><td>Lights</td><td>HueMux bridge over HTTP and WebSocket</td><td>rooms, scenes, favourites, brightness</td></tr>
+          <tr><td>Focus</td><td><code>ds-focus</code></td><td>publishes <code>app/focus/changed</code></td></tr>
+          <tr><td>Screen colour</td><td><code>deck_screen.py</code></td><td>KWin ScreenShot2 capture, representative colour</td></tr>
+          <tr><td>Media and windows</td><td><code>deck_system.py</code></td><td>ydotool and gdbus for volume, media keys and window actions</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The Python side holds policy and composition. It contains no HID code and no device
+    constants. The Rust side owns the device and the state. The two meet at the socket.</p>
+
+    <pre><code># a binding, written once through the CLI
+sd bind deck/control/keys.0/down --do '{"do":"emit","topic":"app/salon/key/0"}'
+
+# the micro-app subscribes and composes
+for event in client.watch("app/salon/key/*"):
+    client.set("/controls/keys/0/image", image_for(event))
+
+# the daemon encodes the image and chunks it to the panel</code></pre>
+
+    <p>This is the split the earlier designs did not have. The engine that talks to HID is
+    not the process that decides what a key should show, and neither is the process that
+    draws the UI.</p>
+
+    <h2 id="size">Size</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Implementation</th><th class="num">Rust</th><th class="num">TypeScript</th><th class="num">Python</th><th>Scope of the count</th></tr></thead>
+        <tbody>
+          <tr><td>Python predecessor</td><td class="num">-</td><td class="num">-</td><td class="num">14,400</td><td><code>src/</code> only</td></tr>
+          <tr><td>Tauri predecessor</td><td class="num">59,874</td><td class="num">22,531</td><td class="num">-</td><td>all Rust and TS/TSX outside <code>target/</code> and <code>node_modules/</code></td></tr>
+          <tr><td>deckstack</td><td class="num">53,775</td><td class="num">-</td><td class="num">6,789</td><td>Rust workspace. Python outside tests: SDK, client, examples, tools.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>deckstack also has 15,405 lines of Python conformance and end-to-end tests. That is
+    where a large part of the verification lives, and it is why the Python number in the
+    table excludes tests.</p>
+
+    <h2 id="limits">Limits</h2>
+    <ul>
+      <li>Linux only. The device layer, the focus sender and the udev rules are Linux code.</li>
+      <li><code>ds stream push</code> exists, but the daemon does not bind <code>stream.sock</code> in this tree.</li>
+      <li>The <code>emit</code>, <code>events</code>, <code>plugin</code> and <code>token</code> CLI verbs are later-phase and refused with exit 1.</li>
+      <li>Plugin install is a file copy until <code>ds plugin install</code> lands.</li>
+      <li>Hardware checks use a camera check against a specific panel. Another panel revision may need new goldens.</li>
+      <li>There is no web UI and no preset library. The daemon starts from an empty state document.</li>
+    </ul>
+
+    <p>The design record is in the repository: <code>docs/10-architecture.md</code>,
+    <code>docs/contracts/</code>, <code>docs/discovery/</code> and the ADRs.</p>
+  </main>
+
+  <footer class="site-footer">
+    deckstack is dual-licensed MIT or Apache-2.0.
+    <a href="https://github.com/zamber/deckstack">Source on GitHub</a>.
+  </footer>
+</body>
+</html>

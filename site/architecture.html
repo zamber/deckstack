@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deckstack architecture</title>
+  <meta name="description" content="deckstack process model: one daemon owns the deck, a control plane for state and events, a frame plane for screen writes, and a crate layout that keeps device I/O in one place.">
+  <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">deckstack</a>
+    <nav>
+      <a href="architecture.html">Architecture</a>
+      <a href="interfaces.html">Interfaces</a>
+      <a href="compare.html">Comparison</a>
+      <a href="https://github.com/zamber/deckstack">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Architecture</h1>
+    <p class="tagline">One process writes to the deck. Everything else talks to it.</p>
+
+    <ul class="toc">
+      <li><a href="#process">Process model</a></li>
+      <li><a href="#planes">Control plane and frame plane</a></li>
+      <li><a href="#flow">Input to behaviour</a></li>
+      <li><a href="#state">State and revisions</a></li>
+      <li><a href="#write-path">Write path and policy</a></li>
+      <li><a href="#crates">Crates</a></li>
+      <li><a href="#size">Size</a></li>
+    </ul>
+
+    <h2 id="process">Process model</h2>
+    <p><code>ds-daemon</code> owns the HID device, the state document, the binding
+    router, the frame writer and the plugin host. The CLI, the MCP bridge, the focus
+    sender and any program you write connect to a Unix socket. They are peers. None of
+    them has privileged access to the device.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 420" role="img" aria-label="Clients connect to ds-daemon over daemon.sock. The daemon has state, a router, a frame plane and a plugin host. It writes HID to ds-device, which drives the MasterHub base and modules. ds-vdev replaces the hardware in tests.">
+        <rect class="band" x="20" y="8" width="1000" height="72" rx="10"/>
+        <text class="band-label" x="34" y="26">clients</text>
+
+        <rect class="node-box" x="40" y="30" width="150" height="38" rx="8"/>
+        <text class="node-text" x="115" y="54" text-anchor="middle">ds CLI</text>
+        <rect class="node-box" x="210" y="30" width="150" height="38" rx="8"/>
+        <text class="node-text" x="285" y="54" text-anchor="middle">ds-mcp</text>
+        <rect class="node-box" x="380" y="30" width="150" height="38" rx="8"/>
+        <text class="node-text" x="455" y="54" text-anchor="middle">ds-focus</text>
+        <rect class="node-accent" x="550" y="30" width="180" height="38" rx="8"/>
+        <text class="node-text" x="640" y="54" text-anchor="middle">your micro-app</text>
+
+        <line class="flow" x1="115" y1="68" x2="115" y2="128"/>
+        <polygon class="flow-head" points="115,132 110,123 120,123"/>
+        <line class="flow" x1="285" y1="68" x2="285" y2="128"/>
+        <polygon class="flow-head" points="285,132 280,123 290,123"/>
+        <line class="flow" x1="455" y1="68" x2="455" y2="128"/>
+        <polygon class="flow-head" points="455,132 450,123 460,123"/>
+        <line class="flow" x1="640" y1="68" x2="640" y2="128"/>
+        <polygon class="flow-head" points="640,132 635,123 645,123"/>
+        <text class="node-sub" x="560" y="112" text-anchor="middle">daemon.sock: NDJSON control. stream.sock: DSF1 frames.</text>
+
+        <rect class="node-accent" x="100" y="140" width="640" height="110" rx="10"/>
+        <text class="node-text" x="420" y="164" text-anchor="middle">ds-daemon</text>
+        <rect class="node-box" x="120" y="178" width="140" height="46" rx="8"/>
+        <text class="node-sub" x="190" y="206" text-anchor="middle">state document</text>
+        <rect class="node-box" x="280" y="178" width="140" height="46" rx="8"/>
+        <text class="node-sub" x="350" y="206" text-anchor="middle">router and bindings</text>
+        <rect class="node-box" x="440" y="178" width="140" height="46" rx="8"/>
+        <text class="node-sub" x="510" y="206" text-anchor="middle">frame plane</text>
+        <rect class="node-box" x="600" y="178" width="120" height="46" rx="8"/>
+        <text class="node-sub" x="660" y="206" text-anchor="middle">plugin host</text>
+
+        <rect class="node-box" x="800" y="150" width="200" height="80" rx="8"/>
+        <text class="node-text" x="900" y="178" text-anchor="middle">plugin process</text>
+        <text class="node-sub" x="900" y="200" text-anchor="middle">manifest, capabilities</text>
+        <text class="node-sub" x="900" y="216" text-anchor="middle">stdio, NDJSON</text>
+        <line class="flow" x1="740" y1="200" x2="792" y2="200"/>
+        <polygon class="flow-head" points="796,200 787,195 787,205"/>
+
+        <rect class="node-box" x="240" y="320" width="320" height="56" rx="8"/>
+        <text class="node-text" x="400" y="344" text-anchor="middle">ds-device</text>
+        <text class="node-sub" x="400" y="364" text-anchor="middle">HID reports, chunking, safety</text>
+        <line class="flow" x1="400" y1="250" x2="400" y2="312"/>
+        <polygon class="flow-head" points="400,316 395,307 405,307"/>
+        <text class="node-sub" x="470" y="286" text-anchor="middle">one write path</text>
+
+        <rect class="node-box" x="620" y="320" width="340" height="56" rx="8"/>
+        <text class="node-text" x="790" y="344" text-anchor="middle">MasterHub base and modules</text>
+        <text class="node-sub" x="790" y="364" text-anchor="middle">keys, dial, rollers, LEDs</text>
+        <line class="flow" x1="560" y1="348" x2="612" y2="348"/>
+        <polygon class="flow-head" points="616,348 607,343 607,353"/>
+
+        <rect class="node-box" x="40" y="320" width="170" height="56" rx="8"/>
+        <text class="node-text" x="125" y="344" text-anchor="middle">ds-vdev</text>
+        <text class="node-sub" x="125" y="364" text-anchor="middle">tests, same protocol</text>
+        <line class="flow-muted" x1="210" y1="348" x2="232" y2="348"/>
+        <polygon class="flow-muted-head" points="236,348 227,343 227,353"/>
+      </svg>
+    </div>
+
+    <p>Every client speaks the same protocol and has the same rights. There is no UI
+    process and no privileged client in the alpha. A program that can open the socket can
+    use the daemon. A token scope decides what it may do.</p>
+
+    <h2 id="planes">Control plane and frame plane</h2>
+    <p>Screen writes and state changes travel on different sockets with different
+    encodings. That split is the reason a 32 fps frame stream does not stall a query.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th></th><th>Control plane</th><th>Frame plane</th></tr></thead>
+        <tbody>
+          <tr><td>Socket</td><td><code>daemon.sock</code></td><td><code>stream.sock</code></td></tr>
+          <tr><td>Encoding</td><td>NDJSON, one request and one response per line</td><td>DSF1 binary: 4 byte magic, JSON metadata, payload</td></tr>
+          <tr><td>Content</td><td>state reads and writes, subscriptions, events, plugin messages, admin</td><td>encoded frames and frame metadata</td></tr>
+          <tr><td>Latency</td><td>contract target p99 of 10 ms under 32 fps frame load</td><td>throughput class: 32 fps accepted, about 24 fps displayed, 2.1 MB/s device cap</td></tr>
+          <tr><td>Locking</td><td>state lock, never held across I/O</td><td>per-module queue lock, never held across HID writes</td></tr>
+          <tr><td>Backpressure</td><td>a slow subscriber drops events and the drop count is reported</td><td>one frame in flight and one waiting per module. The waiting frame is replaced.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>A frame push updates no durable state and no revision. The daemon writes frame
+    statistics into <code>/telemetry</code> at most once per second. At 32 fps there are zero
+    state transactions and zero <code>/controls</code> events per frame.</p>
+    <p>The writer sends a picture whole. It replaces only the waiting slot, never the
+    frame already in flight, because abandoning a chunked transfer tears the image on the
+    module.</p>
+
+    <h2 id="flow">Input to behaviour</h2>
+    <p>A key press becomes an input report. The router looks up bindings for the topic. A
+    binding is a list of steps. Each step has one effect.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 250" role="img" aria-label="A key press becomes a HID report, the router looks up a binding, and the binding runs steps: set a state path, emit a topic, invoke a plugin, or run an executable.">
+        <rect class="node-box" x="20" y="40" width="150" height="50" rx="8"/>
+        <text class="node-text" x="95" y="70" text-anchor="middle">key press</text>
+        <rect class="node-box" x="200" y="40" width="150" height="50" rx="8"/>
+        <text class="node-text" x="275" y="70" text-anchor="middle">input report</text>
+        <rect class="node-box" x="380" y="40" width="150" height="50" rx="8"/>
+        <text class="node-text" x="455" y="70" text-anchor="middle">router</text>
+        <rect class="node-box" x="560" y="40" width="150" height="50" rx="8"/>
+        <text class="node-text" x="635" y="70" text-anchor="middle">binding</text>
+        <rect class="node-accent" x="740" y="40" width="240" height="50" rx="8"/>
+        <text class="node-text" x="860" y="70" text-anchor="middle">steps</text>
+
+        <line class="flow" x1="170" y1="65" x2="192" y2="65"/><polygon class="flow-head" points="196,65 187,60 187,70"/>
+        <line class="flow" x1="350" y1="65" x2="372" y2="65"/><polygon class="flow-head" points="376,65 367,60 367,70"/>
+        <line class="flow" x1="530" y1="65" x2="552" y2="65"/><polygon class="flow-head" points="556,65 547,60 547,70"/>
+        <line class="flow" x1="710" y1="65" x2="732" y2="65"/><polygon class="flow-head" points="736,65 727,60 727,70"/>
+
+        <line class="flow" x1="860" y1="90" x2="860" y2="128"/>
+        <line class="flow" x1="645" y1="128" x2="955" y2="128"/>
+        <line class="flow" x1="645" y1="128" x2="645" y2="152"/><polygon class="flow-head" points="645,156 640,147 650,147"/>
+        <line class="flow" x1="745" y1="128" x2="745" y2="152"/><polygon class="flow-head" points="745,156 740,147 750,147"/>
+        <line class="flow" x1="850" y1="128" x2="850" y2="152"/><polygon class="flow-head" points="850,156 845,147 855,147"/>
+        <line class="flow" x1="955" y1="128" x2="955" y2="152"/><polygon class="flow-head" points="955,156 950,147 960,147"/>
+
+        <rect class="node-box" x="600" y="160" width="90" height="44" rx="8"/>
+        <text class="node-text" x="645" y="187" text-anchor="middle">set</text>
+        <rect class="node-box" x="700" y="160" width="90" height="44" rx="8"/>
+        <text class="node-text" x="745" y="187" text-anchor="middle">emit</text>
+        <rect class="node-box" x="800" y="160" width="100" height="44" rx="8"/>
+        <text class="node-text" x="850" y="187" text-anchor="middle">plugin</text>
+        <rect class="node-box" x="910" y="160" width="90" height="44" rx="8"/>
+        <text class="node-text" x="955" y="187" text-anchor="middle">exec</text>
+
+        <text class="node-sub" x="645" y="224" text-anchor="middle">rev++, subscribers</text>
+        <text class="node-sub" x="745" y="224" text-anchor="middle">event bus</text>
+        <text class="node-sub" x="850" y="224" text-anchor="middle">host, then effect</text>
+        <text class="node-sub" x="955" y="224" text-anchor="middle">argv + policy</text>
+      </svg>
+    </div>
+
+    <p><code>set</code> writes a state path, increments the revision, notifies subscribers
+    and checks whether a repaint is due. <code>emit</code> publishes a topic on the event
+    bus, including to external clients. <code>plugin</code> sends an action to a plugin
+    process and applies the effects it returns. <code>exec</code> runs an absolute argv
+    under the exec policy. <code>sleep</code> delays the next step.</p>
+    <p>A focus change follows the same route. <code>ds-focus</code> emits
+    <code>app/focus/changed</code>, a binding matches the topic, and the steps recolor keys
+    or write a label. The daemon does not link against Wayland.</p>
+
+    <h2 id="state">State and revisions</h2>
+    <p>The daemon holds one JSON document. Paths address it. Examples are
+    <code>/controls/keys/0/image</code>, <code>/settings/dim</code>,
+    <code>/policy/net/allow_hosts</code> and <code>/plugins/lights/state/config</code>.</p>
+    <p>Each durable write increments <code>rev</code>. A write can carry
+    <code>if_rev</code>. If the document has moved, the daemon refuses with
+    <code>E_CONFLICT</code> and returns the current revision. Subscriptions match path
+    patterns. Events carry the revision that produced them, so a client can detect a gap.</p>
+    <p>Frames live outside this document. They are not state, they do not bump
+    <code>rev</code>, and they do not appear in <code>/controls</code> subscriptions.</p>
+
+    <h2 id="write-path">Write path and policy</h2>
+    <p><code>ds-device</code> is the only path to HID. The protocol crate makes forbidden
+    commands unrepresentable, and the device layer checks the policy document before any
+    byte leaves the host. That covers screen writes, LED writes and the software mode
+    handshake.</p>
+    <ul>
+      <li>Exec steps use an absolute argv, with no shell. The binary must be in <code>/policy/exec/allow</code> and not in <code>/policy/exec/deny</code>. The daemon applies rlimits, a working directory inside the allowed roots, and a timeout.</li>
+      <li>Plugins declare capabilities in their manifest. Network requests go through the daemon, which matches the URL host against the plugin grant and <code>/policy/net/allow_hosts</code> before it connects.</li>
+      <li>Tokens carry the scopes <code>read</code>, <code>mutate</code> and <code>admin</code>. The install token is admin. Scoped tokens are defined by the contract, and the <code>ds token</code> verb that issues them is later-phase.</li>
+    </ul>
+
+    <h2 id="crates">Crates</h2>
+    <p>Nine library crates and five binaries. Dependencies point down, with two
+    exceptions: the binaries also use <code>ds-ipc</code> directly, and
+    <code>ds-bench</code> uses every crate.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1040 340" role="img" aria-label="Crate layers. Binaries ds, ds-mcp, ds-focus, ds-vdev and ds-vdevctl sit on front ends ds-client and ds-plugin-sdk. The core holds ds-daemon, ds-state, ds-device, ds-ipc and ds-vdev. The foundation is ds-protocol, which wraps the upstream mh-protocol and mh-device crates.">
+        <rect class="band" x="20" y="10" width="1000" height="58" rx="10"/>
+        <text class="band-label" x="34" y="28">binaries</text>
+        <rect class="node-box" x="40" y="32" width="150" height="30" rx="6"/><text class="node-sub" x="115" y="52" text-anchor="middle">ds</text>
+        <rect class="node-box" x="202" y="32" width="150" height="30" rx="6"/><text class="node-sub" x="277" y="52" text-anchor="middle">ds-mcp</text>
+        <rect class="node-box" x="364" y="32" width="150" height="30" rx="6"/><text class="node-sub" x="439" y="52" text-anchor="middle">ds-focus</text>
+        <rect class="node-box" x="526" y="32" width="150" height="30" rx="6"/><text class="node-sub" x="601" y="52" text-anchor="middle">ds-vdev</text>
+        <rect class="node-box" x="688" y="32" width="150" height="30" rx="6"/><text class="node-sub" x="763" y="52" text-anchor="middle">ds-vdevctl</text>
+
+        <line class="flow" x1="40" y1="68" x2="40" y2="86"/><polygon class="flow-head" points="40,90 35,81 45,81"/>
+
+        <rect class="band" x="20" y="90" width="1000" height="58" rx="10"/>
+        <text class="band-label" x="34" y="108">front ends</text>
+        <rect class="node-box" x="40" y="112" width="200" height="30" rx="6"/><text class="node-sub" x="140" y="132" text-anchor="middle">ds-client</text>
+        <rect class="node-box" x="260" y="112" width="200" height="30" rx="6"/><text class="node-sub" x="360" y="132" text-anchor="middle">ds-plugin-sdk</text>
+
+        <line class="flow" x1="40" y1="148" x2="40" y2="166"/><polygon class="flow-head" points="40,170 35,161 45,161"/>
+
+        <rect class="band" x="20" y="170" width="1000" height="58" rx="10"/>
+        <text class="band-label" x="34" y="188">core</text>
+        <rect class="node-box" x="40" y="192" width="170" height="30" rx="6"/><text class="node-sub" x="125" y="212" text-anchor="middle">ds-daemon</text>
+        <rect class="node-box" x="220" y="192" width="170" height="30" rx="6"/><text class="node-sub" x="305" y="212" text-anchor="middle">ds-state</text>
+        <rect class="node-box" x="400" y="192" width="170" height="30" rx="6"/><text class="node-sub" x="485" y="212" text-anchor="middle">ds-device</text>
+        <rect class="node-box" x="580" y="192" width="170" height="30" rx="6"/><text class="node-sub" x="665" y="212" text-anchor="middle">ds-ipc</text>
+        <rect class="node-box" x="760" y="192" width="170" height="30" rx="6"/><text class="node-sub" x="845" y="212" text-anchor="middle">ds-vdev</text>
+
+        <line class="flow" x1="40" y1="228" x2="40" y2="246"/><polygon class="flow-head" points="40,250 35,241 45,241"/>
+
+        <rect class="band" x="20" y="250" width="1000" height="58" rx="10"/>
+        <text class="band-label" x="34" y="268">foundation</text>
+        <rect class="node-box" x="40" y="272" width="200" height="30" rx="6"/><text class="node-sub" x="140" y="292" text-anchor="middle">ds-protocol</text>
+        <rect class="node-box" x="260" y="272" width="280" height="30" rx="6"/><text class="node-sub" x="400" y="292" text-anchor="middle">mh-protocol and mh-device</text>
+        <rect class="node-box" x="560" y="272" width="360" height="30" rx="6"/><text class="node-sub" x="740" y="292" text-anchor="middle">reused from the upstream project</text>
+      </svg>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Crate or binary</th><th class="num">Lines</th><th>Depends on</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>ds-daemon</code></td><td class="num">20,972</td><td>state, ipc, device, protocol</td><td>state document, router, frame writer, plugin host</td></tr>
+          <tr><td><code>ds-device</code></td><td class="num">4,993</td><td>protocol, mh-device</td><td>HID reports, chunking, the safety check</td></tr>
+          <tr><td><code>ds-ipc</code></td><td class="num">4,495</td><td>none</td><td>NDJSON framing, DSF1 frames, schema validation</td></tr>
+          <tr><td><code>ds-plugin-sdk</code></td><td class="num">2,822</td><td>none</td><td>Rust SDK for plugin processes</td></tr>
+          <tr><td><code>ds-state</code></td><td class="num">2,740</td><td>none</td><td>paths, revisions, subscriptions</td></tr>
+          <tr><td><code>ds-vdev</code></td><td class="num">2,306</td><td>device, protocol</td><td>virtual device with the same report protocol</td></tr>
+          <tr><td><code>ds-bench</code></td><td class="num">1,872</td><td>every crate</td><td>latency and throughput benchmark</td></tr>
+          <tr><td><code>ds-client</code></td><td class="num">687</td><td>ipc</td><td>client library used by the binaries</td></tr>
+          <tr><td><code>ds-protocol</code></td><td class="num">269</td><td>mh-protocol</td><td>shared device types</td></tr>
+          <tr><td><code>ds</code> (bin)</td><td class="num">5,491</td><td>ds-client, ds-ipc</td><td>the CLI</td></tr>
+          <tr><td><code>ds-mcp</code> (bin)</td><td class="num">2,703</td><td>ds-client, ds-ipc</td><td>MCP server over stdio</td></tr>
+          <tr><td><code>ds-focus</code> (bin)</td><td class="num">1,990</td><td>ds-client, ds-ipc, zbus, wayland</td><td>publishes the focused window</td></tr>
+          <tr><td><code>ds-vdev</code> (bin)</td><td class="num">191</td><td>ds-vdev</td><td>virtual device entry point</td></tr>
+          <tr><td><code>ds-vdevctl</code> (bin)</td><td class="num">167</td><td>ds-vdev</td><td>drives input on the virtual device</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="size">Size</h2>
+    <p><code>tools/sloc.py</code> counts lines in files tracked by git, grouped by area and
+    language. Build output, virtual environments and generated files never enter a
+    number.</p>
+    <pre><code>python3 tools/sloc.py
+
+area                      rust    python      docs       web     shell    config     total
+------------------------------------------------------------------------------------------
+crates/ds-daemon         20698       169         .         .         .       105     20972
+crates/ds-device          4956         .         .         .         .        37      4993
+crates/ds-ipc             4472         .         .         .         .        23      4495
+crates/ds-plugin-sdk      2606         .       190         .         .        26      2822
+crates/ds-state           2717         .         .         .         .        23      2740
+crates/ds-vdev            2268         .         .         .         .        38      2306
+crates/ds-bench           1834         .         .         .         .        38      1872
+crates/ds-client           669         .         .         .         .        18       687
+crates/ds-protocol         241         .         .         .         .        28       269
+bins/ds                   5461         .         .         .         .        30      5491
+bins/ds-mcp               2678         .         .         .         .        25      2703
+bins/ds-focus             1957         .         .         .         .        33      1990
+tests                       2902     15405       440       447       211        58     19463
+docs                         .         .      6176         .         .         .      6176
+plugins-py                   .      2730       122         .         .        30      2882
+------------------------------------------------------------------------------------------
+total                    53775     22194      7948       447       700      2154     87218</code></pre>
+    <p>The table is trimmed here. Run the command for the complete split, including root
+    files, clients, examples and schemas.</p>
+  </main>
+
+  <footer class="site-footer">
+    deckstack is dual-licensed MIT or Apache-2.0.
+    <a href="https://github.com/zamber/deckstack">Source on GitHub</a>.
+  </footer>
+</body>
+</html>

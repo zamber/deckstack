@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deckstack interfaces</title>
+  <meta name="description" content="deckstack interfaces: the ds CLI, the NDJSON control socket, the DSF1 frame plane, the plugin contract and the agent surfaces (MCP bridge, focus sender, Python client).">
+  <meta name="theme-color" content="#f7f3ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html">deckstack</a>
+    <nav>
+      <a href="architecture.html">Architecture</a>
+      <a href="interfaces.html">Interfaces</a>
+      <a href="compare.html">Comparison</a>
+      <a href="https://github.com/zamber/deckstack">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Interfaces</h1>
+    <p class="tagline">One control socket, one frame socket, and four ways to use them.</p>
+
+    <ul class="toc">
+      <li><a href="#cli">CLI</a></li>
+      <li><a href="#control">Control plane</a></li>
+      <li><a href="#frames">Frame plane</a></li>
+      <li><a href="#plugins">Plugins</a></li>
+      <li><a href="#agents">Agents</a></li>
+    </ul>
+
+    <h2 id="cli">CLI</h2>
+    <p><code>ds</code> is stateless. Each call connects to the daemon, sends one request,
+    prints the result and exits. <code>ds watch</code> holds a subscription open and prints
+    one JSON object per line.</p>
+
+    <pre><code>ds [--socket PATH] [--token-file PATH] &lt;verb&gt; [args] [flags]
+ds --help | ds &lt;verb&gt; --help
+ds schema &lt;state|ipc|stream-frame|plugin-manifest|binding&gt;
+ds describe &lt;path&gt;</code></pre>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Verb</th><th>What it does</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>get</code></td><td>read a state path, with optional fields and expected revision</td><td>works</td></tr>
+          <tr><td><code>set</code></td><td>write a state path, from JSON, a scalar or a file</td><td>works</td></tr>
+          <tr><td><code>colors</code></td><td>write 15 key colours in one revision and one panel push</td><td>works</td></tr>
+          <tr><td><code>watch</code></td><td>subscribe to a path or topic and stream events</td><td>works</td></tr>
+          <tr><td><code>schema</code> <code>describe</code></td><td>self-description for agents and for people</td><td>works</td></tr>
+          <tr><td><code>status</code> <code>daemon</code></td><td>daemon status, start, stop</td><td>works</td></tr>
+          <tr><td><code>bind</code> <code>unbind</code></td><td>append or remove a binding on an event topic</td><td>works</td></tr>
+          <tr><td><code>stream</code></td><td><code>push</code>, <code>stats</code>, <code>stop</code> for the frame plane</td><td>push is wired, the daemon does not bind the frame socket yet</td></tr>
+          <tr><td><code>emit</code> <code>events</code> <code>plugin</code> <code>token</code></td><td>later-phase verbs</td><td>refused with exit 1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Exit codes are part of the contract. A script can tell a usage error from a conflict
+    or an unreachable daemon without parsing the message.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="num">Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0</td><td>ok</td></tr>
+          <tr><td class="num">1</td><td>usage or schema error</td></tr>
+          <tr><td class="num">2</td><td><code>E_PATH</code>, path not found or bad syntax</td></tr>
+          <tr><td class="num">3</td><td><code>E_CONFLICT</code>, <code>if_rev</code> did not match. The payload has <code>current_rev</code>.</td></tr>
+          <tr><td class="num">4</td><td><code>E_AUTH</code>, <code>E_SCOPE</code> or <code>E_CAP</code></td></tr>
+          <tr><td class="num">5</td><td><code>E_LIMIT</code></td></tr>
+          <tr><td class="num">6</td><td><code>E_UNREACHABLE</code>. The message includes the daemon start command.</td></tr>
+          <tr><td class="num">7</td><td><code>E_DEVICE</code>, including forbidden commands</td></tr>
+          <tr><td class="num">8</td><td><code>E_INTERNAL</code> or <code>E_VERSION</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <pre><code>ds get /controls/keys/0/image --json
+ds set /settings/dim 0.2 --if-rev 41
+ds colors '["#ff0000","#00ff00","#0000ff", ... 15 total]'
+ds bind deck/control/keys.0/down --do '{"do":"emit","topic":"app/salon/key/0"}'
+ds watch 'app/salon/key/*' --ndjson
+ds describe /controls/keys/0/image</code></pre>
+
+    <h2 id="control">Control plane</h2>
+    <p>The control socket is newline-delimited JSON. One request line carries an
+    <code>id</code> and an <code>op</code>. One response line carries the same
+    <code>id</code> and either <code>ok: true</code> or an error object.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Item</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Socket</td><td><code>$XDG_RUNTIME_DIR/deckstack/daemon.sock</code>, falling back to <code>~/.local/state/deckstack/daemon.sock</code></td></tr>
+          <tr><td>Permissions</td><td>directory 0700, socket 0600, token file 0600</td></tr>
+          <tr><td>First exchange</td><td><code>hello</code> with protocol 1, answered by <code>welcome</code> with the current revision</td></tr>
+          <tr><td>Auth</td><td><code>auth</code> with the install token and a requested scope</td></tr>
+          <tr><td>Ops</td><td><code>ping</code>, <code>hello</code>, <code>auth</code>, <code>get</code>, <code>set</code>, <code>subscribe</code>, <code>unsubscribe</code>, <code>emit</code>, <code>bind</code>, <code>unbind</code>, <code>plugin</code>, <code>stream-open</code>, <code>stream-stats</code>, <code>stream-stop</code>, <code>daemon</code>, <code>token</code>, <code>schema</code></td></tr>
+          <tr><td>Limits</td><td>1 MiB request line, 4 MiB response, 64 in flight per connection, 300 s idle timeout, 64 connections</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>A request that is not one schema-valid object is answered with <code>E_SCHEMA</code>.
+    A line over the cap is answered with <code>E_LIMIT</code> and the connection closes,
+    because the framing can no longer be trusted.</p>
+
+    <pre><code>{"id":0,"op":"hello","protocol":1,"client":"manual/1.0"}
+{"id":0,"op":"welcome","protocol":1,"rev":41,"daemon":"0.1.0"}
+{"id":1,"op":"auth","token":"...","scope":"admin"}
+{"id":1,"ok":true,"rev":41,"result":{"scope":"admin"}}
+{"id":2,"op":"get","path":"/controls/keys/0/image"}
+{"id":2,"ok":true,"rev":41,"result":{"kind":"color","value":"#3cc86e"}}
+{"id":3,"op":"subscribe","path":"app/salon/key/*"}
+{"id":3,"ok":true,"rev":41,"result":{"subscription":"s0001"}}
+{"id":3,"event":"app/salon/key/0","rev":41,"payload":null}</code></pre>
+
+    <p>Scopes are <code>read</code>, <code>mutate</code> and <code>admin</code>. The
+    install token is admin. A request that needs a higher scope fails with
+    <code>E_SCOPE</code>. A plugin request for a capability the manifest did not declare
+    fails with <code>E_CAP</code>.</p>
+
+    <h2 id="frames">Frame plane</h2>
+    <p>Frames do not travel as JSON. <code>stream-open</code> on the control socket
+    authorizes a target and a credit budget. The frames themselves go to
+    <code>stream.sock</code> as DSF1 records.</p>
+
+    <pre><code>"DSF1" | u32 LE meta_len | JSON meta | u64 LE payload_len | payload
+
+meta = {target, seq, ts_ms, format, w, h, frames, fps, loop, crc32,
+        max_payload_bytes: 16777216}</code></pre>
+
+    <p>Stream control lines on the same socket start with <code>DSctl</code>, so the two
+    framings never mix. The producer respects credits. Each module queue holds one frame
+    in flight and one waiting frame. A new frame replaces the waiting one.</p>
+
+    <div class="note">
+      <p>The CLI exposes <code>ds stream push</code>, but the daemon in this tree does not
+      bind <code>stream.sock</code> yet. Treat the frame plane as specified and tested in
+      the vdev test setup, not as a finished path on hardware.</p>
+    </div>
+
+    <h2 id="plugins">Plugins</h2>
+    <p>A plugin is a separate OS process with a manifest. The host starts it, speaks
+    newline-delimited JSON over stdio, and mediates every side effect. The plugin has no
+    HID access and no ambient authority.</p>
+
+    <pre><code>{
+  "id": "lights",
+  "command": ["python3", "plugin.py"],
+  "actions": [
+    {"id": "set", "name": "lights.set", "params": { ...JSON Schema... }}
+  ],
+  "capabilities": ["state.read", "state.write", "net:lights.lan"],
+  "resources": {"cpu_s": 10, "nproc": 64, "nofile": 64, "as_mb": 1024}
+}</code></pre>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Capability</th><th>What the host enforces</th></tr></thead>
+        <tbody>
+          <tr><td><code>state.read</code></td><td>reads from the paths the manifest allows</td></tr>
+          <tr><td><code>state.write</code></td><td>writes to the paths the manifest allows</td></tr>
+          <tr><td><code>net:&lt;glob&gt;</code></td><td>the URL host must match the grant and <code>/policy/net/allow_hosts</code>. The daemon makes the request.</td></tr>
+          <tr><td><code>fs:&lt;root&gt;</code></td><td>the process gets that root, and only that root, through the sandbox</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The Python SDK keeps the wire protocol out of the plugin. The lights plugin is one
+    action and one serve call.</p>
+
+    <pre><code>import ds_plugin_py as sdk
+
+SET_PARAMS = {
+    "type": "object",
+    "properties": {
+        "room": {"type": "string"},
+        "light": {"type": "string"},
+        "brightness": {"type": "integer", "minimum": 0, "maximum": 100},
+        "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+    },
+    "required": ["room", "light"],
+    "additionalProperties": False,
+}
+
+@sdk.action("set", params=SET_PARAMS, description="Set a light in a room")
+def lights_set(args):
+    cfg = sdk.get_state("/plugins/lights/config")
+    reply = sdk.http("GET", url_for(cfg, args))
+    return [sdk.set("/plugins/lights/state/last", {"ok": True})]
+
+sdk.serve(MANIFEST)</code></pre>
+
+    <p>The host restarts a plugin that exits, with a bounded backoff. Plugin logs are kept
+    per plugin. An action that fails returns an error object and no effects.</p>
+
+    <h2 id="agents">Agents</h2>
+    <p>An agent uses the same control socket as the CLI. Three interfaces are ready today.</p>
+
+    <h3>ds-mcp</h3>
+    <p>A stdio JSON-RPC 2.0 server that implements <code>tools/list</code> and
+    <code>tools/call</code>. Ten tools cover the daemon API.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>deck_status</code></td><td>daemon status, revision, device and socket</td></tr>
+          <tr><td><code>deck_get</code></td><td>read a state path, optionally at an expected revision</td></tr>
+          <tr><td><code>deck_set</code></td><td>write a state path, optionally compare-and-set</td></tr>
+          <tr><td><code>deck_bind</code></td><td>append a binding with steps and an optional condition</td></tr>
+          <tr><td><code>deck_unbind</code></td><td>remove a binding by id or topic</td></tr>
+          <tr><td><code>deck_emit</code></td><td>publish a topic on the event bus</td></tr>
+          <tr><td><code>deck_watch</code></td><td>subscribe and return events</td></tr>
+          <tr><td><code>deck_stream_push</code></td><td>push a frame or a frame directory</td></tr>
+          <tr><td><code>deck_plugin_list</code></td><td>list installed plugins and their state</td></tr>
+          <tr><td><code>deck_schema</code></td><td>return a contract schema</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <pre><code>{
+  "mcpServers": {
+    "deckstack": {
+      "command": "$HOME/Applications/deckstack-0.1.0/bin/ds-mcp",
+      "args": ["--data-dir", "$HOME/.local/state/deckstack"]
+    }
+  }
+}</code></pre>
+
+    <h3>ds-focus</h3>
+    <p>Publishes the focused window as <code>app/focus/changed</code>. A binding on that
+    topic can recolor keys or write a label. <code>ds-focus --quiet</code> keeps it out of
+    the terminal.</p>
+
+    <h3>ds-py</h3>
+    <p>A small Python client over the CLI. It never opens the socket itself, so the CLI
+    contract stays the only interface it has to track. <code>Client.watch()</code> yields
+    parsed events.</p>
+
+    <p>For any other language, the control socket is the interface. Open it, send
+    <code>hello</code>, authenticate, and read or write state.</p>
+  </main>
+
+  <footer class="site-footer">
+    deckstack is dual-licensed MIT or Apache-2.0.
+    <a href="https://github.com/zamber/deckstack">Source on GitHub</a>.
+  </footer>
+</body>
+</html>
