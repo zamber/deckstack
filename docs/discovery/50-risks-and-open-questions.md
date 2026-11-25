@@ -1,7 +1,7 @@
 # Discovery 50 — risks and open questions
 
-Prefixes: `hubdeck/` = `/var/home/catwars/repos/hubdeck`, `upstream/` =
-`/var/home/catwars/repos/hubdeck-upstream`, `deckstack/` = this repo. Every risk names its
+Prefixes: `hubdeck/` = `the Python predecessor checkout`, `upstream/` =
+`the Tauri predecessor checkout`, `deckstack/` = this repo. Every risk names its
 evidence and the experiment that resolves it. OPEN = not verified in the sources read.
 
 ## 1. Protocol / device risks

@@ -109,7 +109,7 @@ box the 10 s CI run reports p99 ≈ 0.15 ms against the 10 ms budget and 32.0 fp
 accepted against the 30.4 fps floor — and the workflow sets
 `concurrency: {group: <workflow>-<ref>, cancel-in-progress: true}` so two bench
 runs never share a ref's runner. A flaky gate is retried once with a recorded
-flake note (AGENT-WORKFLOW escalation), never silently re-run.
+flake note in the job summary, escalated to a maintainer, never silently re-run.
 
 No Windows/macOS CI gate exists in alpha (scope delta 1): those platforms are TODO
 sections in `docs/40-platforms.md` §2–§3 — "do not start until Linux alpha is stable".

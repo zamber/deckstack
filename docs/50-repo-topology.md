@@ -1,26 +1,23 @@
-# 50 — Repo topology, release flow, worktree/PR workflow
+# 50 — Repo topology and release flow
 
-R12 + owner steering 2026-11-22 (deltas 8+9). Decisions: D08/ADR-008, ADR-016, ADR-017.
-Machine-readable boundaries: [`repos.toml`](../repos.toml). Chosen: **umbrella monorepo
-for the alpha core + `git subtree split` publishing for separate components.**
+R12 + steering 2026-11-22 (deltas 8+9). Decisions: D08/ADR-008, ADR-017. Chosen: **one
+workspace for the alpha core + per-component publish targets at release time.**
 
-## 0. Repo boundaries (summary of repos.toml)
+## 0. Publish targets
 
-| Repo | Status | Development | Publish |
+| Target | Status | Development | Publish |
 |---|---|---|---|
-| `deckstack` (this umbrella: contracts, crates, CLI, vdev, plugin host, conformance, docs) | alpha | in-tree | tags on main, CI artifacts |
+| `deckstack` (this repo: contracts, crates, CLI, vdev, plugin host, conformance, docs) | alpha | in-tree | tags on main, CI artifacts |
 | `deckstack-schemas` | alpha | in-tree `schemas/`, edited atomically with code | subtree split of `schemas/` |
 | `deckstack-verify` (camera harness, `tools/verify/`) | alpha phase 2+ | in-tree during alpha, split after Linux alpha stable | subtree split |
 | `deckstack-plugin-py` (`plugins-py/`) | alpha phase 5 | in-tree, published to PyPI | subtree split + wheel |
 | `deckstack-lights` (lights.lan plugin) | post-alpha | own repo from day one | n/a until created |
 
-None of the separate repos exists yet — `repos.toml` marks each "in-tree" or "to create".
-
 ## 1. Layout
 
 ```
-~/repos/deckstack/                     this repo (the umbrella; everything below is in it)
-├── BRIEF.md  README.md  PLAN.md  docs/  schemas/     (this plan; schemas are versioned contracts)
+deckstack/                                 this repo (one workspace; everything below is in it)
+├── BRIEF.md  README.md  PLAN.md  docs/  schemas/     (the plan; schemas are versioned contracts)
 ├── Cargo.toml                             workspace root (virtual manifest)
 ├── crates/
 │   ├── ds-protocol/                       re-exports mh-protocol builders + safety; versioned alone
@@ -36,23 +33,25 @@ None of the separate repos exists yet — `repos.toml` marks each "in-tree" or "
 │   ├── ds/                                the CLI (thin main over ds-client)
 │   ├── ds-focus/  ds-mcp/                 sender binaries (own bins, own release tags; no ds-web in alpha)
 ├── plugins-py/ds_plugin_py/               Python wrapper + SDK (PyPI: ds-plugin-py)
+├── clients/ds-py/                         stdlib-only Python client helper
 ├── tools/verify/                          deckstack-verify camera harness (phase 2+)
-├── tests/                                 conformance/ (python), acceptance/, hw/, golden/
-├── packaging/                             systemd unit, udev rules, MSI/wxs, AppImage spec, NOTICE.md
-└── .github/workflows/                     CI matrix (docs/30-testing.md §8)
+├── tests/                                 fixtures/ (schema gate), conformance/, e2e/, golden/, hw/
+├── examples/                              micro-apps, agent configs, plugin demo
+├── packaging/                             systemd unit, udev rules, AppDir/AppImage spec, release.sh, NOTICE
+└── .github/workflows/                     CI + tag-triggered release (docs/30-testing.md §8)
 ```
 
 Components are **crates in one workspace, not submodules** — no `.gitmodules`, no pointer
-drift, contracts (`schemas/`) edited atomically with code in one PR. Each component still
-releases as its own repo (below).
+drift, contracts (`schemas/`) edited atomically with code in one change. Each component
+still releases as its own target (below).
 
 ## 2. Why not the alternatives
 
-- **Git submodules:** the task forbids hand-waving; submodules add clone/update footguns
-  and split contract edits across repos during phase 1 churn. Rejected.
-- **Sibling repos from day one:** phase 1 changes `schemas/` and three crates per PR;
-  cross-repo PR stacks would be miserable. Rejected for now; revisit after contracts
-  stabilize (phase 4+), the subtree split makes extraction trivial later.
+- **Git submodules:** submodules add clone/update footguns and split contract edits across
+  repos during early churn. Rejected.
+- **Sibling repos from day one:** early development changes `schemas/` and several crates
+  per change; cross-repo stacks would be miserable. Rejected for now; revisit after
+  contracts stabilize (phase 4+), the subtree split makes extraction trivial later.
 - **One crate for everything:** violates R12 (independent release/swap). Rejected.
 
 ## 3. Versioning and contracts between components
@@ -65,7 +64,7 @@ releases as its own repo (below).
   (ds-device, ds-state, ds-client), (b) the wire contracts (schemas/). The daemon never
   imports another component's internals beyond those crates.
 
-## 4. Publishing each component as its own repo (concrete commands)
+## 4. Publishing a component as its own repo (concrete commands)
 
 ```sh
 # one-time per component: create the remote repo, then:
@@ -80,52 +79,28 @@ git push git@github.com:deckstack/ds-device.git ds-device-v0.3.1
 
 `git subtree split` rewrites history so the subdir becomes the repo root — the published
 repo contains only that component, with its own README/CHANGELOG (generated by
-`packaging/release.sh`). Consumers can then depend on either the umbrella workspace or
-the per-component repo; CI tests both. Same flow for `bins/ds`, `plugins-py/`,
+`packaging/release/release.sh`). Consumers can then depend on either the umbrella
+workspace or the per-component repo; CI tests both. Same flow for `bins/ds`, `plugins-py/`,
 `crates/ds-vdev`. `schemas/` publishes as its own repo too (`release/schemas`), since
 non-Rust clients (agents, the Python SDK) consume it.
 
-## 5. Bootstrap (phase 1 coder)
+## 5. Bootstrap (first build)
 
 ```sh
-git clone <this repo> ~/repos/deckstack && cd ~/repos/deckstack
+git clone <this repo> deckstack && cd deckstack
 cargo build --workspace                 # mh-protocol/mh-device come from git deps (ADR-010)
-python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt   # conformance suite
 cargo test --workspace
-.venv/bin/python tests/conformance/run.py --build debug
+python3 tests/conformance/run.py        # stdlib-only, no virtualenv needed
+sh tools/check.sh                       # the single local gate
 ```
 
-## 6. Worktree / PR workflow (protocol + tooling — both committed)
-
-Full protocol in `docs/AGENT-WORKFLOW.md`; operational summary in `AGENTS.md`. Summary:
-one worktree per ticket under `.worktrees/<id>` from `main`, branch `ticket/<id>`; local
-bare review remote `.review.git` (remote name `review`); PR record `prs/<id>.md` plus
-steward verdict `prs/<id>.review.md`; steward reviews, runs acceptance
-(`sh tools/check.sh`), lands on `main`; **no worker commits to `main`**; file-ownership
-collisions are refused by `tools/tickets.py` before claiming. Actual commands:
-
-```sh
-sh tools/setup-review-remote.sh                  # once: .review.git + remote `review` + push main (no network)
-sh tools/wt.sh new DS-XXX --owner <name>         # claim (coordination commit on main) + worktree/branch from main
-# in .worktrees/DS-XXX: edit touches, commit "ticket(DS-XXX): …" (+ Vibe trailer)
-sh tools/pr.sh submit DS-XXX                     # checks + prs/DS-XXX.md + push ticket/DS-XXX to review
-# steward on main:
-sh tools/pr.sh review DS-XXX --approve           # verdict -> prs/DS-XXX.review.md (coordination commit)
-sh tools/pr.sh merge DS-XXX                      # land on main, ticket done, worktree+branch removed, push main
-sh tools/wt.sh list ; sh tools/pr.sh list        # inspect worktrees / open PRs
-```
-
-`.worktrees/` and `.review.git/` are gitignored; `prs/<id>.md` records are committed.
-Proven end to end on DS-000 (see `prs/DS-000.md`, `prs/DS-000.review.md`,
-`docs/workflow-smoke.md`).
-
-## 7. CI and release flow
+## 6. CI and release flow
 
 - CI (`.github/workflows/ci.yml`): matrix in docs/30-testing.md §8; gates = unit +
-  contract + conformance + acceptance + bench budgets + `jsonschema` validation of
+  contract + conformance + bench budgets + `jsonschema` validation of
   schemas + `cargo publish --dry-run` for each releasable crate.
 - Release: bump crate versions → tag `ds-daemon-vX.Y.Z` etc. → CI builds artifacts
-  (AppImage spec in `packaging/linux/`, MSI via wixl, Python wheel) →
-  `packaging/release.sh` runs the subtree splits above and pushes tags to the component
-  repos → GitHub releases per component. Umbrella repo gets a rolling `main` + a
-  `vX.Y.Z` umbrella tag per coordinated release.
+  (AppImage spec in `packaging/linux/`, Python wheel) →
+  `packaging/release/release.sh` runs the subtree splits above and pushes tags to the
+  component repos → GitHub releases per component. This repo gets a rolling `main` + a
+  `vX.Y.Z` tag per coordinated release.

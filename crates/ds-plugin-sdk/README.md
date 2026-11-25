@@ -91,7 +91,7 @@ contract tests (`tests/contract/plugins/plugins.rs`) pin every message **byte-fo
 | host→plugin | `{"op":"reply","request_id":10,"ok":true,"status":200,"body":"…"}` (or `"value"`/`"rev"` for get/set, or `"ok":false,"error":{…}`) |
 
 Notes on shapes the contract leaves open (chosen here, pinned by the contract tests, flagged
-for the steward — see "Contract notes" below):
+for maintainers — see "Contract notes" below):
 
 - **Invoke/event failure** → `{"op":"error","request_id":N,"error":{"code","message"}}`.
 - **Event replies** carry `request_id` only when the event had one; otherwise the `effects`
@@ -174,7 +174,7 @@ cargo test --test plugins              # same, from the workspace root
 The contract corpus lives in `tests/contract/plugins/` (see its README) and runs the example
 plugin binary `src/bin/demo_plugin.rs` against a mock host — no daemon needed.
 
-## Contract notes / ambiguities (for the steward)
+## Contract notes / ambiguities (for maintainers)
 
 `docs/contracts/plugins.md` §1 pins the shapes in the table above; the following were open
 and are decided here (pinned by `tests/contract/plugins/plugins.rs`, to be reconciled with

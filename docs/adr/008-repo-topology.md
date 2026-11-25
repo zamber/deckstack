@@ -4,7 +4,7 @@ Status: accepted (planning).
 
 ## Context
 
-R12 + tension 7: the project lives in `~/repos/deckstack`; each component must be
+R12 + tension 7: the project lives in `<deckstack>`; each component must be
 releasable as its own repo/app; clean versioned contracts between components; no submodule
 hand-waving — pick one and show the commands.
 

@@ -1,7 +1,7 @@
 # Discovery 30 — capabilities matrix
 
-Prefixes: `hubdeck/` = `/var/home/catwars/repos/hubdeck` (Python), `upstream/` =
-`/var/home/catwars/repos/hubdeck-upstream` (Rust/Tauri). "New base must preserve" / "may discard"
+Prefixes: `hubdeck/` = `the Python predecessor checkout` (Python), `upstream/` =
+`the Tauri predecessor checkout` (Rust/Tauri). "New base must preserve" / "may discard"
 are stated against BRIEF.md's R1-R12.
 
 | Capability | Python impl | Rust impl | Quality / limits | New base must preserve | May discard |

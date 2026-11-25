@@ -24,7 +24,7 @@ conflicts with this file, this file wins for alpha.
 - **Streaming, events/bindings/actions, plugin host + Python wrapper, senders (focus,
   MCP), agent surfaces** — alpha phases 0–6 (`docs/60-roadmap.md`).
 - **Camera verification on hardware** — `docs/90-verification.md`; CI uses ds-vdev only.
-- **Agent steering is first-class**: `AGENTS.md`, `docs/AGENT-WORKFLOW.md`,
+- **Agent steering is first-class**: `AGENTS.md`, `docs/agents.md`,
   `skills/deckstack/SKILL.md`, and the CLI self-description contract (`ds schema`,
   `ds describe`, `--help` everywhere, stable exit codes, `--json`/`--ndjson`).
 

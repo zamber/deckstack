@@ -58,7 +58,7 @@ request is performed by the daemon itself (host-mediated), never by the plugin.
 copy + generated manifest, invoke = a binding step:
 
 ```sh
-LIGHTS=/home/catwars/repos/deckstack-lights        # sibling checkout (own repo, repos.toml)
+LIGHTS=<deckstack-lights>                     # the deckstack-lights checkout (separate repo)
 DEST=${XDG_DATA_HOME:-$HOME/.local/share}/deckstack/plugins/lights
 mkdir -p "$DEST"
 cp "$LIGHTS/plugin.py" "$DEST/plugin.py"
@@ -79,7 +79,7 @@ user+mount namespace (same trick as `deckstack-lights/tests/run.py`) so the daem
 host-mediated DNS resolution reaches the fake HueMux hermetically.
 
 ```sh
-RUN=/tmp/ds-salon-run; BIN=<deckstack>/target/release; LIGHTS=/home/catwars/repos/deckstack-lights
+RUN=/tmp/ds-salon-run; BIN=<deckstack>/target/release; LIGHTS=<deckstack-lights>
 rm -rf "$RUN"; mkdir -p "$RUN"
 # extract the run script from §6 of this page (between the ```sh fences) into $RUN/run-salon.sh:
 awk '/^## 6\./{f=1} f && /^```sh$/{s=1;next} s && /^```$/{exit} s' docs/porting/salon-key.md > "$RUN/run-salon.sh"

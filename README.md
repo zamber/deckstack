@@ -6,11 +6,12 @@ A ground-up, CLI-first replacement base for the MasterHub/HubDeck controller sta
 normative in [`docs/00-scope.md`](docs/00-scope.md)**: alpha is Linux-only, starts from an
 empty state (no presets/sample decks), has no migration/import and no web UI, and treats
 agent steering as first-class. Evidence about the two existing implementations:
-[`docs/discovery/`](docs/discovery/) (read-only; prefixes `hubdeck/` = `~/repos/hubdeck`,
-`upstream/` = `~/repos/hubdeck-upstream`).
+[`docs/discovery/`](docs/discovery/) (read-only; citation prefixes `hubdeck/` = the Python
+predecessor, `upstream/` = the Tauri predecessor).
 
 **Status: alpha scope, working software.** The daemon, CLI, virtual device, and
-conformance suites exist and run (see "Run it"). Nothing here edits the two hub repos.
+conformance suites exist and run (see "Run it"). Nothing here edits the two predecessor
+codebases.
 
 ## Run it
 
@@ -31,38 +32,33 @@ target/release/ds daemon stop
 ```
 
 Current capabilities (CLI-first, no web UI / plugin UI in the alpha — out of scope by
-`docs/00-scope.md`): `ds get|set|watch|schema|describe|status`, `ds bind|unbind`,
-`ds daemon start|stop|status`, `ds stream stats|stop` (frame-plane push is wired in the
-CLI but the daemon does not bind `stream.sock` yet); `ds token|emit|events|plugin` are
-later-phase verbs, refused with exit 1 until their tickets land. Linux only; no
-`ds migrate`; empty state at first start.
+`docs/00-scope.md`): `ds get|set|colors|watch|schema|describe|status`, `ds bind|unbind`,
+`ds daemon start|stop|status`, `ds stream push|stats|stop` (frame-plane push is wired in
+the CLI but the daemon does not bind `stream.sock` in this tree yet); `ds token|emit|events|plugin`
+are later-phase verbs, refused with exit 1. Linux only; no `ds migrate`; empty state at
+first start.
 
-## Working on this repo (agents)
-
-All changes go through the ticket board — see [AGENTS.md](AGENTS.md) and
-[docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md). Quick start:
+## Working on this repo
 
 ```sh
-sh tools/bootstrap.sh                     # venv + requirements + sh tools/check.sh
-sh tools/setup-review-remote.sh           # once: local bare remote .review.git as `review`
-python3 tools/tickets.py ready            # claimable tickets (deps done)
-sh tools/wt.sh new DS-XXX --owner <name>  # claim + worktree .worktrees/DS-XXX, branch ticket/DS-XXX
-# edit only the ticket's touches; commit "ticket(DS-XXX): …" (+ Vibe trailer); then:
-sh tools/pr.sh submit DS-XXX              # PR record prs/DS-XXX.md, pushed to `review`
-# steward on main: sh tools/pr.sh review DS-XXX --approve && sh tools/pr.sh merge DS-XXX
-sh tools/check.sh                         # the gate every PR must pass
+cargo build --workspace          # build everything
+sh tools/check.sh                # the single local gate: fixture gate + cargo fmt/clippy/test + conformance
+python3 tests/e2e/run.py         # end-to-end smoke on the virtual device
 ```
 
-The flow was proven end to end on DS-000 (`prs/DS-000.md`, `prs/DS-000.review.md`,
-`docs/workflow-smoke.md`).
+Docs start at [`docs/00-scope.md`](docs/00-scope.md) (normative alpha scope) and
+[`PLAN.md`](PLAN.md) (the one-page plan); contributor and coding-agent conventions live in
+[`AGENTS.md`](AGENTS.md). Wire formats are contracts: change `schemas/*.json` and
+`docs/contracts/*` together and keep `sh tests/fixtures/validate.sh` printing
+ALL CHECKS PASSED.
 
 ## How to read this repo
 
 | You are… | Start at |
 |---|---|
 | An operator running the daemon | [docs/runbook.md](docs/runbook.md) (start/stop, logs, tokens, recovery, troubleshooting) |
-| An agent picking up a ticket | [AGENTS.md](AGENTS.md) → [docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md) → your ticket |
-| A coder starting phase 1 | [PLAN.md](PLAN.md) → §Walking skeleton → [docs/60-roadmap.md](docs/60-roadmap.md) |
+| A contributor or coding agent | [AGENTS.md](AGENTS.md) → [docs/00-scope.md](docs/00-scope.md) → [PLAN.md](PLAN.md) |
+| A coder starting on the core | [PLAN.md](PLAN.md) → §First walking skeleton → [docs/60-roadmap.md](docs/60-roadmap.md) |
 | Checking what is in/out of alpha | [docs/00-scope.md](docs/00-scope.md) (one hop from here and from PLAN) |
 | Reviewing a load-bearing choice | PLAN.md decision table → the ADR in [docs/adr/](docs/adr/) → [docs/decision-log.tsv](docs/decision-log.tsv) |
 | Implementing a component | [docs/components/](docs/components/) |
@@ -74,20 +70,18 @@ The flow was proven end to end on DS-000 (`prs/DS-000.md`, `prs/DS-000.review.md
 Reading order for full context: `BRIEF.md` → `docs/00-scope.md` → `docs/discovery/10..50` →
 `PLAN.md` → `docs/10-architecture.md` → contracts → components → ADRs.
 
-## Repo topology (summary — details + `repos.toml` in docs/50-repo-topology.md)
+## Repo topology (summary — details in docs/50-repo-topology.md)
 
 ```
-~/repos/deckstack/            umbrella monorepo = the alpha core (contracts + crates + CLI + vdev + plugin host + conformance + docs)
-├── BRIEF.md                  governing intent (R1-R12) + scope amendment — protected
-├── AGENTS.md                 agent operational entry point
+deckstack/                    this repo (one workspace: contracts + crates + bins + tests + docs)
+├── BRIEF.md                  governing intent (R1-R12) + scope amendment
+├── AGENTS.md                 contributor / coding-agent guide
 ├── README.md  PLAN.md        this index / one-page plan
-├── repos.toml                explicit repo boundaries (umbrella + separate publish targets)
 ├── skills/deckstack/SKILL.md agent orientation skill
 ├── docs/
 │   ├── 00-scope.md           normative alpha scope + invariants — read first
-│   ├── discovery/            cited facts about hubdeck + hubdeck-upstream — protected
-│   ├── reviews/              adversarial review + response — protected
-│   ├── AGENT-WORKFLOW.md     tickets/worktrees/PRs long protocol
+│   ├── discovery/            cited facts about the two predecessors — read-only
+│   ├── reviews/              adversarial review + response
 │   ├── decision-log.tsv      one row per material decision
 │   ├── open-questions.md     OPEN items + contradictions, each with a resolving experiment
 │   ├── 10-architecture.md    process model, planes, ownership, recovery
@@ -100,17 +94,22 @@ Reading order for full context: `BRIEF.md` → `docs/00-scope.md` → `docs/disc
 │   ├── 90-verification.md    camera verification harness (deckstack-verify)
 │   └── adr/NNN-*.md          decision records (referenced from PLAN.md)
 ├── schemas/                  JSON Schemas: state, ipc-message, stream-frame, plugin-manifest, binding
-├── tests/fixtures/           validate.sh/validate.js/validate.py + ipc-examples.json + regex-checks.js
-└── packaging/                bootstrap.sh, release.sh, systemd unit, udev rules, NOTICE.md
+├── crates/  bins/            the workspace: ds-protocol, ds-device, ds-state, ds-ipc, ds-client,
+│                             ds-daemon, ds-vdev, ds-plugin-sdk, ds-bench; bins ds, ds-focus, ds-mcp
+├── plugins-py/               Python plugin SDK (PyPI: ds-plugin-py)
+├── clients/ds-py/            stdlib-only Python client helper
+├── examples/                 micro-apps, agent configs, plugin demo
+├── tests/                    fixtures/ (schema gate), conformance/, e2e/, golden/, hw/, …
+├── tools/                    check.sh (local gate), verify/ (camera harness)
+├── packaging/                release.sh, systemd unit, udev rules, AppImage spec, linux install
+└── .github/workflows/        CI + tag-triggered release
 ```
 
-Separate publish targets (none exists as a separate repo yet — `repos.toml` marks status):
-`deckstack-schemas` (subtree split of `schemas/`), `deckstack-verify` (camera harness,
-`tools/verify/`), `deckstack-plugin-py` (PyPI, `plugins-py/`), `deckstack-lights`
-(post-alpha, own repo).
+Separate publish targets: `deckstack-verify` (camera harness, `tools/verify/`) and
+`deckstack-plugin-py` (`plugins-py/`, PyPI) are developed in-tree during the alpha and
+published from their own repos/wheels at release time; `deckstack-lights` (the lights.lan
+plugin) is a separate repo post-alpha.
 
-Planned runtime crates: `ds-protocol`, `ds-device`, `ds-state`, `ds-ipc`, `ds-daemon`,
-`ds` (CLI), `ds-vdev` (+`ds-vdevctl`), `ds-focus`, `ds-mcp`, `ds-bench`, `ds-plugin-sdk`.
 No `ds-web` in alpha.
 
 ## Glossary
@@ -127,4 +126,5 @@ No `ds-web` in alpha.
 - **capability token** — per-install token with scopes `read|mutate|admin`; plugins get
   smaller capability grants (R8).
 - **camera oracle** — webcam verification of pixels on the live deck (`docs/90-verification.md`).
-- Citations like `upstream/PROTOCOL.md:244` refer to `~/repos/hubdeck-upstream/PROTOCOL.md:244`.
+- Citations like `upstream/PROTOCOL.md:244` refer to `PROTOCOL.md:244` in the Tauri
+  predecessor.

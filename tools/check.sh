@@ -1,13 +1,12 @@
 #!/bin/sh
-# deckstack single local gate. Runs on every PR (pr.sh review/merge) and in CI.
+# deckstack single local gate. Runs on every change and in CI.
 #   always:      sh tests/fixtures/validate.sh  (must print ALL CHECKS PASSED)
-#                python3 tools/tickets.py validate (DAG + generated files in sync)
-#   conditional: cargo fmt/clippy/test when Cargo.toml exists (DS-004)
-#                conformance suite when tests/conformance/run.py exists (DS-018)
+#   conditional: cargo fmt/clippy/test when Cargo.toml exists
+#                conformance suite when tests/conformance/run.py exists
 # Clear summary at the end; exit nonzero on any failure.
 # Usage: sh tools/check.sh [tree-root]
 #   no argument  -> validate the tree this script lives in (the tree it is invoked from)
-#   tree-root    -> validate that tree instead (pr.sh passes the ticket worktree here)
+#   tree-root    -> validate that tree instead
 set -u
 ROOT=${1:-}
 if [ -z "$ROOT" ]; then
@@ -33,43 +32,20 @@ else
   bad "sh tests/fixtures/validate.sh (rc=$rc)"; printf '%s\n' "$out" | tail -n 20 | sed 's/^/    /'
 fi
 
-echo "-- always: ticket board (DAG valid, generated files in sync)"
-if out=$(python3 tools/tickets.py validate 2>&1); then
-  pass "python3 tools/tickets.py validate"
-  printf '%s\n' "$out" | sed 's/^/    /'
-else
-  bad "python3 tools/tickets.py validate"
-  printf '%s\n' "$out" | sed 's/^/    /'
-fi
-
-echo "-- always: ticket tool unit tests"
-if [ -d tests/tools ]; then
-  if out=$(python3 -m unittest discover -s tests/tools -p 'test_*.py' 2>&1); then
-    pass "ticket tool unit tests"
-    printf '%s\n' "$out" | tail -n 3 | sed 's/^/    /'
-  else
-    bad "ticket tool unit tests"; printf '%s\n' "$out" | tail -n 30 | sed 's/^/    /'
-  fi
-else
-  echo "SKIP  no tests/tools yet"
-fi
-
-echo "-- conditional: cargo workspace (runs once Cargo.toml exists, DS-004)"
+echo "-- conditional: cargo workspace (runs when Cargo.toml exists)"
 if [ -f Cargo.toml ]; then
   if cargo fmt --check >/dev/null 2>&1; then pass "cargo fmt --check"; else bad "cargo fmt --check"; cargo fmt --check 2>&1 | head -n 20 | sed 's/^/    /'; fi
   if cargo clippy --workspace -- -D warnings >/dev/null 2>&1; then pass "cargo clippy --workspace -- -D warnings"; else bad "cargo clippy --workspace -- -D warnings"; cargo clippy --workspace -- -D warnings 2>&1 | tail -n 20 | sed 's/^/    /'; fi
   if cargo test --workspace >/dev/null 2>&1; then pass "cargo test --workspace"; else bad "cargo test --workspace"; cargo test --workspace 2>&1 | tail -n 20 | sed 's/^/    /'; fi
 else
-  echo "SKIP  no Cargo.toml yet (workspace skeleton lands with DS-004)"
+  echo "SKIP  no Cargo.toml in this tree"
 fi
 
-echo "-- conditional: conformance suite (runs once tests/conformance/run.py exists, DS-018)"
+echo "-- conditional: conformance suite (runs when tests/conformance/run.py exists)"
 if [ -f tests/conformance/run.py ]; then
-  PY=python3
-  [ -x .venv/bin/python ] && PY=.venv/bin/python
-  if "$PY" tests/conformance/run.py >/dev/null 2>&1; then pass "$PY tests/conformance/run.py"; else bad "$PY tests/conformance/run.py"; "$PY" tests/conformance/run.py 2>&1 | tail -n 20 | sed 's/^/    /'; fi
+  if python3 tests/conformance/run.py >/dev/null 2>&1; then pass "python3 tests/conformance/run.py"; else bad "python3 tests/conformance/run.py"; python3 tests/conformance/run.py 2>&1 | tail -n 20 | sed 's/^/    /'; fi
 else
-  echo "SKIP  no tests/conformance/run.py yet (lands with DS-018)"
+  echo "SKIP  no tests/conformance/run.py in this tree"
 fi
 
 echo

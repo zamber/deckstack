@@ -1,16 +1,15 @@
 # 60 — Roadmap
 
-Alpha phases 0–6 only (owner steering 2026-11-22, delta 10). Each phase is one verifiable
-slice with an observable exit criterion. Post-alpha backlog at the end. Platform claims
-follow `docs/40-platforms.md` §0 (Linux alpha only).
+Alpha phases 0–6 only (steering amendments 2026-11-22, delta 10). Each phase is one
+verifiable slice with an observable exit criterion. Post-alpha backlog at the end.
+Platform claims follow `docs/40-platforms.md` §0 (Linux alpha only).
 
-## Phase 0 — contracts freeze + workspace + workflow scaffolding
+## Phase 0 — contracts freeze + workspace + CI scaffolding
 
 - **Builds:** schemas final for alpha scope; `tests/fixtures/validate.sh` green;
-  `packaging/bootstrap.sh`; CI skeleton (Linux only); ticket/worktree/PR scaffolding per
-  `docs/AGENT-WORKFLOW.md` (`.worktrees/`, `.review.git`, `prs/`, branch `ticket/<id>`).
-- **Exit:** `sh tests/fixtures/validate.sh` → ALL CHECKS PASSED; `cargo build --workspace`
-  green; conformance runner starts (0 tests); `prs/` + worktree protocol documented.
+  `cargo build --workspace`; CI skeleton (Linux only) running `sh tools/check.sh`.
+- **Exit:** `sh tools/check.sh` green (fixture gate ALL CHECKS PASSED + cargo fmt/clippy/test
+  + conformance); conformance runner starts.
 
 ## Phase 1 — walking skeleton on the virtual device
 
@@ -58,7 +57,7 @@ follow `docs/40-platforms.md` §0 (Linux alpha only).
 
 - **Builds:** plugin host (spawn, caps, rlimits, Landlock, watchdog, host-mediated net),
   manifest validation, `ds-plugin-sdk`, `ds-plugin-py` wrapper (published to PyPI as its
-  own package, `repos.toml`).
+  own package).
 - **Exit:** example plugin runs isolated; abuse tests pass (fork-bomb, `/bin/sh` refusal,
   traversal, net glob edges T11); ds-plugin-py installable from PyPI.
 

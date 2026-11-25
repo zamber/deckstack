@@ -1,7 +1,7 @@
 # 20 — Security model
 
 R8. Design: ADR-009, D14. Threat model first, mitigations, then the test that proves each.
-Prefixes: `hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`.
+Prefixes: `hubdeck/` = `the Python predecessor`, `upstream/` = `the Tauri predecessor`.
 Revised for review M1–M5 and supervisor S3/S4/S5/S12/S13.
 
 ## 1. Assets and trust boundaries

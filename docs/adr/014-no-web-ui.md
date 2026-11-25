@@ -23,4 +23,4 @@ adapter later; nothing opinionated is planned.
 ## References
 
 BRIEF.md amendment; `docs/00-scope.md` invariant 3; `docs/contracts/ipc.md` §1.1;
-`docs/AGENT-WORKFLOW.md` §CLI self-description; decision log D34.
+`docs/contracts/cli.md` §1–§5; decision log D34.

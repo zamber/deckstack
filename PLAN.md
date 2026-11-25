@@ -1,6 +1,6 @@
 # PLAN — deckstack in one page
 
-Status: **planning, alpha scope** (`docs/00-scope.md` is normative; BRIEF.md R1–R12 +
+Status: **alpha scope, working software** (`docs/00-scope.md` is normative; BRIEF.md R1–R12 +
 2026-11-22 amendment). Goal: `BRIEF.md`.
 
 ## The shape
@@ -39,21 +39,20 @@ external senders (ds-focus, cron, webhooks, agents)
 | 5 | Frames are bytes on a separate stream; latest-frame-wins 1+1; no per-frame rev | [ADR-005](docs/adr/005-frame-transport.md) |
 | 6 | Plugins: process-per-plugin, manifest, capability grants, rlimits+Landlock; Python wrapper | [ADR-006](docs/adr/006-plugin-isolation.md) |
 | 7 | Actions: bindings-as-data, core vocabulary set/emit/plugin/exec/sleep, no eval, no shell, no catalog | [ADR-007](docs/adr/007-action-model.md) |
-| 8 | Repo: umbrella monorepo for alpha core + `repos.toml` boundaries + `git subtree split` publishing | [ADR-008](docs/adr/008-repo-topology.md), [ADR-017](docs/adr/017-repo-split.md) |
+| 8 | Repo: one workspace for the alpha core + per-component publish at release time | [ADR-008](docs/adr/008-repo-topology.md), [ADR-017](docs/adr/017-repo-split.md) |
 | 9 | Security: local-only, scoped tokens, caps, image limits, no RCE surface by default | [ADR-009](docs/adr/009-security-model.md) |
 | 10 | mh-protocol/mh-device reused as git deps, dual license + NOTICE | [ADR-010](docs/adr/010-device-layer-reuse.md) |
 | 11 | Alpha is Linux-only; Win/macOS are design TODOs, not deliverables | [ADR-011](docs/adr/011-linux-alpha-only.md) |
-| 12 | No import/migration/compat with existing apps; ticket-driven porting later | [ADR-012](docs/adr/012-no-import.md) |
+| 12 | No import/migration/compat with existing apps; manual porting later | [ADR-012](docs/adr/012-no-import.md) |
 | 13 | Empty state at start; no presets/layouts/sample decks shipped | [ADR-013](docs/adr/013-empty-state.md) |
 | 14 | No web UI in alpha; WS/HTTP adapter is for agents/debug clients only | [ADR-014](docs/adr/014-no-web-ui.md) |
 | 15 | Camera oracle verifies pixels on hardware; vdev in CI | [ADR-015](docs/adr/015-camera-oracle.md) |
-| 16 | Ticket/worktree/PR workflow governs all changes | [ADR-016](docs/adr/016-ticket-workflow.md) |
 
 ## Phase table (alpha 0–6; details + exit criteria: docs/60-roadmap.md)
 
 | Phase | Slice | Observable exit criterion |
 |---|---|---|
-| 0 | Contracts freeze + workspace + ticket/workflow scaffolding | `sh tools/check.sh` green (fixture gate ALL CHECKS PASSED + board validate; CI skeleton runs it on Linux); ticket/worktree/PR flow proven on DS-000 |
+| 0 | Contracts freeze + workspace + CI scaffolding | `sh tools/check.sh` green (fixture gate ALL CHECKS PASSED + cargo + conformance; CI skeleton runs it on Linux) |
 | 1 | **Walking skeleton on the virtual device**: daemon + CLI + socket + state + one key image via ds-vdev; empty-state invariant | `ds set /controls/keys/0/image --file k.png` → golden sha256 via `ds-vdevctl frames key:0`; fresh start has empty `/controls` |
 | 2 | Linux hardware bring-up + **camera verification** | hardware smoke green incl. `deckstack-verify check` on ≥1 key + panel; replug ≤ 5 s; handback on SIGTERM |
 | 3 | Streaming: frame plane, backpressure, telemetry, benchmarks | 32 fps push sustained, rev delta 0, query p99 ≤ 10 ms, drops counted |
@@ -65,20 +64,10 @@ external senders (ds-focus, cron, webhooks, agents)
 (`docs/80-integrations.md`), Windows, macOS (`docs/40-platforms.md` TODOs), web/debug UI
 over the adapter, selective porting (`docs/70-porting-notes.md`).
 
-**Agent workflow (phase 0, landed):** all changes go through the ticket board —
-`python3 tools/tickets.py ready` → `sh tools/wt.sh new DS-XXX --owner <name>` (claim +
-`.worktrees/DS-XXX` on `ticket/DS-XXX` from `main`) → commit `ticket(DS-XXX): …` in the
-worktree → `sh tools/pr.sh submit DS-XXX` (PR record `prs/DS-XXX.md`, pushed to the local
-`review` remote) → steward `sh tools/pr.sh review DS-XXX --approve` + `sh tools/pr.sh
-merge DS-XXX`. Gate for every PR: `sh tools/check.sh`. Setup: `sh tools/bootstrap.sh` +
-`sh tools/setup-review-remote.sh`. Details: `AGENTS.md`, `docs/AGENT-WORKFLOW.md`;
-proven on DS-000 (`prs/DS-000.md`, `docs/workflow-smoke.md`).
-
 ## First walking skeleton (phase 1 — a coder starts here)
 
-1. `git clone` this repo; `sh packaging/bootstrap.sh` (cargo build --workspace + fixture
-   gate; crates: ds-protocol, ds-device over mh-protocol/mh-device git deps, ds-state,
-   ds-ipc, ds-daemon, ds, ds-vdev).
+1. `git clone` this repo; `cargo build --workspace` (crates: ds-protocol, ds-device over
+   mh-protocol/mh-device git deps, ds-state, ds-ipc, ds-daemon, ds, ds-vdev).
 2. `sh tests/fixtures/validate.sh` → ALL CHECKS PASSED.
 3. `ds-vdev --socket /tmp/vdev.sock &` — report-level virtual MasterHub.
 4. `ds daemon start --device virtual:/tmp/vdev.sock` — binds
@@ -86,10 +75,11 @@ proven on DS-000 (`prs/DS-000.md`, `docs/workflow-smoke.md`).
 5. `ds set /controls/keys/0/color '#3cc86e'` → `ds get /controls/keys/0 --json` round-trips.
 6. `ds set /controls/keys/0/image --file examples/key.png` → `ds-vdevctl --socket
    /tmp/vdev.sock frames key:0` prints the sha256; conformance asserts it.
-7. Tests: `cargo test --workspace` + `python tests/conformance/run.py` + validate.sh.
+7. Tests: `cargo test --workspace` + `python3 tests/conformance/run.py` + validate.sh
+   (all inside `sh tools/check.sh`).
 
 Exact message shapes, paths, exit codes, limits: `docs/contracts/*` + `schemas/*` + the
 example corpus `tests/fixtures/ipc-examples.json`. Component specs: `docs/components/*`.
-Threat model: `docs/20-security.md`. Alpha scope: `docs/00-scope.md`. Agent protocol:
-`AGENTS.md` + `docs/AGENT-WORKFLOW.md`. Unverified items: `docs/open-questions.md`.
+Threat model: `docs/20-security.md`. Alpha scope: `docs/00-scope.md`. Contributor protocol:
+`AGENTS.md`. Unverified items: `docs/open-questions.md`.
 Review disposition: `docs/reviews/2026-11-22-response.md`.

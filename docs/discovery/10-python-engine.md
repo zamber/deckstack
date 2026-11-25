@@ -1,6 +1,6 @@
-# Discovery 10 — the Python engine (`~/repos/hubdeck`)
+# Discovery 10 — the Python engine (`the Python predecessor`)
 
-Path prefix: `hubdeck/` = `/var/home/catwars/repos/hubdeck`. All line numbers verified against the checkout.
+Path prefix: `hubdeck/` = `the Python predecessor checkout`. All line numbers verified against the checkout.
 
 ## 1. Architecture and process model
 

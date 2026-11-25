@@ -192,7 +192,7 @@ Each golden runs against a fresh data dir, sets the manifest state with `ds set`
 `settle_ms`, captures, and compares every target at the golden's `tolerance` (20: stable
 same-state noise measured at delta ~9-13 per target; the median-selected golden and the
 min-over-attempts rule suppress the single-frame glare spikes that reach ~90 on one key
-face). The recorded run is in `prs/DS-028.md`.
+face). The recorded run is in the 2026-11-22 verification notes.
 
 **Device behaviour (measured 2026-11-24)**: this M4315 unit keeps the last pushed colour per
 key index and ignores the LED `mode: "off"`, so every golden state pins all 15 key indices

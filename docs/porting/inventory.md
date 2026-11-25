@@ -5,8 +5,8 @@ import.** No exporter/importer, no `ds migrate`, no compatibility layer, no code
 `hubdeck/` (Python) or `hubdeck-upstream/` (Rust). Every row below is a behaviour worth
 considering, reimplemented by hand against `schemas/` + `docs/contracts/*`, one ticket at a
 time. Old locations are cited as recorded in the read-only evidence base `docs/discovery/*`
-(prefixes: `hubdeck/` = `/var/home/catwars/repos/hubdeck`, `upstream/` =
-`/var/home/catwars/repos/hubdeck-upstream`); the `evidence` column names where the claim is
+(prefixes: `hubdeck/` = `the Python predecessor checkout`, `upstream/` =
+`the Tauri predecessor checkout`); the `evidence` column names where the claim is
 recorded and, for ported rows, what actually ran.
 
 Status vocabulary: **ported** (landed and proven on ds-vdev), **not needed** (the new design

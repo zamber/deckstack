@@ -1,6 +1,6 @@
-# Discovery 20 — the Rust/Tauri engine (`~/repos/hubdeck-upstream`)
+# Discovery 20 — the Rust/Tauri engine (`the Tauri predecessor`)
 
-Path prefix: `upstream/` = `/var/home/catwars/repos/hubdeck-upstream`. Workspace members:
+Path prefix: `upstream/` = `the Tauri predecessor checkout`. Workspace members:
 `crates/mh-protocol`, `crates/mh-device`, `app/src-tauri` (`upstream/Cargo.toml:1-3`; package
 `hubdeck` v0.2.3, edition 2024, release `panic = "abort"`, root `Cargo.toml:5-8, 27-34`).
 

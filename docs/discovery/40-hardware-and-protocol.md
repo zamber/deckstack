@@ -1,7 +1,7 @@
 # Discovery 40 — hardware and protocol facts for a new implementation
 
-Prefixes: `upstream/` = `/var/home/catwars/repos/hubdeck-upstream`, `hubdeck/` =
-`/var/home/catwars/repos/hubdeck`. Primary sources: `upstream/PROTOCOL.md` (verified on hardware,
+Prefixes: `upstream/` = `the Tauri predecessor checkout`, `hubdeck/` =
+`the Python predecessor checkout`. Primary sources: `upstream/PROTOCOL.md` (verified on hardware,
 "Verified here" column) and `hubdeck/docs/protocol/README.md` + per-module files + consolidated
 `hubdeck/docs/masterhub-protocol.md` (tags `[hw]`/`[up]`/`[dll]`/`[hyp]`).
 

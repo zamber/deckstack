@@ -150,7 +150,7 @@ Fix B1, B2, M1, M2, M3 in the schemas and contracts, then re-run the conformance
 
 ```bash
 # This command will fail until B1/B2 are fixed
-cd /var/home/catwars/repos/deckstack
+cd <deckstack>
 jsonschema -i schemas/ipc-message.json tests/fixtures/ipc-examples.json
 # Expected: validation errors for missing stream-push, stream-stats, stream-stop ops
 

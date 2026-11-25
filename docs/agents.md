@@ -61,7 +61,7 @@ Layout: `bin/` (ds, ds-daemon, ds-mcp, ds-focus, ds-vdev, ds-vdevctl), `share/de
 (the normative JSON Schemas), `share/deckstack/systemd/deckstack.service`,
 `share/deckstack/udev/99-deckstack.rules`, `share/doc/deckstack/` (runbook, LICENSE, NOTICE),
 `VERSION`. (A ready-made unpack of exactly this layout exists on this machine at
-`/home/catwars/Applications/deckstack-0.1.0`.) To install system-wide into a prefix
+`$HOME/Applications/deckstack-0.1.0`.) To install system-wide into a prefix
 instead: `sh packaging/linux/install.sh --src ~/Applications/deckstack-0.1.0 --prefix /usr/local`
 (also installs the systemd user unit and the udev rule via sudo).
 
@@ -150,8 +150,8 @@ wins, else `--data-dir/daemon.sock`, else the default data dir; token defaults t
 {
   "mcpServers": {
     "deckstack": {
-      "command": "/home/YOU/Applications/deckstack-0.1.0/bin/ds-mcp",
-      "args": ["--data-dir", "/home/YOU/.local/state/deckstack"]
+      "command": "$HOME/Applications/deckstack-0.1.0/bin/ds-mcp",
+      "args": ["--data-dir", "$HOME/.local/state/deckstack"]
     }
   }
 }

@@ -1,7 +1,7 @@
 # Open questions and contradictions
 
 Every item is unverified or conflicting in the sources read. Each names the experiment that
-resolves it. Prefixes: `hubdeck/` = `~/repos/hubdeck`, `upstream/` = `~/repos/hubdeck-upstream`,
+resolves it. Prefixes: `hubdeck/` = `the Python predecessor`, `upstream/` = `the Tauri predecessor`,
 `deckstack/` = this repo.
 
 ## Contradictions found

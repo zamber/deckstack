@@ -64,7 +64,7 @@ jobs:
         run: |
           cd dist && sha256sum -c SHA256SUMS
 
-      # End-to-end smoke of the tarball, same as the local proof in prs/DS-083.md:
+      # End-to-end smoke of the tarball, same as the local proof described in packaging/release/README.md:
       # unpack, run bin/ds --version + bin/ds-daemon --version, vdev smoke.
       - name: tarball smoke (unpack + --version + vdev)
         run: |

@@ -6,7 +6,7 @@ Machine-checked proof of the mh-protocol safety invariants (AGENTS.md invariants
 ds-vdev device socket, the `<socket>.ctl` control socket). No driver/state library code
 is imported — everything is observed on the wire.
 
-Run it (from the worktree root):
+Run it from the repository root:
 
 ```sh
 python3 tests/conformance/run.py            # main suite + this safety suite

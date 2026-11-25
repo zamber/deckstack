@@ -1,43 +1,47 @@
-# 2026-11-22 Workflow Review — Response
+# 2026-11-22 Change-flow review — response
 
-Response to `docs/reviews/2026-11-22-workflow-review.md` (findings R01–R09). All fixes land
-in the tool that owns the behavior: `tools/tickets.py` owns touch semantics, `tools/pr.sh` owns
-review/merge, `tools/wt.sh` owns worktrees, `tools/steward.sh` launches the steward with
-`DS_STEWARD=1`. Tool fixes are committed on `main` as `da401d5`; the second end-to-end smoke
-run is ticket DS-090 (`prs/DS-090.md`, `prs/DS-090.review.md`, artifact
-`docs/workflow-hardening-smoke.md`).
+Response to `docs/reviews/2026-11-22-workflow-review.md` (findings R01–R09). The fixes
+landed in the internal change-coordination tooling during development (commit `da401d5`);
+that tooling is not part of this public repository. The one fix with lasting public
+relevance is R03: `tools/check.sh` validates the tree it is invoked from, or the explicit
+tree passed as an argument (`sh tools/check.sh [tree-root]`, printing
+`validating tree: …`).
 
-| ID | Disposition | Fix (files) | Test / proof |
+| ID | Disposition | Fix | Proof |
 |---|---|---|---|
-| R01 | fixed | `tools/pr.sh` (`push_main_to_review`: push + `git ls-remote` sha verification, dies loudly on failure), `tools/setup-review-remote.sh` used to sync; main pushed to `review` | `git ls-remote review` = local `main`; `git merge-base --is-ancestor f6e4bd9 review/main` OK; DS-090 merge re-verified the push |
-| R02 | fixed | `tools/pr.sh` (`require_steward` on review/merge: requires `DS_STEWARD=1`, refuses reviewer == ticket owner, error tells workers to hand off to `tools/steward.sh`); `tools/steward.sh` exports `DS_STEWARD=1`; `agents/deckstack-steward.md`, `docs/AGENT-WORKFLOW.md`, `AGENTS.md` document it | without `DS_STEWARD=1`: rc=1 hand-off error; with `DS_STEWARD=1` and owner==reviewer: rc=1 "self-approval is forbidden"; DS-090 review/merge ran with `DS_STEWARD=1` |
-| R03 | fixed | `tools/check.sh` validates the tree it is invoked from, or the explicit tree argument (`sh tools/check.sh [tree-root]`, prints `validating tree: …`); `tools/pr.sh run_checks`/merge pass the worktree path | temp worktree with `MARKER-BROKEN` in its `tickets/BOARD.md`: `sh <wt>/tools/check.sh <wt>` from main FAILs on the worktree; `sh tools/check.sh` in main ALL GREEN; no-arg run inside the worktree validates the worktree; probe removed afterwards |
-| R04 | fixed | `tools/tickets.py check-touches <id> --diff <base>..<head>` (fnmatch globs, directory-prefix rules, `new:` strips to its declared path); `tools/pr.sh review` calls it and refuses `--approve` on violations | `src/*.rs` matched `src/main.rs`; `src/` matched `src/nested/deep/x.rs`; `new:docs/new-thing.md` matched; `README.md` reported OUTSIDE with rc=1; `..` treated as `...` |
-| R05 | fixed | `tools/pr.sh submit` resolves `git rev-parse --git-common-dir`, requires `pwd == <main>/.worktrees/<id>` plus branch `ticket/<id>` | from main: rc=1 "submit must run inside …/.worktrees/DS-004", board untouched; positive case proven by DS-090 submit inside `.worktrees/DS-090` |
-| R06 | fixed (already atomic; proven) | `tools/tickets.py cmd_claim` holds `Lock(exclusive=True)` (flock on `tickets/.lock`) across the collision check, write and sync — no code change needed | two concurrent `claim DS-902` attempts: one rc=0, the other rc=1 ("is doing, must be ready to claim"); ticket file has exactly one `owner`, state `doing`, `tickets.py validate` OK |
-| R07 | fixed | `tools/pr.sh fill_line` replaced sed substitution with a Python `str.replace`, value passed via environment (safe for `|`, `&`, `\`, newlines) | DS-090 owner `worker-smoke\|R07&R08\CMT` flows through `fill_line {{OWNER}}` into `prs/DS-090.md` verbatim; review `--request-changes` reason containing a newline + `|`/`&`/`\` written verbatim into `prs/DS-090.review.md` |
-| R08 | fixed | `tools/pr.sh` and `tools/wt.sh` `vibe_commit` use `git commit -F -` (no here-doc delimiter); the merge message is built in a variable and passed with `git merge -m` (the earlier `-F -` was invalid; fixed in `bc6ff8b`) | DS-090 claim/commit messages contain `| & \ CMT`/`EOF` and land intact; the DS-090 merge commit `fa37db3` carries the generated message |
-| R09 | fixed | `tools/pr.sh list` uses `tickets.py list --state review --json true` parsed with `python3 json` | with DS-902 in `review`: `pr.sh list` printed the DS-902 row (owner/branch/verdict); also exercised during the DS-090 smoke |
+| R01 | fixed | push + `git ls-remote` sha verification on every merge; fails loudly on failure; mirror synced | mirror `main` equals local `main`; `git merge-base --is-ancestor f6e4bd9` OK; re-verified on the DS-090 merge |
+| R02 | fixed | review/merge require a different person than the author; self-approval refused with a clear error | self-approval attempt → rc=1 "self-approval is forbidden" |
+| R03 | fixed | `tools/check.sh` takes an optional tree-root argument and validates that tree (kept in the public repo) | a deliberately broken tree FAILs when passed explicitly; the main tree run stays ALL GREEN |
+| R04 | fixed | scope checks use real glob matching (fnmatch, directory-prefix rules, `new:` paths) | `src/*.rs` matched `src/main.rs`; out-of-scope `README.md` reported with rc=1 |
+| R05 | fixed | submit resolves the common git dir and requires the current directory to be the change tree on its branch | run from main → rc=1 with a clear message; positive case proven on DS-090 |
+| R06 | fixed (already atomic; proven) | the claim path holds an exclusive `flock` across check + write + sync — no code change needed | two concurrent claims: one rc=0, one rc=1; exactly one owner recorded |
+| R07 | fixed | template substitution uses a safe string replace with the value passed via the environment (safe for `|`, `&`, `\`, newlines) | a value containing all of those landed verbatim in the change record |
+| R08 | fixed | commits use `git commit -F -` (no heredoc delimiter); the merge message is built in a variable and passed with `git merge -m` (fixed in `bc6ff8b`) | messages containing delimiters landed intact; merge commit `fa37db3` carries the generated message |
+| R09 | fixed | the list command parses the board's JSON output with `python3 json` | exercised during the DS-090 end-to-end run |
 
 ## Notes
 
-- The review's R03 mechanism ("check.sh always cds to main") did not reproduce as stated —
-  `ROOT` was already `$0`-based — but the tree was only implicit; it is now explicit, printed,
-  and tested (see R03 row).
-- R06 needed no code change: the lock already covers check+write; the concurrent-claim test
-  proves it.
-- Steward-only enforcement is `DS_STEWARD=1` (declaration exported by `tools/steward.sh`) plus
-  the reviewer≠owner check; a worker following the docs cannot approve its own PR and is told
-  to hand off to the steward.
+- The review's R03 mechanism ("the gate always cds to main") did not reproduce as stated —
+  the tree was already script-relative — but it was only implicit; it is now explicit,
+  printed, and tested (see R03).
+- R06 needed no code change: the lock already covered check + write; the concurrent-claim
+  test proves it.
+- Reviewer≠author enforcement plus a hand-off error meant a worker following the docs could
+  not approve its own change.
 
 ## Post-review fixes found by the end-to-end run
 
-The first DS-090 merge exposed two script bugs that the review could not see; both are fixed on `main`:
+The first DS-090 merge exposed two script bugs the review could not see; both were fixed
+on `main`:
 
-- `tools/pr.sh` `run_checks` now returns the gate status (`2871137`) and declares `local wt rc` (`81339f8`). Without the locals it clobbered the caller's `wt`, so merge cleanup looked for `$ROOT/$ROOT/.worktrees/DS-090` and failed after a successful merge. Review and merge now abort on a failed gate and leave the worktree intact for inspection.
-- `git merge` has no `-F`; the merge message is built in a variable and passed with `-m` (`bc6ff8b`). The invalid `-F -` was the first DS-090 merge failure.
+- the gate call now returns the gate status (`2871137`) and declares its locals (`81339f8`);
+  without them it clobbered the caller's variables and merge cleanup looked in the wrong
+  path. Review and merge now abort on a failed gate and leave the change tree intact.
+- `git merge` has no `-F`; the merge message is built in a variable and passed with `-m`
+  (`bc6ff8b`).
 
-DS-090 proof: merge commit `fa37db3`, ticket `done`, artifacts `docs/workflow-hardening-smoke.md`, `prs/DS-090.md`, `prs/DS-090.review.md`. Worktree/branch cleanup was completed manually after the path bug; the fix is in the script. `review` remote main is at `81339f8`; `tickets.py validate` reports 59 tickets, 7 done, 1 ready; `tools/check.sh` reports ALL GREEN; the tree is clean and only the main worktree remains.
+DS-090 proof: merge commit `fa37db3`, work item `done`. The local gate reported ALL GREEN
+and the tree was clean afterwards.
 
 ## Path
 

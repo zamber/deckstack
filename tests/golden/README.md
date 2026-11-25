@@ -38,5 +38,5 @@ DS_GOLDEN_REGEN=1 cargo test -p ds-daemon frames::golden
 | `key0.chunks.bin` | Exact chunk sequence for `key0.jpg` on `key:0`: the concatenated 320 B reports `02 36 <chunk u16 LE> <len u16 LE> 00 <last> <≤312 B payload>`. |
 | `example-key0.sha256` | sha256 of `encode_frame(key:0, examples/key.png)` — what `tests/e2e/run.py` step 3 compares the ds-vdev-reassembled frame against (the e2e pushes `examples/key.png` to `key:0`). |
 
-Regenerate all of them with the command above (run from the repo root, in the ticket
-worktree); the normal (non-regen) test run only asserts equality.
+Regenerate all of them with the command above from the repository root; the normal (non-regen)
+test run only asserts equality.

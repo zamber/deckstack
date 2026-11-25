@@ -2,19 +2,19 @@
 
 Working name for a ground-up rebuild of the MasterHub/HubDeck controller stack.
 This file is the governing intent. Everything in this repo is derived from it.
-Written 2026-11-22 with the owner. Do not silently relax a requirement; mark the
+Written 2026-11-22 with the project owner. Do not silently relax a requirement; mark the
 conflict as OPEN and propose a decision.
 
 ## The problem
 
 Two existing implementations drive the same hardware:
 
-- `~/repos/hubdeck` — Python, pywebview-ish web editor, YAML presets, in-process
-  plugins, `python-in-yaml` actions, ~380 tests and reverse-engineered protocol
-  notes under `docs/protocol/`. Runs on this machine as an AppImage.
-- `~/repos/hubdeck-upstream` — Rust + Tauri, `mh-protocol`/`mh-device` crates,
-  PROTOCOL.md verified on hardware, plugins as separate processes over WebSocket,
-  local HTTP/WS API, CLI and MCP planned.
+- the Python predecessor (cited below as `hubdeck/…`) — Python, pywebview-ish web
+  editor, YAML presets, in-process plugins, `python-in-yaml` actions, ~380 tests and
+  reverse-engineered protocol notes under `docs/protocol/`. Ships as an AppImage.
+- the Tauri predecessor (cited below as `upstream/…`) — Rust + Tauri,
+  `mh-protocol`/`mh-device` crates, PROTOCOL.md verified on hardware, plugins as
+  separate processes over WebSocket, local HTTP/WS API, CLI and MCP planned.
 
 Both are walled gardens: the UI and the action vocabulary are opinionated and
 in-process, so behaviour that was not anticipated cannot be built without
@@ -107,7 +107,7 @@ R11. **Performance.** Define and measure budgets: control-path latency while
      control.
 
 R12. **Repo topology.** The project lives in its own top-level directory,
-     `~/repos/deckstack`, distinct from the existing hub apps. Each component
+     distinct from the existing hub apps. Each component
      must be releasable as its own repo/app so parts can be swapped. The plan
      must choose a concrete topology (umbrella + per-component repos, manifest,
      submodules, or siblings) and justify it. Clean versioned contracts between
@@ -116,15 +116,15 @@ R12. **Repo topology.** The project lives in its own top-level directory,
 ## Facts and pointers
 
 - Hardware: Cooler Master MasterHub base plus modules (keys, dial, faders,
-  rollers, full-panel screen). Protocol details: `~/repos/hubdeck-upstream/PROTOCOL.md`
-  and `~/repos/hubdeck/docs/protocol/`.
+  rollers, full-panel screen). Protocol details: `upstream/PROTOCOL.md`
+  and `hubdeck/docs/protocol/`.
 - Device safety: firmware commands that rewrite serial, save factory data, reset
   or flash must be unrepresentable in the protocol layer, not merely unused.
 - Existing Python architecture and prior rewrite analysis:
-  `~/repos/hubdeck/analysis/` (read it, then note where this brief supersedes it:
+  `hubdeck/analysis/` (read it, then note where this brief supersedes it:
   that analysis chose "refactor, keep the Python app"; this project chooses a new
   CLI-first base).
-- Existing Rust architecture: `~/repos/hubdeck-upstream/ARCHITECTURE.md`,
+- Existing Rust architecture: `upstream/ARCHITECTURE.md`,
   `PROTOCOL.md`, `crates/`, `plugins/`.
 - Existing window watching exists in both implementations; find it and describe
   its current limits in the discovery notes.
@@ -168,7 +168,7 @@ R12. **Repo topology.** The project lives in its own top-level directory,
 
 ## Scope amendment 2026-11-22
 
-Owner steering received after the initial plan. R1-R12 above are unchanged; this section
+Steering received 2026-11-22 after the initial plan. R1-R12 above are unchanged; this section
 records where the plan's scope narrows. The normative scope document is
 [`docs/00-scope.md`](docs/00-scope.md). Summary of the deltas:
 
@@ -176,21 +176,19 @@ records where the plan's scope narrows. The normative scope document is
    TODOs in `docs/40-platforms.md`, not alpha deliverables; the `ds-platform`/`ds-ipc`
    shims stay so they can be added later.
 2. **No cross-implementation compatibility**: no export/import, no migration from the
-   Python or Rust apps, no `ds migrate`. See `docs/70-porting-notes.md` (selective,
-   ticket-driven manual porting later).
+   Python or Rust apps, no `ds migrate`. See `docs/70-porting-notes.md` (selective
+   manual porting later).
 3. **No pre-baked presets, layouts, profiles or sample deck**: the daemon starts from an
    empty state; behaviour is built from the CLI. Invariant in `docs/00-scope.md`.
 4. **No web UI in alpha** (not a planned deliverable): `ds-web` removed; the WS/HTTP
    transport remains a generic adapter for agents/debug clients only.
-5. **Agent steering is first-class**: `AGENTS.md`, `docs/AGENT-WORKFLOW.md`,
+5. **Agent steering is first-class**: `AGENTS.md`,
    `skills/deckstack/SKILL.md`; the CLI self-description contract (`ds schema`,
    `ds describe`, `--help`, stable exit codes, machine-readable output) is normative.
 6. **Camera verification is part of the plan**: `docs/90-verification.md`; phase-2
    hardware exit includes camera-verified key + panel.
 7. **lights.lan is reimplemented, not imported**: `docs/80-integrations.md` (post-alpha).
-8. **Repo boundaries explicit**: umbrella monorepo for the alpha core; `repos.toml`;
+8. **Repo boundaries explicit**: umbrella monorepo for the alpha core;
    `deckstack-verify`, `deckstack-lights`, `deckstack-plugin-py` published separately.
-9. **Worktree/PR workflow is part of the plan**: `docs/50-repo-topology.md` §worktrees,
-   `docs/AGENT-WORKFLOW.md`.
-10. **Roadmap renumbered**: alpha phases 0-6; post-alpha backlog (lights, Windows, macOS,
-    web/debug UI, selective porting). See `docs/60-roadmap.md` and `PLAN.md`.
+9. **Roadmap renumbered**: alpha phases 0-6; post-alpha backlog (lights, Windows, macOS,
+   web/debug UI, selective porting). See `docs/60-roadmap.md` and `PLAN.md`.

@@ -1,15 +1,14 @@
-# AGENTS.md — working in deckstack as an agent
+# AGENTS.md — contributing to deckstack
 
-Operational short version. Long protocol: `docs/AGENT-WORKFLOW.md`. Scope/invariants:
-`docs/00-scope.md`. Index: `README.md`. Entry point: `PLAN.md`.
+deckstack is a CLI-first Linux daemon + CLI that drives a Cooler Master MasterHub deck.
+This file is the contributor and coding-agent guide. Scope/invariants: `docs/00-scope.md`
+(**normative**). Index: `README.md`. Plan: `PLAN.md`.
 
 ## Read order (first session)
 
 1. `BRIEF.md` (R1–R12 + Scope amendment 2026-11-22) → 2. `docs/00-scope.md` →
 3. `PLAN.md` → 4. `docs/contracts/` + `schemas/` (contracts are normative) →
-5. `docs/components/` for the component you touch → 6. `AGENTS.md`/`docs/AGENT-WORKFLOW.md`
-   (this file is step 6) → 7. your ticket (`tickets/DS-*.md`; find it with
-   `python3 tools/tickets.py ready`).
+5. `docs/components/` for the component you touch → 6. this file.
 
 **Agents driving a deck (not working on the codebase)?** Read `docs/agents.md` — the one
 route from install → udev permissions → daemon → `ds-mcp`/`ds-py` → the 10 MCP tools →
@@ -40,68 +39,48 @@ green so the guide and its examples stay executable.
 ## Commands
 
 ```sh
-sh tools/bootstrap.sh                     # venv + requirements + tools/check.sh (packaging/bootstrap.sh wraps it)
-sh tests/fixtures/validate.sh             # schema/fixture gate (must print ALL CHECKS PASSED)
-sh tools/check.sh                         # the single local gate: fixture gate + board validate (+ cargo/conformance when they exist)
-python3 tools/tickets.py ready            # ready set + next-up
-python3 tools/tickets.py validate         # board gate (DAG + generated files in sync) — must print OK
-sh tools/setup-review-remote.sh           # once per clone: local bare remote .review.git as `review`, pushes main
-sh tools/wt.sh new DS-XXX --owner <name>  # claim ticket + create .worktrees/DS-XXX on branch ticket/DS-XXX from main
-sh tools/pr.sh submit DS-XXX              # in the ticket worktree (pwd must be .worktrees/DS-XXX, branch ticket/DS-XXX): checks + prs/DS-XXX.md + push to review
-sh tools/pr.sh review DS-XXX --approve    # steward only, on main: needs DS_STEWARD=1 (exported by tools/steward.sh); refuses self-approval -> prs/DS-XXX.review.md
-sh tools/pr.sh merge DS-XXX               # steward only, on main: same DS_STEWARD=1 gate; requires approved review; lands on main, pushes+verifies review remote
-sh tools/steward.sh "triage the ready set"  # run the steward agent (agents/deckstack-steward.md) via vibe, with DS_STEWARD=1 exported
-# land with later tickets (not yet in this tree):
-#   cargo test --workspace                -> DS-004 (Cargo workspace)
-#   python tests/conformance/run.py       -> DS-018 (conformance suite)
-#   DS_HARDWARE=1 python tests/hw/smoke.py-> DS-026 (hardware smoke, phase 2+, needs deck + camera)
-#   ds daemon start --device virtual:/tmp/vdev.sock -> DS-015/DS-017 (daemon + vdev)
+cargo build --workspace                  # build everything
+sh tests/fixtures/validate.sh            # schema/fixture gate (must print ALL CHECKS PASSED)
+sh tools/check.sh                        # the single local gate: fixture gate + cargo fmt/clippy/test + conformance
+python3 tests/conformance/run.py         # the conformance suite (also run by tools/check.sh)
+python3 tests/e2e/run.py                 # end-to-end smoke on the virtual device
+DS_HARDWARE=1 python3 tests/hw/smoke.py  # hardware smoke (needs a real deck + camera, phase 2+)
 ```
 
-## Work protocol (summary — details in docs/AGENT-WORKFLOW.md)
+`sh tools/check.sh [tree-root]` validates this tree, or the tree passed as an argument.
 
-- One worktree per ticket: `.worktrees/<id>` from `main`, branch `ticket/<id>`, PR record
-  `prs/<id>.md` (+ steward verdict `prs/<id>.review.md`). Worktrees and `.review.git/`
-  are gitignored; `prs/` records are committed.
-- Ticket metadata is owned by `tools/tickets.py` (`list/show/field/claim/state/unclaim/
-  assign/recover/validate/sync`) — never hand-edit the JSON block in `tickets/DS-*.md`,
-  and never hand-edit the generated `tickets/BOARD.md`/`GRAPH.md`/`index.json` (`sync`
-  regenerates them). The worktree lifecycle is owned by `tools/wt.sh`; PR records and
-  verdicts by `tools/pr.sh`; the merge decision by the steward.
-- Never commit feature work to `main`. Workers commit only on their `ticket/<id>` branch;
-  the only commits on `main` are coordination commits made by the tools (claim / review
-  verdict / done) and steward landings.
-- Never edit files outside your ticket's `touches` — if scope must change, update the
-  ticket (via `tools/tickets.py`) first. Protected: `BRIEF.md` R1–R12, `docs/discovery/`,
-  `docs/reviews/` (`git diff main -- BRIEF.md docs/discovery docs/reviews` must stay empty).
-- Check file-ownership collisions before claiming: `python3 tools/tickets.py list --state
-  doing` — a claim that overlaps a doing ticket's `touches` is refused.
-- Commit format (always, including coordination commits):
+## Layout
 
-  ```sh
-  git commit -m "ticket(DS-XXX): <subject>" \
-    -m "Generated by Mistral Vibe." \
-    -m "Co-Authored-By: Mistral Vibe <vibe@mistral.ai>"
-  ```
+```
+crates/    ds-protocol, ds-device, ds-state, ds-ipc, ds-client, ds-daemon, ds-vdev,
+           ds-plugin-sdk, ds-bench
+bins/      ds (CLI), ds-daemon, ds-vdev, ds-vdevctl, ds-focus, ds-mcp
+schemas/   the JSON Schemas (normative wire formats)
+docs/      00-scope (normative), contracts/, components/, adr/, discovery/, reviews/, …
+tests/     fixtures/ (schema gate), conformance/, e2e/, golden/, hw/, bench/, …
+tools/     check.sh (local gate), verify/ (camera harness)
+packaging/ release.sh, systemd unit, udev rules, AppImage/AppDir, linux install scripts
+examples/  micro-apps, agent configs, plugin demo
+plugins-py/  Python plugin SDK (ds-plugin-py, PyPI)
+clients/ds-py/  stdlib-only Python client
+```
 
-  Small, ordered commits; verify each unit before the next.
+## Contracts and wire formats
 
-## Definition of done (per ticket)
+Contracts live in `docs/contracts/*.md` with machine-readable schemas in `schemas/*.json`;
+`tests/fixtures/validate.sh` checks both against the example corpora. **To change a wire
+format:** update the schema and the contract doc in the same commit, bump the schema `$id`
+version on breaking changes only, add/extend examples in `tests/fixtures/`, and keep
+`sh tools/check.sh` green (fixture gate + conformance). Never change crate code, schemas,
+or test expectations in a way that alters daemon behaviour without an ADR in `docs/adr/`
+and a row in `docs/decision-log.tsv`.
 
-`sh tools/check.sh` green (`validate.sh` ALL CHECKS PASSED + `cargo test --workspace` +
-`python tests/conformance/run.py` once those exist), `python3 tools/tickets.py validate`
-OK, docs/schemas updated in the same commit, PR record filled (`prs/DS-XXX.md` with
-approved verdict and landing commit), ticket state `done`, no edits to protected files,
-stale-grep clean for your area, no stale worktrees/branches left behind.
+## Working rules
 
-## Report shape
-
-Status, what works, what is not done, next step, proving command — the same shape as the
-run report. Under 400 words.
-
-## Rules and enforcement
-
-| Rule | Enforced by |
-|---|---|
-| Workflow-owned coordination files and generated `Cargo.lock` are not feature diff. | `tests/tools/test_check_touches.py` via `tools/check.sh` |
-| A merge normalizes a ticket from doing through review to done; conflict resolution may drop the submit state. | `tools/pr.sh merge`; DS-010 completion |
+- Work on a branch off `main`; keep commits small and ordered; verify each unit before the
+  next (`sh tools/check.sh`).
+- `docs/00-scope.md` is normative: if a change conflicts with it, the change is wrong
+  unless the scope doc is amended first (with an ADR).
+- Don't edit `docs/discovery/` — it is a read-only evidence record of the two predecessor
+  codebases.
+- Code comments may reference implementation history ids (e.g. `// DS-070: …`); keep them.
