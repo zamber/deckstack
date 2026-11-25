@@ -85,7 +85,7 @@ graph TD
   DS108["DS-108 ds report: one command to capture a reproducible issue bu..."]:::ready
   DS109["DS-109 Atomic keys-panel update path for fast display updates"]:::done
   DS110["DS-110 Batch state writes / ds set-batch for multi-path updates"]:::ready
-  DS111["DS-111 Bulk key colours: one colors visual, one panel push"]:::ready
+  DS111["DS-111 Bulk key colours: one colors visual, one panel push"]:::doing
   DS001 --> DS006
   DS005 --> DS006
   DS004 --> DS010
@@ -222,7 +222,7 @@ Critical path length: 11 tickets.
 - **ci** (2): DS-003(done), DS-082(done)
 - **cli** (3): DS-016(done), DS-032(done), DS-110(ready)
 - **daemon** (3): DS-015(done), DS-024(done), DS-095(done)
-- **device** (9): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(done), DS-105(done), DS-106(ready), DS-109(done), DS-111(ready)
+- **device** (9): DS-014(done), DS-021(done), DS-022(done), DS-023(done), DS-097(done), DS-105(done), DS-106(ready), DS-109(done), DS-111(doing)
 - **docs** (2): DS-064(done), DS-094(done)
 - **frames** (3): DS-030(done), DS-031(done), DS-034(done)
 - **integrations** (1): DS-070(done)
@@ -249,4 +249,3 @@ Critical path length: 11 tickets.
 - DS-107 - Verification inconsistencies: stale goldens, unreachable panel image path, rollers LED (lane verify)
 - DS-108 - ds report: one command to capture a reproducible issue bundle (lane workflow)
 - DS-110 - Batch state writes / ds set-batch for multi-path updates (lane cli)
-- DS-111 - Bulk key colours: one colors visual, one panel push (lane device)
