@@ -98,12 +98,12 @@ deckstack/                    this repo (one workspace: contracts + crates + bin
 ├── clients/ds-py/            stdlib-only Python client helper
 ├── examples/                 micro-apps, agent configs, plugin demo
 ├── tests/                    fixtures/ (schema gate), conformance/, e2e/, golden/, hw/, …
-├── tools/                    check.sh (local gate), verify/ (camera harness)
+├── tools/                    check.sh (local gate), verify/ (camera check)
 ├── packaging/                release.sh, systemd unit, udev rules, AppImage spec, linux install
 └── .github/workflows/        CI + tag-triggered release
 ```
 
-Separate publish targets: `deckstack-verify` (camera harness, `tools/verify/`) and
+Separate publish targets: `deckstack-verify` (camera check, `tools/verify/`) and
 `deckstack-plugin-py` (`plugins-py/`, PyPI) are developed in-tree during the alpha and
 published from their own repositories and wheels at release time. `deckstack-lights`, the
 lights.lan plugin, is a separate repository post-alpha.
