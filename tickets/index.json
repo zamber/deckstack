@@ -2988,7 +2988,7 @@
   {
     "id": "DS-111",
     "title": "Bulk key colours: one colors visual, one panel push",
-    "state": "doing",
+    "state": "done",
     "phase": 7,
     "lane": "device",
     "size": "M",
@@ -3009,9 +3009,9 @@
       "new:tests/bench/colors.py",
       "bins/ds/src/help.rs"
     ],
-    "branch": "ticket/DS-111",
-    "worktree": ".worktrees/DS-111",
-    "pr": "prs/DS-111.md",
+    "branch": null,
+    "worktree": null,
+    "pr": null,
     "created": "2026-11-25",
     "updated": "2026-11-25",
     "acceptance": [

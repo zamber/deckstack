@@ -83,4 +83,4 @@ Generated: 2026-11-25 - 80 tickets.
 | DS-108 | ready | 7 | workflow | S | - | - | ds report: one command to capture a reproducible issue bundle |
 | DS-109 | done | 7 | device | M | autolith | - | Atomic keys-panel update path for fast display updates |
 | DS-110 | ready | 7 | cli | M | - | - | Batch state writes / ds set-batch for multi-path updates |
-| DS-111 | doing | 7 | device | M | vibe/DS-111 | DS-109 | Bulk key colours: one colors visual, one panel push |
+| DS-111 | done | 7 | device | M | vibe/DS-111 | DS-109 | Bulk key colours: one colors visual, one panel push |
