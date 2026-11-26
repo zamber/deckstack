@@ -76,8 +76,12 @@ host, the event router, the frame plane. Details: `docs/10-architecture.md`,
   **Non-blocking:** pushes travel over a bounded channel (overflow drops and is counted);
   the file read and all chunk writes happen on the device task's thread — the state lock is
   never held across them, and a failed push is logged and dropped, so it never stalls the
-  state task or IPC. LED colours on knobs/faders/rollers stay feature reports (`led_color`).
-  Icons, text and `kind:frame` references remain out of scope (logged only).
+  state task or IPC. `/controls/knobs|faders/<n>/led` writes the module LED as mode +
+  colour + brightness feature reports (`led_mode`/`led_color`/`led_brightness`,
+  `02 2C/2D/2E`, target all), each paced by the per-module LED rate cap and deduplicated
+  against the last sent value per module; `/controls/rollers/<n>/led` has no LED command
+  and is a one-shot-warned no-op. Icons, text and `kind:frame` references remain out of
+  scope (logged only).
 - **Minimum working example (phase 1):**
   ```sh
   ds-vdev --socket /tmp/vdev.sock &                 # virtual MasterHub

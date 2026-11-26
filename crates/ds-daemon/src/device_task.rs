@@ -318,11 +318,24 @@ fn send_action_typed(
             }
             Ok(())
         }
-        DeviceAction::LedColor { kind, rgb } => {
-            let report = ds_protocol::led_color(*kind, LedTarget::All, *rgb)
-                .ok_or_else(|| Error::Device("no led report".into()))?;
-            led.acquire();
-            t.send(module, &report).map(|_| ())
+        DeviceAction::LedColor {
+            kind,
+            mode,
+            rgb,
+            brightness,
+        } => {
+            for report in [
+                ds_protocol::led_mode(*kind, LedTarget::All, *mode),
+                ds_protocol::led_color(*kind, LedTarget::All, *rgb),
+                ds_protocol::led_brightness(*kind, LedTarget::All, *brightness),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                led.acquire();
+                t.send(module, &report)?;
+            }
+            Ok(())
         }
         DeviceAction::Image { target, source } => {
             let ft: FrameTarget = target.frame_target();
@@ -975,7 +988,7 @@ mod tests {
     use super::*;
     use crate::device::ImageTarget;
     use ds_device::vtransport::virtual_module_id;
-    use ds_protocol::Report;
+    use ds_protocol::{LedMode, Report};
     use ds_vdev::{HubConfig, Target as VdevTarget, VdevServer};
     use serde_json::json;
     use std::collections::VecDeque;
@@ -1419,7 +1432,9 @@ mod tests {
         };
         let led = DeviceAction::LedColor {
             kind: ModuleKind::Knobs,
+            mode: LedMode::Static,
             rgb: [4, 5, 6],
+            brightness: 100,
         };
         assert!(cache_key(&img).starts_with("image:"));
         assert!(cache_key(&led).starts_with("led:"));
@@ -1444,7 +1459,9 @@ mod tests {
         };
         let led = DeviceAction::LedColor {
             kind: ModuleKind::Knobs,
+            mode: LedMode::Static,
             rgb: [4, 5, 6],
+            brightness: 100,
         };
         let mut latest: HashMap<String, DeviceAction> = HashMap::new();
 

@@ -265,19 +265,45 @@ fn send_led(
             }
             Ok(())
         }
-        DeviceAction::LedColor { kind, rgb } => {
+        DeviceAction::LedColor {
+            kind,
+            mode,
+            rgb,
+            brightness,
+        } => {
             let module = module_id_for_send(t, *kind).map_err(|e| e.to_string())?;
             let lim = limiters.get(kind).expect("limiter exists per kind");
             let e = last.entry(*kind).or_default();
-            if e.rgb == Some(*rgb) {
+            // only the changed mode/colour/brightness is sent, exactly like the BaseLed
+            // branch above; a fully unchanged push is one deduped no-op
+            if e.mode == Some(*mode) && e.rgb == Some(*rgb) && e.brightness == Some(*brightness) {
                 inner.deduped.fetch_add(1, Ordering::Relaxed);
                 return Ok(());
             }
-            let r = ds_protocol::led_color(*kind, LedTarget::All, *rgb).ok_or("no led report")?;
-            lim.acquire();
-            t.send(&module, &r).map_err(|e| e.to_string())?;
-            e.rgb = Some(*rgb);
-            inner.sent.fetch_add(1, Ordering::Relaxed);
+            if e.mode != Some(*mode) {
+                let r = ds_protocol::led_mode(*kind, LedTarget::All, *mode)
+                    .ok_or("no led mode report")?;
+                lim.acquire();
+                t.send(&module, &r).map_err(|e| e.to_string())?;
+                e.mode = Some(*mode);
+                inner.sent.fetch_add(1, Ordering::Relaxed);
+            }
+            if e.rgb != Some(*rgb) {
+                let r =
+                    ds_protocol::led_color(*kind, LedTarget::All, *rgb).ok_or("no led report")?;
+                lim.acquire();
+                t.send(&module, &r).map_err(|e| e.to_string())?;
+                e.rgb = Some(*rgb);
+                inner.sent.fetch_add(1, Ordering::Relaxed);
+            }
+            if e.brightness != Some(*brightness) {
+                let r = ds_protocol::led_brightness(*kind, LedTarget::All, *brightness)
+                    .ok_or("no led report")?;
+                lim.acquire();
+                t.send(&module, &r).map_err(|e| e.to_string())?;
+                e.brightness = Some(*brightness);
+                inner.sent.fetch_add(1, Ordering::Relaxed);
+            }
             Ok(())
         }
         DeviceAction::Backlight { kind, percent } => {
@@ -462,6 +488,79 @@ mod tests {
         assert_eq!(&base_reports[3].1[4..7], &[0x04, 0x05, 0x06]);
         shutdown.trigger();
         writer.join().unwrap();
+    }
+
+    #[test]
+    fn send_led_for_knobs_sends_mode_colour_brightness_then_only_changes() {
+        let shutdown = Shutdown::manual();
+        let lane = LedLane::new(shutdown);
+        let mock = MockTransport {
+            sent: StdMutex::new(Vec::new()),
+        };
+        let mut limiters: HashMap<ModuleKind, RateLimiter> = ModuleKind::ALL
+            .into_iter()
+            .map(|k| (k, limiter_for(k)))
+            .collect();
+        let mut last: HashMap<ModuleKind, LastSent> = HashMap::new();
+        let push = |mode: &str, hex: &str, brightness: u64| {
+            device::plan_push(
+                "/controls/knobs/0/led",
+                &json!({"mode": mode, "color": hex, "brightness": brightness}),
+            )
+            .expect("a knobs led push plans to an action")
+        };
+        // first write: mode + colour + brightness, in wire order, on the knobs module
+        // (group 2, LedTarget::All = index 0xFF, Static = 1)
+        let a = push("static", "#070809", 100);
+        send_led(&mock, &a, &mut limiters, &mut last, &lane.inner).unwrap();
+        {
+            let sent = mock.sent.lock().unwrap();
+            let knobs: Vec<&Vec<u8>> = sent
+                .iter()
+                .filter(|(m, _)| m.kind == ModuleKind::Knobs)
+                .map(|(_, b)| b)
+                .collect();
+            assert_eq!(knobs.len(), 3, "mode + colour + brightness: {knobs:?}");
+            assert_eq!(
+                &knobs[0][..],
+                &[0x02, 0x2C, 2, 0xFF, 0x01, 0x00],
+                "02 2C static mode"
+            );
+            assert_eq!(
+                &knobs[1][..],
+                &[0x02, 0x2D, 2, 0xFF, 0x07, 0x08, 0x09, 0x00],
+                "02 2D colour"
+            );
+            assert_eq!(
+                &knobs[2][..],
+                &[0x02, 0x2E, 2, 0xFF, 100],
+                "02 2E brightness"
+            );
+        }
+        // identical push: deduped, nothing sent
+        send_led(&mock, &a, &mut limiters, &mut last, &lane.inner).unwrap();
+        assert_eq!(
+            mock.sent.lock().unwrap().len(),
+            3,
+            "an unchanged value sends nothing"
+        );
+        assert_eq!(lane.deduped_count(), 1, "the skip is counted as deduped");
+        // brightness-only change: exactly one 02 2E report
+        let a2 = push("static", "#070809", 55);
+        send_led(&mock, &a2, &mut limiters, &mut last, &lane.inner).unwrap();
+        {
+            let sent = mock.sent.lock().unwrap();
+            assert_eq!(sent.len(), 4, "only the changed brightness is sent");
+            assert_eq!(&sent[3].1[..], &[0x02, 0x2E, 2, 0xFF, 55]);
+        }
+        // mode-only change (rainbow = 9): exactly one 02 2C report
+        let a3 = push("rainbow", "#070809", 55);
+        send_led(&mock, &a3, &mut limiters, &mut last, &lane.inner).unwrap();
+        {
+            let sent = mock.sent.lock().unwrap();
+            assert_eq!(sent.len(), 5, "only the changed mode is sent");
+            assert_eq!(&sent[4].1[..], &[0x02, 0x2C, 2, 0xFF, 0x09, 0x00]);
+        }
     }
 
     #[test]

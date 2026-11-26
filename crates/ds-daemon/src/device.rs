@@ -20,8 +20,9 @@
 //! An input the encoder refuses (unsupported container, progressive or optimized-Huffman
 //! JPEG, over the decode caps) fails the push with `E_FORMAT` and is dropped (counted),
 //! never forwarded.
-//! - `/controls/{knobs,faders,rollers}/<n>/led` color → `led_color` (feature report), paced
-//!   by the LED rate cap.
+//! - `/controls/{knobs,faders}/<n>/led` → mode + colour + brightness feature reports
+//!   (`02 2C/2D/2E`, target all), paced by the LED rate cap; `/controls/rollers/<n>/led` has
+//!   no LED command and is a warned no-op.
 //!
 //! Everything else (icons, text, `kind:frame` references, brightness) is out of scope and
 //! only logged. The task receives pushes over a bounded channel, so the state task never
@@ -139,8 +140,13 @@ pub enum DeviceAction {
         target: ImageTarget,
         source: ImageSource,
     },
-    /// LED color on an M0-family module (knobs/faders/rollers).
-    LedColor { kind: ModuleKind, rgb: [u8; 3] },
+    /// LED on an M0-family module (knobs/faders): mode + colour + brightness (`02 2C/2D/2E`).
+    LedColor {
+        kind: ModuleKind,
+        mode: LedMode,
+        rgb: [u8; 3],
+        brightness: u8,
+    },
     /// Screen backlight on keys or dial (`03 34/44 <pct>`).
     Backlight { kind: ModuleKind, percent: u8 },
     /// Base ring LED: mode + colour + brightness (`02 2C/2D/2E`, target 0).
@@ -331,8 +337,15 @@ pub fn plan_push(path: &str, value: &Value) -> Option<DeviceAction> {
                 }
                 _ => return None,
             };
+            let mode = led_mode_of(value.get("mode")?.as_str()?)?;
             let rgb = led_color_of(value)?;
-            Some(DeviceAction::LedColor { kind, rgb })
+            let brightness = value.get("brightness")?.as_u64()?.min(100) as u8;
+            Some(DeviceAction::LedColor {
+                kind,
+                mode,
+                rgb,
+                brightness,
+            })
         }
         ["controls", "base", "led"] => {
             let mode = led_mode_of(value.get("mode")?.as_str()?)?;
@@ -485,16 +498,27 @@ pub fn send_action(
                 .map(|_| ())
                 .map_err(|e| e.to_string())
         }
-        DeviceAction::LedColor { kind, rgb } => {
-            let report =
-                ds_protocol::led_color(*kind, LedTarget::All, *rgb).ok_or("no led report")?;
+        DeviceAction::LedColor {
+            kind,
+            mode,
+            rgb,
+            brightness,
+        } => {
             // The transport owns module identity: ask it for the id of this module kind
             // (hid: -> the enumerated serial, virtual: -> the virtual id).
             let module = module_id_for_send(t, *kind).map_err(|e| e.to_string())?;
-            limits.led.acquire();
-            t.send(&module, &report)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
+            for report in [
+                ds_protocol::led_mode(*kind, LedTarget::All, *mode),
+                ds_protocol::led_color(*kind, LedTarget::All, *rgb),
+                ds_protocol::led_brightness(*kind, LedTarget::All, *brightness),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                limits.led.acquire();
+                t.send(&module, &report).map_err(|e| e.to_string())?;
+            }
+            Ok(())
         }
         DeviceAction::BaseLed {
             mode,
@@ -1055,7 +1079,7 @@ mod tests {
                 source: ImageSource::Color { rgb: [0, 0, 0] }
             })
         );
-        // led color (string form) is unchanged
+        // led (string form): mode + colour + brightness are all planned
         let a = plan_push(
             "/controls/knobs/1/led",
             &json!({"mode": "static", "color": "#00ff00", "brightness": 40}),
@@ -1064,17 +1088,37 @@ mod tests {
             a,
             Some(DeviceAction::LedColor {
                 kind: ModuleKind::Knobs,
-                rgb: [0, 255, 0]
+                mode: LedMode::Static,
+                rgb: [0, 255, 0],
+                brightness: 40,
             })
         );
-        // led color (array form)
-        let a = plan_push("/controls/faders/2/led", &json!({"color": [1, 2, 3]}));
+        // led (array form); brightness above 100 clamps to 100 like the base arm
+        let a = plan_push(
+            "/controls/faders/2/led",
+            &json!({"mode": "breathing", "color": [1, 2, 3], "brightness": 250}),
+        );
         assert_eq!(
             a,
             Some(DeviceAction::LedColor {
                 kind: ModuleKind::Faders,
-                rgb: [1, 2, 3]
+                mode: LedMode::Breathing,
+                rgb: [1, 2, 3],
+                brightness: 100,
             })
+        );
+        // a led object missing mode or brightness is out of scope (the schema requires
+        // all three fields on every led object; this is the daemon-side backstop)
+        assert_eq!(
+            plan_push("/controls/faders/2/led", &json!({"color": [1, 2, 3]})),
+            None
+        );
+        assert_eq!(
+            plan_push(
+                "/controls/knobs/0/led",
+                &json!({"mode": "disco", "color": "#010203", "brightness": 10})
+            ),
+            None
         );
         // out of scope: icon/text/frame visuals, brightness, bad paths/values
         assert_eq!(
@@ -1278,23 +1322,37 @@ mod tests {
             assert_eq!(dial.len(), want.len().div_ceil(312));
             assert_eq!(&dial[0].1[8..10], &[0xFF, 0xD8]);
         }
-        // an LED colour is still a feature report on its module
+        // a module LED is the mode + colour + brightness feature reports on its module
         send_action(
             &mock,
             &DeviceAction::LedColor {
                 kind: ModuleKind::Faders,
+                mode: LedMode::Static,
                 rgb: [4, 5, 6],
+                brightness: 80,
             },
             &limits,
         )
         .unwrap();
         {
             let sent = mock.sent.lock().unwrap();
-            let led = sent
+            let led: Vec<&Vec<u8>> = sent
                 .iter()
-                .find(|(m, _)| m.kind == ModuleKind::Faders)
-                .unwrap();
-            assert_eq!(&led.1[..8], &[0x02, 0x2D, 1, 0xFF, 4, 5, 6, 0]);
+                .filter(|(m, _)| m.kind == ModuleKind::Faders)
+                .map(|(_, b)| b)
+                .collect();
+            assert_eq!(led.len(), 3, "mode + colour + brightness: {led:?}");
+            assert_eq!(
+                &led[0][..],
+                &[0x02, 0x2C, 1, 0xFF, 0x01, 0x00],
+                "02 2C mode"
+            );
+            assert_eq!(
+                &led[1][..],
+                &[0x02, 0x2D, 1, 0xFF, 4, 5, 6, 0],
+                "02 2D colour"
+            );
+            assert_eq!(&led[2][..], &[0x02, 0x2E, 1, 0xFF, 80], "02 2E brightness");
         }
     }
 
@@ -1327,7 +1385,9 @@ mod tests {
             &NoModuleTransport,
             &DeviceAction::LedColor {
                 kind: ModuleKind::Knobs,
+                mode: LedMode::Static,
                 rgb: [1, 2, 3],
+                brightness: 100,
             },
             &limits,
         )
