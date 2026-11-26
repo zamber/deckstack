@@ -152,7 +152,7 @@ fn project(value: &Value, fields: Option<&[String]>) -> Value {
 /// The state task: owns the store, applies commands, forwards device pushes and publishes
 /// committed durable changes on the event bus.
 pub struct StateTask {
-    store: Store,
+    store: Arc<Store>,
     rx: Receiver<StateCommand>,
     pushes: Option<DeviceHandle>,
     bus: Bus,
@@ -170,6 +170,16 @@ impl StateTask {
     /// as a state event (DS-040).
     pub fn spawn(
         store: Store,
+        pushes: Option<DeviceHandle>,
+        bus: Bus,
+    ) -> (StateHandle, JoinHandle<()>) {
+        Self::spawn_shared(Arc::new(store), pushes, bus)
+    }
+
+    /// Spawn on an already-shared store: the frame service writes its non-durable
+    /// `/telemetry/...` samples through the same handle (S1: never bumps `rev`).
+    pub fn spawn_shared(
+        store: Arc<Store>,
         pushes: Option<DeviceHandle>,
         bus: Bus,
     ) -> (StateHandle, JoinHandle<()>) {

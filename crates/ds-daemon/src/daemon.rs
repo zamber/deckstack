@@ -12,11 +12,13 @@
 //! ```
 
 use crate::device;
+use crate::frames::service::FrameService;
 use crate::ipc::{DaemonHandler, StatusInfo};
 use crate::lifecycle::{self, RunPaths, Shutdown};
 use crate::router::{Bus, Event as RouterEvent};
 use crate::state::StateTask;
 use ds_device::uri::DeviceUri;
+use ds_ipc::frames::StreamConfig;
 use ds_ipc::limits::ServerConfig;
 use ds_ipc::server::Server;
 use ds_state::Store;
@@ -174,6 +176,7 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
             &lifecycle::rfc3339_utc(lifecycle::now_secs()),
         )
         .map_err(io::Error::other)?;
+    let store = Arc::new(store);
 
     let (shutdown, _signals) = Shutdown::install();
 
@@ -182,10 +185,27 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     // subscribe/unsubscribe/emit through it, and the daemon lifecycle publishes here.
     let bus = Bus::new();
 
+    // The frame plane (DS-031): `<dir>/stream.sock` plus the per-target latest-wins
+    // queues and their writer threads. The device task attaches the transport only after
+    // the software-mode handshake (device.rs), so a frame accepted before the device is
+    // ready is refused rather than sent in hardware mode.
+    let frames = FrameService::spawn(Arc::clone(&store), None, bus.clone(), shutdown.clone());
+    let (_stream_bus, stream_sock) =
+        frames.serve_stream_socket(&paths.data_dir, StreamConfig::default())?;
+    lifecycle::log(
+        "info",
+        "ds-daemon",
+        &format!(
+            "frame stream on {} (latest-wins per target)",
+            stream_sock.display()
+        ),
+    );
+
     // Device task first so the state task can forward pushes to it from the start.
     let (device_handle, device_thread, device_status) =
-        device::spawn(device, shutdown.clone(), bus.clone());
-    let (state, state_thread) = StateTask::spawn(store, Some(device_handle.clone()), bus.clone());
+        device::spawn(device, shutdown.clone(), bus.clone(), Some(frames.clone()));
+    let (state, state_thread) =
+        StateTask::spawn_shared(Arc::clone(&store), Some(device_handle.clone()), bus.clone());
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {
@@ -244,6 +264,8 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     let _ = state_thread.join();
     let _ = device_thread.join();
     // The IPC accept loop cannot be unblocked from outside yet; process exit ends it.
+    // The frame stream socket is bound by the service, not by RunPaths.
+    let _ = std::fs::remove_file(&stream_sock);
     lifecycle::cleanup(&paths);
     lifecycle::log("info", "ds-daemon", "stopped cleanly (exit 0)");
     Ok(0)

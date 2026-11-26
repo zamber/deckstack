@@ -89,7 +89,7 @@ The paths below are defaults. `--socket`, `--data-dir`, and `--token-file` overr
 | `<data-dir>/token` | per-install auth token, 0600, ≥16 chars, generated at first start. Never print it or write it to a log. |
 | `<data-dir>/daemon.pid`, `<data-dir>/daemon.log` | pid file and daemon stderr log |
 | `<data-dir>/state.json` | the durable state document. Back it up. Files named `state.json.corrupt-<ts>` are quarantined copies kept for forensics. |
-| `<data-dir>/stream.sock` | DSF1 frame-stream socket. The phase-1 daemon does not bind it. See §6. |
+| `<data-dir>/stream.sock` | DSF1 frame-stream socket, bound by the daemon at startup (0600) next to the control socket. See §6. |
 
 With no flags, `ds` dials `$XDG_RUNTIME_DIR/deckstack/daemon.sock`. `ds daemon start`
 writes the daemon's files to the same data dir.

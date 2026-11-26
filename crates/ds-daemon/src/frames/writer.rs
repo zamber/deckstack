@@ -122,7 +122,8 @@ fn send_whole(
             device: false,
         })?
     };
-    let Some(transport) = inner.transport.as_ref() else {
+    let transport = inner.transport.lock().unwrap().clone();
+    let Some(transport) = transport.as_ref() else {
         return Err(SendFailure {
             message: "no device transport (--device none)".to_string(),
             device: false,
@@ -241,6 +242,8 @@ fn finish(
             if f.device {
                 let serial = inner
                     .transport
+                    .lock()
+                    .unwrap()
                     .as_ref()
                     .and_then(|t| t.module_id(module))
                     .map(|m| m.serial)

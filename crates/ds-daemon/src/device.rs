@@ -617,6 +617,7 @@ pub fn spawn(
     device: Option<DeviceUri>,
     shutdown: Shutdown,
     bus: Bus,
+    frames: Option<crate::frames::service::FrameService>,
 ) -> (DeviceHandle, JoinHandle<()>, DeviceStatus) {
     let (tx, rx) = std::sync::mpsc::sync_channel(DEVICE_CHANNEL_CAP);
     let dropped = Arc::new(AtomicU64::new(0));
@@ -633,7 +634,7 @@ pub fn spawn(
     let status2 = Arc::clone(&status);
     let thread = std::thread::Builder::new()
         .name("ds-device".into())
-        .spawn(move || run_loop(device, rx, shutdown, status2, bus, led))
+        .spawn(move || run_loop(device, rx, shutdown, status2, bus, led, frames))
         .expect("spawn ds-device thread");
     (handle, thread, status)
 }
@@ -645,6 +646,7 @@ fn run_loop(
     status: DeviceStatus,
     bus: Bus,
     led: crate::led::LedLane,
+    frames: Option<crate::frames::service::FrameService>,
 ) {
     let limits = RateLimits::new();
     let mut decoder = router::InputDecoder::new();
@@ -722,6 +724,11 @@ fn run_loop(
                     "connected",
                     serde_json::json!({"device": uri.to_string()}),
                 ));
+                // The frame plane may send only after the software-mode handshake, so the
+                // stream writers get the transport here and not at service spawn.
+                if let Some(frames) = &frames {
+                    frames.set_transport(Some(t.clone()));
+                }
                 Some(t)
             }
             Err(e) => {
@@ -798,6 +805,9 @@ fn run_loop(
         }
     }
     led.set_transport(None);
+    if let Some(frames) = &frames {
+        frames.set_transport(None);
+    }
     if let Some(t) = &transport {
         let _ = t.close();
     }
@@ -1441,7 +1451,7 @@ mod tests {
     #[test]
     fn device_task_with_no_device_accepts_and_drops_pushes() {
         let shutdown = Shutdown::manual();
-        let (handle, thread, status) = spawn(None, shutdown.clone(), Bus::new());
+        let (handle, thread, status) = spawn(None, shutdown.clone(), Bus::new(), None);
         assert!(handle.push(DevicePush::State {
             path: "/controls/keys/0/image".into(),
             value: json!({"kind": "color", "value": "#ffffff"}),

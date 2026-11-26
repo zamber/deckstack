@@ -83,13 +83,15 @@ budget evictions + encode/send failures), `fps` (send rate over the sampling win
 `last_sha256`/`last_seq` (last completed frame), `writer_ms_p99` (p99 whole-frame send
 time), `sampled_at` (RFC 3339). Sampled at 1 Hz; reads carry no `rev`.
 
-**Wiring points for the daemon assembly** (one-liners in `daemon::run`, next ticket):
-`let store = Arc::new(Store::open(..)?); let frames = FrameService::spawn(store.clone(),
-Some(transport), bus.clone(), shutdown.clone()); frames.serve_stream_socket(&data_dir,
-StreamConfig::default())?;` — the stream socket then serves `DSctl stream-open`/`DSF1`
-with this service as the sink, and the DS-095 device image pushes route through
-`frames.push_image(target, &wire)` instead of pushing inline on the device task (the
-`Arc<dyn Transport>` handle is shared with the device task, whose `send` takes `&self`).
+**Wiring points in `daemon::run`:** the daemon opens the store as an `Arc` shared with
+the state task, spawns the service with no transport, and binds the socket:
+`let frames = FrameService::spawn(store.clone(), None, bus.clone(), shutdown.clone());
+let (_stream_bus, stream_sock) = frames.serve_stream_socket(&data_dir,
+StreamConfig::default())?;`. The device task attaches its `Arc<dyn Transport>` after the
+software-mode handshake (`FrameService::set_transport`) and clears it when the device goes
+away, so a frame accepted before the handshake is refused instead of being sent in
+hardware mode. The stream socket then serves `DSctl stream-open`/`DSF1` with this service
+as the sink.
 The in-crate tests exercise exactly this stack in-process (DS-013 stream server + ds-vdev +
 `Store`), including a 10-frame burst on a throttled vdev: the final device frame is the
 last pushed one, `dropped > 0`, `sent + dropped == 10`, telemetry shape correct, `rev`

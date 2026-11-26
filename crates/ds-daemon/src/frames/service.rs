@@ -155,7 +155,9 @@ pub struct ServiceInner {
     /// store in an `Arc` shared with the state task; only `set_telemetry` is ever called.
     pub store: Arc<Store>,
     /// Shared device transport handle (the writer threads own the send side per module).
-    pub transport: Option<Arc<dyn Transport>>,
+    /// The device task attaches it after the software-mode handshake and clears it on
+    /// device loss; frames accepted before that are refused, never sent in hardware mode.
+    pub transport: Mutex<Option<Arc<dyn Transport>>>,
     /// Event bus (module-gone → `deck/device/<serial>/disconnected`).
     pub bus: Bus,
     pub shutdown: Shutdown,
@@ -209,7 +211,7 @@ impl FrameService {
     ) -> Self {
         let inner = Arc::new(ServiceInner {
             store,
-            transport,
+            transport: Mutex::new(transport),
             bus,
             shutdown,
             stream_bus: Mutex::new(None),
@@ -226,6 +228,24 @@ impl FrameService {
         let sampler = telemetry::spawn_sampler(Arc::clone(&inner));
         *inner.sampler.lock().unwrap() = Some(sampler);
         Self { inner }
+    }
+
+    /// Attach (or clear) the device transport once the device task has completed the
+    /// software-mode handshake. Writer threads read it at send time, so a frame accepted
+    /// before the handshake is refused with "no device transport" instead of being sent
+    /// into hardware mode (the mh invariant: no commands before the on-report).
+    pub fn set_transport(&self, transport: Option<Arc<dyn Transport>>) {
+        let attached = transport.is_some();
+        *self.inner.transport.lock().unwrap() = transport;
+        lifecycle::log(
+            "info",
+            "ds-daemon::frames",
+            if attached {
+                "device transport attached"
+            } else {
+                "device transport detached"
+            },
+        );
     }
 
     /// Bind `<dir>/stream.sock` (0600, dir 0700) with the DS-013 stream server and install

@@ -7,7 +7,7 @@
 use ds_vdev::{HubConfig, VdevServer};
 use serde_json::{json, Value};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -594,4 +594,138 @@ fn version_and_guard_and_usage() {
 
     let out = Command::new(daemon_bin()).arg("--bogus").output().unwrap();
     assert_eq!(out.status.code(), Some(1), "usage error exits 1");
+}
+
+/// Producer-side stream client: `DSctl\n` NDJSON control lines plus DSF1 frames on
+/// `<dir>/stream.sock`, the same wire form `ds stream push` uses.
+struct StreamConn {
+    reader: BufReader<UnixStream>,
+    writer: UnixStream,
+}
+
+impl StreamConn {
+    fn connect(path: &Path) -> Self {
+        let writer = UnixStream::connect(path).expect("connect to stream.sock");
+        writer
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        let reader = BufReader::new(writer.try_clone().unwrap());
+        Self { reader, writer }
+    }
+
+    fn send_line(&mut self, v: &Value) {
+        self.writer.write_all(b"DSctl\n").unwrap();
+        self.writer
+            .write_all(&serde_json::to_vec(v).unwrap())
+            .unwrap();
+        self.writer.write_all(b"\n").unwrap();
+        self.writer.flush().unwrap();
+    }
+
+    fn recv_line(&mut self) -> Value {
+        let mut magic = [0u8; 6];
+        self.reader.read_exact(&mut magic).expect("DSctl magic");
+        assert_eq!(&magic, b"DSctl\n", "expected a DSctl reply");
+        let line = ds_ipc::framing::read_line(
+            &mut self.reader,
+            ds_ipc::frames::limits::MAX_DSCTL_LINE_BYTES,
+        )
+        .expect("one DSctl line");
+        serde_json::from_str(line.trim()).expect("one JSON object per line")
+    }
+
+    fn send_frame(&mut self, frame: &ds_ipc::frames::codec::Frame) {
+        self.writer.write_all(&frame.encode().unwrap()).unwrap();
+        self.writer.flush().unwrap();
+    }
+}
+
+/// The running daemon must serve the frame plane itself: `<dir>/stream.sock` carries a
+/// `stream-open` + DSF1 dial frame into the latest-wins queues and out to the device.
+/// Wiring only `FrameService` in tests and not in `daemon::run` leaves the socket missing.
+#[test]
+fn stream_socket_carries_a_dial_frame_to_the_device() {
+    let (mut stack, mut conn, _token) = Stack::start();
+    let stream_sock = stack.daemon.data_dir.join("stream.sock");
+
+    // The control socket is the readiness gate; the frame plane binds alongside it.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !stream_sock.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "stream.sock was never bound; stderr:\n{}",
+            stack.daemon.stderr_text()
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    assert_eq!(mode_of(&stream_sock), 0o600);
+
+    // Frames are refused until the device task has completed the software-mode handshake;
+    // wait for the attach instead of racing it.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !stack
+        .daemon
+        .stderr_text()
+        .contains("device transport attached")
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the frame plane never got the device transport; stderr:\n{}",
+            stack.daemon.stderr_text()
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
+
+    let mut sc = StreamConn::connect(&stream_sock);
+    sc.send_line(&json!({"op": "stream-open", "target": "dial", "credits": 4}));
+    let credit = sc.recv_line();
+    assert_eq!(credit["op"], json!("stream-credit"), "{credit}");
+    assert_eq!(credit["credits"], json!(4));
+
+    let target = ds_daemon::frames::FrameTarget::Dial;
+    let wire = ds_daemon::frames::encode::encode_solid(target, [0x20, 0x60, 0xa0]);
+    let meta = ds_ipc::frames::codec::FrameMeta {
+        target: "dial".into(),
+        seq: 1,
+        ts_ms: 1_732_000_000_000,
+        format: ds_ipc::frames::codec::FrameFormat::Jpeg,
+        w: Some(240),
+        h: Some(240),
+        frames: Some(1),
+        fps: None,
+        loop_: None,
+        crc32: 0,
+        max_payload_bytes: ds_ipc::frames::limits::MAX_PAYLOAD_BYTES as u32,
+    };
+    sc.send_frame(&ds_ipc::frames::codec::Frame::new(meta, &wire));
+    let ack = sc.recv_line();
+    assert_eq!(ack["op"], json!("stream-ack"), "{ack}");
+    assert_eq!(ack["seq"], json!(1));
+
+    let line = wait_for_frame(&stack.vdev_sock, "dial", Duration::from_secs(10))
+        .expect("the dial frame must reach the device through the frame plane");
+    let encoded = ds_daemon::frames::encode::encode_frame(target, &wire).unwrap();
+    let want = ds_vdev::sha256_hex(&encoded);
+    assert!(
+        line.contains(&want),
+        "frame line {line:?} must contain {want}"
+    );
+
+    // The same counters `ds stream stats dial` reads must show the delivered frame.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let tel = conn.round(json!({"id": 90, "op": "get", "path": "/telemetry/streams/dial"}));
+        if tel["result"]["value"]["sent"].as_u64().unwrap_or(0) >= 1 {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "no stream telemetry after the ack: {tel}"
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    let code = stack.daemon.sigterm_and_wait(Duration::from_secs(10));
+    assert_eq!(code, Some(0), "stderr:\n{}", stack.daemon.stderr_text());
+    assert!(!stream_sock.exists(), "a clean stop removes stream.sock");
 }

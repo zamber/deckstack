@@ -22,11 +22,11 @@ and were not executed here.
     Token *management* today = protecting the install token file (§10); scoped tokens land
     with their ticket (T9 rotation is designed in `docs/20-security.md`).
   - `ds emit`, `ds events`, `ds plugin …` — same later-phase refusal, exit 1.
-  - `ds stream push` — the frame-stream socket `stream.sock` is defined by the contract
-    (`docs/contracts/ipc.md` §1) but the daemon does not bind it yet in this tree, so
-    `ds stream push …` exits 6 `E_UNREACHABLE` with a "stream.sock missing" hint.
-    `ds stream stats <target>` / `ds stream stop <target>` work over the control socket
-    (§9). State→device image pushes via `ds set … --file/--json` do work (§5).
+  - `ds stream push` — the daemon binds the frame-stream socket `stream.sock` at startup
+    (`docs/contracts/ipc.md` §1) and serves it with the frame plane: frames are re-encoded
+    and queued latest-wins per target. `ds stream stats <target>` / `ds stream stop <target>`
+    work over the control socket (§9). State→device image pushes via
+    `ds set … --file/--json` share the same device writers (§5).
   - `ds daemon restart` — there is no `restart` subcommand; restart = stop + start or
     `systemctl --user restart` (§11).
 - Out of scope for the alpha entirely: web/debug UI over the WS/HTTP adapter (the adapter
@@ -284,7 +284,7 @@ them once the state is healthy.
 | `systemctl --user start deckstack` fails instantly | `systemctl --user status deckstack.service`; `journalctl --user -u deckstack.service -n 50` | binary missing → §3/drop-in; bad `DECKSTACK_DEVICE` → fix `~/.config/deckstack/env` |
 | verify complains only `Command … is not executable` | `ls -l /usr/local/bin/ds-daemon` | install/build the binary or use the `systemctl --user edit` drop-in (§3); unit is otherwise valid |
 | `ds …` exits 6 `E_UNREACHABLE` | `ds daemon status`; `ls $XDG_RUNTIME_DIR/deckstack/` | start the daemon (§5/§7); remove stale socket if the pid is dead (§12) |
-| `ds stream push …` exits 6 with "stream.sock missing" | `ls <data-dir>/stream.sock` | expected in this tree — the daemon does not bind the frame socket yet (§1); use `ds set … --file/--json` for images |
+| `ds stream push …` exits 6 with "stream.sock missing" | `ls <data-dir>/stream.sock`; `journalctl --user -u deckstack -n 50` | the daemon binds the frame socket at startup; if it is missing the daemon is down or failed to start — check its journal (§1) |
 | `ds …` exits 4 `E_AUTH` (`ds: bad token  [exit 4]`) | `ls -l <data-dir>/token` (mode 0600, ≥16 chars) | do not print the token; if the file was deleted, restart the daemon to regenerate it |
 | `ds token …`, `ds emit …`, `ds plugin …` exit 1 "not implemented in phase 1" | `ds --help` | later-phase verbs, pending their tickets (§1) — not a misconfiguration |
 | `ds get /controls/keys/99` | — | `ds: path not found: /controls/keys/99  [exit 2]` (`E_PATH`); on a fresh start `/controls/keys` itself is absent until the first `set` (empty state) — use `ds describe <path>` |

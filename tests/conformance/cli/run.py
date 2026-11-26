@@ -869,9 +869,12 @@ class CliContract(unittest.TestCase):
         # daemon status against a dead socket: same exit 6 + hint
         p = self.stack.ds_raw("--socket", str(missing), "daemon", "status")
         self.assert_exit(p, 6, "daemon unreachable", "ds daemon start")
-        # stream push with no frame-stream socket behind the daemon: exit 6 too
-        p = self.ds("stream", "push", "key:0", "--file", str(ROOT / "examples/key.png"))
-        self.assert_exit(p, 6, "stream.sock")
+        # stream push against a dead control socket: exit 6 too (the frame plane itself
+        # is bound by the daemon, so a live daemon never has a missing stream socket)
+        p = self.stack.ds_raw(
+            "--socket", str(missing), "stream", "push", "key:0",
+            "--file", str(ROOT / "examples/key.png"))
+        self.assert_exit(p, 6, "daemon unreachable", "ds daemon start")
 
     # ---- 130 output modes --------------------------------------------------------
 

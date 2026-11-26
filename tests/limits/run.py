@@ -638,14 +638,21 @@ def case_stream_push_caps(stack):
     p = stack.ds("stream", "push", "keys", "--dir", str(d), "--fps", "31")
     check("stream-cap/30-fps", p.returncode == 1 and "30" in p.stderr,
           "rc=%d stderr=%s" % (p.returncode, p.stderr.strip()[:120]))
-    # a valid push reaches the (not yet wired) stream socket and fails cleanly there
+    # a valid push goes through the daemon's own frame plane and reaches the device
     ok_img = tmp / "ok.png"
     ok_img.write_bytes(solid_png(8, 8))
     p = stack.ds("stream", "push", "key:0", "--file", str(ok_img))
-    check("stream-cap/valid-frame-stream-sock-missing",
-          p.returncode == 6 and "stream.sock" in p.stderr,
-          "rc=%d (the DSF1 stream plane is not bound by daemon::run in this tree — see README)"
-          % p.returncode)
+    check("stream-cap/valid-frame-accepted", p.returncode == 0,
+          "rc=%d stderr=%s" % (p.returncode, p.stderr.strip()[:120]))
+    deadline = time.time() + 10
+    frames = ""
+    while time.time() < deadline:
+        frames = vdevctl(stack, "frames", "key:0").stdout.strip()
+        if "key:0" in frames:
+            break
+        time.sleep(0.1)
+    check("stream-cap/valid-frame-reaches-device", "key:0" in frames,
+          "frames=%s" % frames[:120])
     check("stream-cap/daemon-alive", daemon_alive(stack, stack.token), "")
 
 
