@@ -20,7 +20,7 @@ Contract: `docs/contracts/plugins.md`; manifest schema: `schemas/plugin-manifest
 - **Invariants:**
   1. Plugin I/O is schema-validated against the manifest before touching state (R6).
   2. Every plugin runs with rlimits (nproc, nofile, AS, CPU) + Landlock fs policy on Linux
-     ≥ 6.7 where available (OPEN O6), else wrapper-enforced path prefix checks.
+     ≥ 6.7 (RESOLVED DS-116: ABI 11 measured on the target kernel family), else wrapper-enforced path prefix checks.
   3. A plugin gets a capability token; `exec`, `net`, `fs:<root>`, `device.write` are
      explicit grants, default none.
   4. Plugin quirks stay in the plugin: the daemon never special-cases a plugin id.

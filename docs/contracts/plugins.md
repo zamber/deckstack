@@ -34,9 +34,12 @@ sockets. Instead:
   is anchored against the full host — `lights.lan` matches only `lights.lan`; `*.lan`
   matches `lights.lan` but not `lan`, `a.b.lan`, or `lights.lan.evil.com`. Edge-case tests
   in tests/fixtures.
-- Where Landlock ABI ≥ 4 is available (OPEN O6/O11), the daemon additionally denies
-  outbound connect from the plugin process entirely (defense in depth); where it is not,
-  the host-mediation is the only control — **documented gap** (docs/20-security.md T11).
+- On the target kernel family Landlock **ABI 11 ≥ 4** is confirmed (DS-116:
+  `tools/landlock_probe.py` on kernel `7.3.5-ogc3.1.fc45`), so the daemon additionally
+  denies outbound connect from the plugin process entirely (defense in depth); on older
+  kernels without ABI ≥ 4 the host-mediation is the only control — **documented gap for
+  those kernels** (docs/20-security.md T11). Host-mediated `net` requests remain the
+  primary control regardless (S4).
 - DNS is resolved by the daemon at request time and the connection is made to the
   resolved address after re-checking the host string (no TOCTOU via the plugin).
 
