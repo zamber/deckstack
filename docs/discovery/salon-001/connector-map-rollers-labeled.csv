@@ -1,0 +1,19 @@
+ts,label,usb_pid,module,abs_path,rel_path,desc
+2026-11-27T23:13:18.980967+00:00,"upright(corner TR), left",2516:0204,rollers,3-2-1-2-1,1-2-1,auto-watch
+2026-11-27T23:13:55.558821+00:00,"upright, left + fader space left",2516:0204,rollers,3-2-4-4,4-4,auto-watch
+2026-11-27T23:14:16.177979+00:00,"upright, middle-left (knob width left)",2516:0204,rollers,3-2-4-3,4-3,auto-watch
+2026-11-27T23:14:59.190083+00:00,"upright, middle-right",2516:0204,rollers,3-2-1-3-4,1-3-4,auto-watch
+2026-11-27T23:15:23.571071+00:00,"upright, right + fader space",2516:0204,rollers,3-2-1-2-3,1-2-3,auto-watch
+2026-11-27T23:16:24.539841+00:00,"upright, full right",2516:0204,rollers,3-2-3-1,3-1,auto-watch
+2026-11-27T23:16:42.832054+00:00,"rot90cw, left-center + roller space top",2516:0204,rollers,3-2-1-2-2,1-2-2,auto-watch
+2026-11-27T23:16:53.054182+00:00,"rot90cw, same but right",2516:0204,rollers,3-2-4-1,4-1,auto-watch
+2026-11-27T23:16:59.149339+00:00,"rot90cw, bottom-left",2516:0204,rollers,3-2-4-2,4-2,auto-watch
+2026-11-27T23:17:39.776078+00:00,"rot90cw, bottom-middle",2516:0204,rollers,3-2-3-3,3-3,auto-watch
+2026-11-27T23:17:47.902137+00:00,"rot90cw, bottom-right",2516:0204,rollers,3-2-1-4-1,1-4-1,auto-watch
+2026-11-27T23:17:56.305255+00:00,"rot270, top-left",2516:0204,rollers,3-2-1-4-2,1-4-2,auto-watch
+2026-11-27T23:18:18.656456+00:00,"rot270, top-right",2516:0204,rollers,3-2-1-3-1,1-3-1,auto-watch
+2026-11-27T23:18:38.978317+00:00,"rot270, middle-right + fader space top",2516:0204,rollers,3-2-1-3-3,1-3-3,auto-watch
+2026-11-27T23:18:53.200693+00:00,"rot270, middle-right + fader space bottom",2516:0204,rollers,3-2-1-1-4,1-1-4,auto-watch
+2026-11-27T23:19:05.395244+00:00,"rot270, bottom-right",2516:0204,rollers,3-2-2-1,2-1,auto-watch
+2026-11-27T23:19:19.740457+00:00,"rot270, bottom-left",2516:0204,rollers,3-2-3-2,3-2,auto-watch
+2026-11-27T23:19:31.934630+00:00,"rot270, middle-left + fader space (last logged)",2516:0204,rollers,3-2-3-3,3-3,auto-watch

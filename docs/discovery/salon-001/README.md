@@ -96,3 +96,35 @@ The rot0/90/180/270 labels above are relative to each sweep's starting orientati
 not an absolute reference. Before DS-112 implementation, redo one reference sweep per
 module kind with the module's corner indicator in a fixed standard position, and
 re-anchor all tables to it.
+
+## Roller-module sweep (2026-11-27)
+
+Probe: 2xRoller (`2516:0204`), 18 seatings logged. The 180 round seated nothing. The
+final 270 round described 9 positions but only 7 distinct paths logged (the repeated
+"top-left" and one middle-left variant did not produce new rows) — alignment of the
+last rows is best-effort, see caveat above about session-relative rotations.
+
+| position | slot |
+|---|---|
+| upright (corner TR), left | 1-2-1 |
+| upright, left + fader space left | 4-4 |
+| upright, middle-left | 4-3 |
+| upright, middle-right | 1-3-4 |
+| upright, right + fader space | 1-2-3 |
+| upright, full right | 3-1 |
+| rot90cw, left-center + roller space top | 1-2-2 |
+| rot90cw, same but right | 4-1 |
+| rot90cw, bottom-left | 4-2 |
+| rot90cw, bottom-middle | 3-3 |
+| rot90cw, bottom-right | 1-4-1 |
+| rot270, top-left | 1-4-2 |
+| rot270, top-right | 1-3-1 |
+| rot270, middle-right + fader space top | 1-3-3 |
+| rot270, middle-right + fader space bottom | 1-1-4 |
+| rot270, bottom-right | 2-1 |
+| rot270, bottom-left | 3-2 |
+| rot270, middle-left + fader space | 3-3 |
+
+Cross-checks: 3-3 is the reference unit's roller slot; 1-1-4 was this deck's shipped
+roller slot (appears at rot270 middle-right + fader space bottom).
+`connector-map-rollers-labeled.csv` has the raw rows.
