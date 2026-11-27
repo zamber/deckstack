@@ -11,6 +11,7 @@ use ds_protocol::{Input, ModuleKind, Report};
 use mh_device::ModuleId;
 
 use crate::error::{Error, Result};
+use crate::slot::Slot;
 use crate::uri::DeviceUri;
 use crate::vtransport::VirtualTransport;
 
@@ -58,6 +59,16 @@ pub trait Transport: Send + Sync + 'static {
     /// Every real transport overrides this; the default only exists so test doubles that
     /// never resolve ids keep compiling.
     fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+        let _ = kind;
+        None
+    }
+
+    /// The DS-112 slot (USB port path relative to the base's top hub) of the connected
+    /// module of `kind` — the placement half of the identity key. `hid:` derives it from
+    /// the sysfs port path at enumeration; `virtual:` reads it from the virtual device
+    /// ([`crate::slot::SLOT_FEATURE_ID`]). `None` when no module of that kind is connected
+    /// or the transport has no placement signal. The default keeps test doubles compiling.
+    fn module_slot(&self, kind: ModuleKind) -> Option<Slot> {
         let _ = kind;
         None
     }

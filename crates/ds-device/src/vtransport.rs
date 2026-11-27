@@ -26,6 +26,7 @@ use crate::error::{Error, Result};
 use crate::frame::{self, kind, Frame};
 use crate::module::{module_info, module_info_for_pid};
 use crate::report::{ensure_allowed, pad_report};
+use crate::slot::{Slot, SLOT_FEATURE_ID};
 use crate::transport::{DeviceEvent, Transport};
 
 /// Default time `send` waits for the device's write ack before giving up (5 s — the HID layer
@@ -328,6 +329,22 @@ impl Transport for VirtualTransport {
         // The virtual deck is the whole hub behind one socket: every kind is present and
         // addressed by its virtual id.
         Some(virtual_module_id(kind))
+    }
+
+    fn module_slot(&self, kind: ModuleKind) -> Option<Slot> {
+        // The DS-112 placement of a virtual module: read the slot feature from the vdev
+        // (it answers even before the software-mode handshake — a virtual module never
+        // wedges; on real HID this read does not exist and the slot comes from sysfs).
+        let id = virtual_module_id(kind);
+        let answer = self.query(&id, SLOT_FEATURE_ID, Duration::from_millis(500)).ok()?;
+        // answer shape: report id 0x03, feature id, len, then the ASCII slot
+        let payload = answer.get(3..)?;
+        let end = payload
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(payload.len());
+        let s = std::str::from_utf8(&payload[..end]).ok()?;
+        Slot::parse(s.trim())
     }
 }
 

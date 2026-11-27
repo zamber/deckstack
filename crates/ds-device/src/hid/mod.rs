@@ -118,6 +118,9 @@ pub struct HidTransport {
     /// The id of each open module, by kind — filled as modules open, so [`Transport::module_id`]
     /// resolves lazily at call time (enumeration may happen after construction).
     ids: Mutex<HashMap<ModuleKind, ModuleId>>,
+    /// The DS-112 slot of each open module, by kind — filled as modules open from the
+    /// enumerated sysfs port path, so [`Transport::module_slot`] resolves per kind.
+    slots: Mutex<HashMap<ModuleKind, crate::slot::Slot>>,
 }
 
 impl HidTransport {
@@ -126,6 +129,7 @@ impl HidTransport {
             shared: Arc::new(Shared::new()),
             modules: Arc::new(Mutex::new(HashMap::new())),
             ids: Mutex::new(HashMap::new()),
+            slots: Mutex::new(HashMap::new()),
         }
     }
 
@@ -176,6 +180,7 @@ impl HidTransport {
             path: path.to_owned(),
             serial: dinfo.serial_number().map(str::to_string),
             product_string: dinfo.product_string().map(str::to_string),
+            slot: enumerate::slot_for_path(path),
             module_id: enumerate::module_id_for(&info, dinfo.serial_number(), path),
         };
         let transport = Self::new();
@@ -210,6 +215,12 @@ impl HidTransport {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(info.info.kind, info.module_id.clone());
+        if let Some(slot) = &info.slot {
+            self.slots
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(info.info.kind, slot.clone());
+        }
         Ok(())
     }
 
@@ -423,6 +434,7 @@ impl Transport for HidTransport {
             }
         }
         self.ids.lock().unwrap_or_else(|e| e.into_inner()).clear();
+        self.slots.lock().unwrap_or_else(|e| e.into_inner()).clear();
         self.shared.close();
         Ok(())
     }
@@ -431,6 +443,16 @@ impl Transport for HidTransport {
         // Lazy lookup in the id map filled at open time: the enumerated serial of the module
         // of this kind that this transport actually has open (None when it is not connected).
         self.ids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&kind)
+            .cloned()
+    }
+
+    fn module_slot(&self, kind: ModuleKind) -> Option<crate::slot::Slot> {
+        // The DS-112 placement: the sysfs port path of the open module of this kind, as
+        // slot relative to the base's top hub (SALON-001: abs 3-2-1-4-3 -> 1-4-3).
+        self.slots
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .get(&kind)
