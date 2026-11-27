@@ -39,7 +39,11 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      # node is preinstalled on ubuntu-latest (tests/fixtures/validate.sh uses it)
+      # pin node explicitly: ubuntu-latest ships Node 20, we require >= 24
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
       - name: fixture gate
         run: sh tests/fixtures/validate.sh
 

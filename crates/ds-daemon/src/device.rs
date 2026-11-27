@@ -767,43 +767,43 @@ fn run_loop(
             // second (the observed uniform 100 ms cadence on fast flicks).
             Some(t) => loop {
                 match t.recv(TRANSPORT_POLL) {
-                Ok(DeviceEvent::Input { module, input }) => {
-                    // Decode the input report into deck/control/* (or deck/device/*) events
-                    // and publish them on the bus (DS-040). Publish never blocks.
-                    let events = decoder.decode(&module, &input);
-                    let n = events.len();
-                    for ev in events {
-                        bus.publish(ev);
+                    Ok(DeviceEvent::Input { module, input }) => {
+                        // Decode the input report into deck/control/* (or deck/device/*) events
+                        // and publish them on the bus (DS-040). Publish never blocks.
+                        let events = decoder.decode(&module, &input);
+                        let n = events.len();
+                        for ev in events {
+                            bus.publish(ev);
+                        }
+                        lifecycle::log(
+                            "info",
+                            "ds-daemon::device",
+                            &format!(
+                                "input from {:?} ({}): {:?} -> {n} bus event(s)",
+                                module.kind, module.serial, input
+                            ),
+                        );
                     }
-                    lifecycle::log(
-                        "info",
-                        "ds-daemon::device",
-                        &format!(
-                            "input from {:?} ({}): {:?} -> {n} bus event(s)",
-                            module.kind, module.serial, input
-                        ),
-                    );
-                }
-                Ok(DeviceEvent::Disconnected) => {
-                    lifecycle::log("warn", "ds-daemon::device", "device disconnected");
-                    *status.lock().unwrap() = Some("disconnected".to_string());
-                    let serial = transport
-                        .as_ref()
-                        .and_then(|t| t.module_id(ModuleKind::Keys))
-                        .map(|m| m.serial)
-                        .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
-                    bus.publish(router::device_event(
-                        &serial,
-                        "disconnected",
-                        serde_json::json!({}),
-                    ));
-                    break 'outer;
-                }
-                Err(ds_device::Error::Timeout(_)) => break,
-                Err(e) => {
-                    lifecycle::log("warn", "ds-daemon::device", &format!("device error: {e}"));
-                    break 'outer;
-                }
+                    Ok(DeviceEvent::Disconnected) => {
+                        lifecycle::log("warn", "ds-daemon::device", "device disconnected");
+                        *status.lock().unwrap() = Some("disconnected".to_string());
+                        let serial = transport
+                            .as_ref()
+                            .and_then(|t| t.module_id(ModuleKind::Keys))
+                            .map(|m| m.serial)
+                            .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
+                        bus.publish(router::device_event(
+                            &serial,
+                            "disconnected",
+                            serde_json::json!({}),
+                        ));
+                        break 'outer;
+                    }
+                    Err(ds_device::Error::Timeout(_)) => break,
+                    Err(e) => {
+                        lifecycle::log("warn", "ds-daemon::device", &format!("device error: {e}"));
+                        break 'outer;
+                    }
                 }
             },
             None => std::thread::sleep(POLL),
