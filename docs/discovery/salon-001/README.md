@@ -63,3 +63,29 @@ physical connector yields a different slot per module kind (e.g. bottom-left is
 1-2-2 for the knob at rot0 but 2-3 for the keys vertical). 2-3 is the reference
 unit's keys slot; 1-3-4 is the reference dial slot — the screen physically covers
 the dial's connector. `connector-map-keys2-labeled.csv` has the raw rows.
+
+## Faders-module sweep (2026-11-27)
+
+Probe: 5xFaders (`2516:0200`). 12 seatings logged (90cw round was entirely
+un-seatable). Alignment note: the first upright round described 5 positions but one
+was a duplicate, so 4 upright + 2 rot180 + 6 rot270 = 12 logged.
+
+| position | slot |
+|---|---|
+| upright, right edge | 1-2-2 |
+| upright, right with roller space | 4-1 |
+| upright, middle (knob spaces both sides) | 4-2 |
+| upright, full right | 2-4 |
+| rot180, right | 1-1-3 |
+| rot180, middle | 1-4-1 |
+| rot270, top-left | 3-3 |
+| rot270, top-right | 1-1-1 |
+| rot270, middle-right | 1-4-3 |
+| rot270, bottom-right | 1-3-4 |
+| rot270, bottom-middle | 1-1-2 |
+| rot270, bottom-left | 2-3 |
+
+`connector-map-faders-labeled.csv` has the raw rows. Slots repeat across module kinds
+at the same physical connector+rotation (e.g. bottom-right rot0: knob 1-1-3,
+keys vertical 1-3-4, faders rot270 1-3-4), confirming the connector's port set is
+shared and the module kind disambiguates the footprint.
