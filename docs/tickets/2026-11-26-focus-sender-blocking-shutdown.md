@@ -1,6 +1,6 @@
 # DS-115: ds-focus can keep running after SIGTERM
 
-Status: open
+Status: fixed by the watchdog-thread option below (ds-focus `install_signal_handlers` now spawns a shutdown watchdog that exits the process once the flag is set, covering every blocking call)
 Found: 2026-11-26 (salon-deck stop timeout)
 
 ## Symptom
