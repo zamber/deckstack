@@ -153,3 +153,15 @@ of the ticket.
 - `tools/observe-orientation.sh` — vdev stack lifecycle + simulation + `rehearse` (this doc, Part A).
 - `tools/watch-deck-events.sh` — timestamped `/deck/*` event logger for any daemon (vdev rehearsal and the Part B hardware session).
 - No changes to `crates/`, `schemas/`, `docs/contracts/`, or tests.
+
+## Consumer-facing goal of the mapping (added 2026-11-27, SALON-001 session)
+
+The point of mapping connector ↔ USB port path ↔ orientation is not only identity:
+deckstack should expose, per device, **in what orientation it faces the user** (base
+flat/vertical × module rotation at its connector), so consumers can rotate screen
+content, remap inputs, or abstract the physical layout away behind one API. All
+possible configurations must be **representable in state** and **testable via the
+virtual device** across permutations (module kind × connector × base orientation),
+not hardcoded to the salon deck's current layout. Hot-swappable: a reseat/rotation
+must adjust the logical view on the fly, without an app restart (see DS-120 for the
+current restart-on-unplug defect).
