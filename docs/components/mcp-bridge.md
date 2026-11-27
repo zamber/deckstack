@@ -62,7 +62,7 @@ Exactly these ten tools, in this order; every tool has an `inputSchema` of
 | `deck_watch` | `subscribe` `path` `from_rev?` on a dedicated connection (see §4) | `ds watch` |
 | `deck_stream_push` | control `stream-open` (best effort) + `DSctl stream-open` + one DSF1 frame on `stream.sock` (never a plain NDJSON op) | `ds stream push --file` |
 | `deck_plugin_list` | `plugin` `action=list` | `ds plugin list` |
-| `deck_schema` | `schema` `name` ∈ state, ipc, stream-frame, plugin-manifest, binding | `ds schema` |
+| `deck_schema` | `schema` `name` ∈ state, ipc, stream-frame, plugin-manifest, binding, action-metadata, preview | `ds schema` |
 
 ### Argument schemas (summary — the authoritative copy is each tool's `inputSchema`)
 

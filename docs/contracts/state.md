@@ -38,7 +38,7 @@ top-level paths:
 /streams/<target>            durable per-target CONFIG only: {queue_depth: 1|2}
 /telemetry/streams/<target> {sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, ...}  (non-durable, ≤1 Hz)
 /settings/...                {sender backends, log level, exec_path removed — see /policy/exec, ...}
-/policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s  (S13 — no policy exists only in prose)
+/policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s, preview (DS-113 debug surface; default false)  (S13 — no policy exists only in prose)
 /focus                       {app, title, pid, at_rev}  (mirrored atomically from app/focus/changed, S7)
 ```
 

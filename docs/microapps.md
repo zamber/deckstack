@@ -26,7 +26,7 @@ ds <verb> --help              # per verb: Usage, arguments WITH DEFAULTS, ONE ru
                               # describe` pointer — all within ~25 lines
 ds daemon --help ; ds daemon start --help   # same for group subcommands
 ds schema state               # the normative JSON Schema (state|ipc|stream-frame|
-                              # plugin-manifest|binding), no daemon needed
+                              # plugin-manifest|binding|action-metadata|preview), no daemon needed
 ds describe /controls/keys/0 # one path: schema + current value + allowed verbs
 ```
 

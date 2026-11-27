@@ -114,6 +114,12 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
 | `exec` | argv, cwd — **fire-and-forget** (S11) | admin scope + `allow_exec:true` + `/policy/exec/allow` ∋ argv[0] + `/policy/exec/deny` ∌ argv[0] |
 | `sleep` | ms | — |
 
+DS-113 serves this closed vocabulary — plus every registered plugin's manifest actions
+(`id`/`name`/`params` schema/capabilities, `docs/contracts/plugins.md` §3/§9) — as one
+read-only aggregate document (`schemas/action-metadata.json/v1`) at
+`GET /preview/api/action-metadata` on the opt-in loopback debug surface
+(`docs/contracts/preview.md`).
+
 ## 4. Exec policy — enforced, not asserted (S3, reconciles review M1/M2)
 
 - Schema level (M1): `argv[0]` must match `^/` (absolute) — `prefixItems` pattern in

@@ -280,6 +280,8 @@ impl DaemonHandler {
             "binding" => ds_ipc::message::BINDING_SCHEMA_JSON,
             "plugin-manifest" => ds_state::schema::PLUGIN_MANIFEST_SCHEMA_JSON,
             "stream-frame" => crate::STREAM_FRAME_SCHEMA_JSON,
+            "action-metadata" => crate::actions_meta::ACTION_METADATA_SCHEMA_JSON,
+            "preview" => crate::preview::PREVIEW_SCHEMA_JSON,
             other => {
                 return Response::error_code(
                     id,

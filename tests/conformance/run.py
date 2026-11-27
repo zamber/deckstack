@@ -39,6 +39,11 @@ timeout -> degraded -> restart, net glob edge matrix, crash -> watchdog disable,
 on a fresh ds-vdev + daemon stack with generated raw-stdio fixture plugins
 (docs/20-security.md T3/T5/T6/T11). Use `-k plugins` to run only those cases.
 
+It also registers the DS-113 /preview debug-surface suite (tests/conformance/preview/):
+default-off, HTTP+WS auth/T7/read-only checks, the action-metadata aggregate with the
+demo plugin, and the zero-write guarantee (rev + ds-vdevctl writes unchanged).
+Use `-k preview` to run only those cases.
+
 It also registers the DS-081 security conformance mapping
 (tests/conformance/security/): one test per threat row T1-T12 of docs/20-security.md
 §2, each executing or referencing the concrete case that proves the row (the rows
@@ -785,6 +790,19 @@ def _plugins_suite():
     return plugins_suite()
 
 
+def _preview_suite():
+    """The DS-113 /preview + action-metadata suite (tests/conformance/preview/),
+    registered into this run so `python tests/conformance/run.py` also machine-checks
+    the read-only localhost debug surface on ds-vdev + the daemon (HTML + bearer +
+    T7 Host refusal, action metadata incl. the demo plugin, WS live state, no writes
+    accepted, /policy disable). `-k preview` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from preview.run import preview_suite
+    return preview_suite()
+
+
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
     per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
@@ -836,6 +854,7 @@ def main():
         suite.addTests(_agent_onboarding_suite())
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
+        suite.addTests(_preview_suite())
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):

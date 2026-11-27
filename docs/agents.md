@@ -90,6 +90,7 @@ The paths below are defaults. `--socket`, `--data-dir`, and `--token-file` overr
 | `<data-dir>/daemon.pid`, `<data-dir>/daemon.log` | pid file and daemon stderr log |
 | `<data-dir>/state.json` | the durable state document. Back it up. Files named `state.json.corrupt-<ts>` are quarantined copies kept for forensics. |
 | `<data-dir>/stream.sock` | DSF1 frame-stream socket, bound by the daemon at startup (0600) next to the control socket. See §6. |
+| `<data-dir>/http.port` | present only while the opt-in `/preview` debug surface runs (DS-113): the loopback port of the read-only debug endpoint, `http://127.0.0.1:<port>/preview` (0600). Absent when the surface is off (default). See docs/contracts/preview.md. |
 
 With no flags, `ds` dials `$XDG_RUNTIME_DIR/deckstack/daemon.sock`. `ds daemon start`
 writes the daemon's files to the same data dir.
@@ -122,6 +123,14 @@ ds daemon start --device hid:                            # every attached module
 ```
 `hid:` opens every attached MasterHub module. `hid:<os-path>` opens exactly one. `--device
 auto` maps to `none` in phase 1. `--device none` starts with no device.
+
+**Debug surface (opt-in, default-off):** `ds-daemon run … --preview` (or
+`/policy/preview=true` before boot) starts the read-only localhost-only `/preview`
+endpoint (DS-113, docs/contracts/preview.md) and publishes its port in
+`<data-dir>/http.port`: `http://127.0.0.1:<port>/preview` with the install token as
+bearer renders the current deck and the action docs; `ds set /policy/preview false`
+disables it live. It is a debug endpoint, not a UI deliverable, and performs zero state
+mutations.
 
 Then check the daemon. You can also run it under systemd. See `docs/runbook.md` §7. It covers
 `packaging/systemd/deckstack.service`, the `DECKSTACK_DEVICE=hid:` entry in
@@ -223,7 +232,7 @@ surface.
 | `deck_watch` | `path` req, `from_rev?`, `max_events?` 1..100000 | `deck_watch /controls/keys/*` → subscription `wN`, then `notifications/deck/event` per event, `notifications/deck/watch_closed` at the end (cancel via `notifications/cancelled`) | `ds watch <path> --ndjson` | `client.watch(path, max_events=…)` |
 | `deck_stream_push` | `target` req (`keys\|dial\|key:0-14`), `file` req (png/jpeg/gif ≤16 MiB), `credits?` 1..1024 | `deck_stream_push {"target":"key:0","file":"pic.png"}` (phase 1: `E_UNREACHABLE` exit 6 — `stream.sock` is not bound yet; use `deck_set … value {"kind":"image"…}`/`--file` for static images) | `ds stream push <target> --file f` | `client.stream_push(target, file)` |
 | `deck_plugin_list` | `{}` | `deck_plugin_list` (phase 1: honest `E_INTERNAL` exit 8 — plugins land in a later ticket) | `ds plugin list` (refused exit 1 in phase 1) | — |
-| `deck_schema` | `name` req ∈ `state, ipc, stream-frame, plugin-manifest, binding` | `deck_schema {"name":"state"}` | `ds schema <name>` | `client.schema(name)` |
+| `deck_schema` | `name` req ∈ `state, ipc, stream-frame, plugin-manifest, binding, action-metadata, preview` | `deck_schema {"name":"state"}` | `ds schema <name>` | `client.schema(name)` |
 
 Tool results: `{"content":[{"type":"text","text":<pretty JSON>}], "structuredContent": <result object>, "isError": false}`.
 Tool errors are results with `isError: true` and the stable `E_*` code + CLI exit code in the

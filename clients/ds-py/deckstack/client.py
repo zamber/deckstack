@@ -155,7 +155,7 @@ class DeckClient:
         return self._run(["--help"]).stdout
 
     def schema(self, name):
-        """`ds schema <state|ipc|stream-frame|plugin-manifest|binding>` as a dict."""
+        """`ds schema <name>` as a dict (state, ipc, stream-frame, plugin-manifest, binding, action-metadata, preview)."""
         p = self._run(["schema", name])
         return self._parse_one_object(p.stdout, ["schema", name])
 

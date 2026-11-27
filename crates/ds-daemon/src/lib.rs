@@ -30,6 +30,10 @@
 //!   capability enforcement per request/effect, host-mediated network, watchdog
 //!   (respawn ≤ 3/10 min), per-plugin log ring buffer, lifecycle state under
 //!   `/plugins`, and the `plugin` router step seam.
+//! - [`actions_meta`] — the DS-113 action-metadata aggregate (core step vocabulary +
+//!   registered plugin manifest actions), served over the `/preview` surface.
+//! - [`preview`] — the DS-113 opt-in, read-only, localhost-only `/preview` debug
+//!   surface on the loopback WS/HTTP adapter (contract `docs/contracts/preview.md`).
 //! - [`daemon`] — the glue: arg parsing + assembling the tasks + the run loop. `run` is
 //!   wrapped here (see below) so the DS-024 guard supervises it.
 //! - [`lifecycle`] — data dir resolution + permissions, token, pid file, structured logs,
@@ -104,6 +108,7 @@ pub mod daemon {
     }
 }
 
+pub mod actions_meta;
 pub mod device;
 pub mod device_task;
 pub mod frames;
@@ -113,6 +118,7 @@ pub mod led;
 pub mod lifecycle;
 pub mod plugins;
 pub mod policy;
+pub mod preview;
 pub mod router;
 pub mod state;
 
