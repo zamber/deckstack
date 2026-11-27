@@ -743,7 +743,7 @@ fn run_loop(
         },
     };
 
-    loop {
+    'outer: loop {
         if shutdown.get() {
             break;
         }
@@ -756,13 +756,17 @@ fn run_loop(
                 while let Ok(push) = rx.try_recv() {
                     handle_push(transport.as_deref(), &push, &limits, &led);
                 }
-                continue;
+                // fall through: drain queued input before waiting for the next push
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
         match &transport {
-            Some(t) => match t.recv(TRANSPORT_POLL) {
+            // Drain every queued input event in this iteration: handling only one
+            // event per pass throttled roller/knob input to ~1/POLL events per
+            // second (the observed uniform 100 ms cadence on fast flicks).
+            Some(t) => loop {
+                match t.recv(TRANSPORT_POLL) {
                 Ok(DeviceEvent::Input { module, input }) => {
                     // Decode the input report into deck/control/* (or deck/device/*) events
                     // and publish them on the bus (DS-040). Publish never blocks.
@@ -793,12 +797,13 @@ fn run_loop(
                         "disconnected",
                         serde_json::json!({}),
                     ));
-                    break;
+                    break 'outer;
                 }
-                Err(ds_device::Error::Timeout(_)) => {}
+                Err(ds_device::Error::Timeout(_)) => break,
                 Err(e) => {
                     lifecycle::log("warn", "ds-daemon::device", &format!("device error: {e}"));
-                    break;
+                    break 'outer;
+                }
                 }
             },
             None => std::thread::sleep(POLL),
