@@ -89,3 +89,10 @@ was a duplicate, so 4 upright + 2 rot180 + 6 rot270 = 12 logged.
 at the same physical connector+rotation (e.g. bottom-right rot0: knob 1-1-3,
 keys vertical 1-3-4, faders rot270 1-3-4), confirming the connector's port set is
 shared and the module kind disambiguates the footprint.
+
+## Caveat: rotation labels are session-relative
+
+The rot0/90/180/270 labels above are relative to each sweep's starting orientation,
+not an absolute reference. Before DS-112 implementation, redo one reference sweep per
+module kind with the module's corner indicator in a fixed standard position, and
+re-anchor all tables to it.
