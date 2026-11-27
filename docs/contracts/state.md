@@ -39,7 +39,8 @@ top-level paths:
 /telemetry/streams/<target> {sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, ...}  (non-durable, ≤1 Hz)
 /settings/...                {sender backends, log level, exec_path removed — see /policy/exec, ...}
 /policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s, preview (DS-113 debug surface; default false)  (S13 — no policy exists only in prose)
-/focus                       {app, title, pid, at_rev}  (mirrored atomically from app/focus/changed, S7)
+/focus                       {app, title, pid?, at_rev}  (mirrored atomically from app/focus/changed, S7; pid only when the backend knows it — DS-114)
+
 ```
 
 Targets everywhere are the unified vocabulary `keys | key:<0-14> | dial` (S6) — no
@@ -135,7 +136,9 @@ The state lock is an `RwLock` never held across I/O; the frame plane shares no l
 - Event ingest is transactional (S7): when the router receives `app/focus/changed`, it
   mirrors the payload into `/focus` **and** dispatches bindings in one transaction, so
   `when` on `/focus/app` sees the new value; `when` may also read the event payload
-  directly (`{"payload":"app","op":"eq","value":"code"}`).
+  directly (`{"payload":"app","op":"eq","value":"code"}`). The payload is
+  `{app, title, pid?}` — `pid` is optional (DS-114): absent or null is accepted and
+  omitted from the mirror; a present non-integer `pid` is rejected with `E_SCHEMA`.
 
 ## 8. Worked examples
 

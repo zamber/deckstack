@@ -93,7 +93,10 @@ Bindings are elements of the `/bindings` **array** (`schemas/binding.json`), add
 - `when` evaluates against **state** (`path`) **or the event payload** (`payload` field
   name) — S7. For `app/focus/changed` the router first mirrors the payload into `/focus`
   **in the same transaction** that dispatches bindings, so `/focus`-based conditions are
-  never stale (atomic ordering; conformance test in docs/30-testing.md).
+  never stale (atomic ordering; conformance test in docs/30-testing.md). The payload is
+  `{app, title, pid?}`: `pid` is included when the backend knows it (DS-114) — absent or
+  null is accepted and omitted from the `/focus` mirror, a present non-integer `pid`
+  is rejected with `E_SCHEMA` before any state change.
 - **`when` shape (normative in `schemas/binding.json`):** exactly one of `path` /
   `payload`; `op` ∈ `exists | eq | neq | gt | lt`; `value` required for every op except
   `exists` (and forbidden for `exists`). DS-041 stores and validates the shape verbatim;
@@ -164,7 +167,7 @@ ds bind deck/control/keys.0/down --do 'plugin demo.bump {"by":1}' --json   # →
 **Chain B — window focus → CLI → recolor (R4, S7):**
 
 ```sh
-ds-focus &                                        # emits app/focus/changed {app,title,pid}
+ds-focus &                                        # emits app/focus/changed {app,title,pid?}
 ds bind app/focus/changed --when '{"payload":"app","op":"eq","value":"code"}' \
      --do 'set /controls/keys/3/image {"kind":"color","value":"#00ff00"}'
 # conformance: ds-focus --inject focus-code.ndjson → assert /controls/keys/3/image changed
