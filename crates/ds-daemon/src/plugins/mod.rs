@@ -145,3 +145,58 @@ pub fn shutdown_all() {
     }
     spawn::kill_all_plugin_groups();
 }
+
+/// DS-113: the plugin half of the action-metadata aggregate
+/// (`schemas/action-metadata.json/v1`, served over `/preview`). One entry per
+/// registered plugin, built from its manifest (`/plugins/<id>/manifest`): id, name,
+/// version, capabilities and the manifest's `actions[]` verbatim (id/name/description/
+/// params schema), each annotated with the capability an invoke requires.
+///
+/// Hosts are the live registered ones; when none exists yet, the default host is
+/// created lazily exactly like the router `plugin` step seam does, so a freshly
+/// installed plugin is listed without a prior invoke.
+pub fn plugin_metadata(state: &StateHandle, bus: &Bus) -> Vec<serde_json::Value> {
+    use serde_json::json;
+    let mut live = hosts();
+    if live.is_empty() {
+        if let Some(h) = default_host(state, bus) {
+            live.push(h);
+        }
+    }
+    let mut out = Vec::new();
+    for h in live {
+        let list = h.list();
+        let Some(map) = list.as_object() else {
+            continue;
+        };
+        for (id, v) in map {
+            let Some(m) = v.get("manifest") else { continue };
+            let actions: Vec<serde_json::Value> = m
+                .get("actions")
+                .and_then(|a| a.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .map(|a| {
+                            let mut a = a.clone();
+                            if let Some(obj) = a.as_object_mut() {
+                                obj.insert(
+                                    "capability".to_string(),
+                                    json!("mutate scope (plugins.md §9) plus the plugin-level capabilities"),
+                                );
+                            }
+                            a
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            out.push(json!({
+                "id": m.get("id").cloned().unwrap_or_else(|| json!(id)),
+                "name": m.get("name").cloned().unwrap_or_else(|| json!(id)),
+                "version": m.get("version").cloned().unwrap_or(json!("0.0.0")),
+                "capabilities": m.get("capabilities").cloned().unwrap_or(json!([])),
+                "actions": actions,
+            }));
+        }
+    }
+    out
+}

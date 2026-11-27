@@ -105,6 +105,7 @@ fn ds_cli_end_to_end_against_in_process_daemon_on_vdev() {
         ds_daemon::daemon::run(ds_daemon::daemon::RunOptions {
             device: Some(dev),
             data_dir: Some(dd),
+            preview: false,
         })
     });
     let socket = data_dir.join("daemon.sock");

@@ -16,6 +16,10 @@ use std::time::{Duration, Instant};
 
 /// `schemas/state.json`, embedded at compile time (`ds schema state`, `describe`).
 pub const STATE_SCHEMA_JSON: &str = include_str!("../../../schemas/state.json");
+/// `schemas/action-metadata.json` (DS-113 action-metadata aggregate).
+pub const ACTION_METADATA_SCHEMA_JSON: &str = include_str!("../../../schemas/action-metadata.json");
+/// `schemas/preview.json` (DS-113 /preview debug surface).
+pub const PREVIEW_SCHEMA_JSON: &str = include_str!("../../../schemas/preview.json");
 /// `schemas/ipc-message.json`.
 pub const IPC_SCHEMA_JSON: &str = include_str!("../../../schemas/ipc-message.json");
 /// `schemas/stream-frame.json`.
@@ -208,6 +212,8 @@ fn verb_schema(g: &Global, name: &str) -> Result<i32, Failure> {
         "stream-frame" => STREAM_FRAME_SCHEMA_JSON,
         "plugin-manifest" => PLUGIN_MANIFEST_SCHEMA_JSON,
         "binding" => BINDING_SCHEMA_JSON,
+        "action-metadata" => ACTION_METADATA_SCHEMA_JSON,
+        "preview" => PREVIEW_SCHEMA_JSON,
         other => {
             return Err(Failure::Usage(format!(
                 "unknown schema name '{other}' (valid: {})",

@@ -19,7 +19,7 @@ docs/contracts/cli.md §1-§5 (the normative contract):
     030 later-phase verbs (emit events plugin token) are refused exit 1 until their
         tickets land; the moment one answers --help with exit 0 the suite FAILS and
         demands a walk entry — coverage never silently passes
-    040 `ds schema <name>` for all five schemas parses, carries the $id of
+    040 `ds schema <name>` for all seven schemas parses, carries the $id of
         schemas/<file>.json and is semantically equal to the file on disk;
         `--json`/`--compact` shapes; unknown name -> exit 1 with the valid list
     050 `ds describe <path>` prints schema + current value + allowed verbs (human
@@ -105,6 +105,8 @@ SCHEMA_FILES = {
     "stream-frame": "stream-frame.json",
     "plugin-manifest": "plugin-manifest.json",
     "binding": "binding.json",
+    "action-metadata": "action-metadata.json",  # DS-113
+    "preview": "preview.json",                  # DS-113
 }
 
 # Per-topic substrings the contract (docs/contracts/cli.md §1) lists for each help page.

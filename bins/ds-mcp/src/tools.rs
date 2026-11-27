@@ -222,11 +222,11 @@ pub fn tool_specs() -> Vec<Value> {
         }),
         json!({
             "name": "deck_schema",
-            "description": "Return an embedded JSON Schema (`ds schema <name>`): state | ipc | stream-frame | plugin-manifest | binding.",
+            "description": "Return an embedded JSON Schema (`ds schema <name>`): state | ipc | stream-frame | plugin-manifest | binding | action-metadata | preview.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding"]}
+                    "name": {"type": "string", "enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding", "action-metadata", "preview"]}
                 },
                 "required": ["name"],
                 "additionalProperties": false

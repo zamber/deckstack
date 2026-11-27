@@ -52,7 +52,7 @@ Verbs (phase 1):
   unbind <id> | --topic <topic>           remove bindings (unknown id → exit 2)
   watch <path> [--ndjson] [--from-rev N] [--max-events N]
                                           stream events (persistent; --ndjson only)
-  schema <state|ipc|stream-frame|plugin-manifest|binding>
+  schema <state|ipc|stream-frame|plugin-manifest|binding|action-metadata|preview>
                                           print the JSON Schema from schemas/
   describe <path>                         schema + current value + allowed verbs
   daemon start [--device URI] [--foreground] | stop | status
@@ -190,11 +190,11 @@ const SCHEMA_HELP: &str = "\
 ds schema — print a JSON Schema from schemas/ (embedded; no daemon needed)
 
 Usage:
-  ds schema <state|ipc|stream-frame|plugin-manifest|binding> [--json] [--compact]
+  ds schema <state|ipc|stream-frame|plugin-manifest|binding|action-metadata|preview> [--json] [--compact]
 
 Arguments:
-  <name>           one of: state, ipc, stream-frame, plugin-manifest, binding
-                   (required — no default)
+  <name>           one of: state, ipc, stream-frame, plugin-manifest, binding,
+                   action-metadata, preview   (required — no default)
   --json           the same schema as one object (default: pretty JSON)
   --compact        single line
 

@@ -21,7 +21,7 @@ logic is duplicated here:
       +  tests/fuzz/run.py --cases 2000 (seeded; the corpus file is restored after the run)
   T5  tests/conformance/exec/run.py                      +  sh tests/fixtures/validate.sh
   T6  tests/conformance/run.py -k plugins_040  +  cli -k cli_100  +  sh tests/fixtures/validate.sh
-  T7  skip — HTTP/WS adapter not in the alpha tree (DS-074, phase 7)
+  T7  tests/conformance/run.py -k preview        (DS-113 /preview debug surface: T7 Host/bearer/421/401 + no listener when off)
   T8  tests/conformance/run.py -k safety                          (tests/conformance/safety/)
   T9  glue case in THIS file (live rotation on vdev) + ds-client crate test
   T10 skip — vendor contention needs real hardware (DS_HARDWARE=1 tests/hw/smoke.py)
@@ -255,14 +255,12 @@ ROWS = [
     },
     {
         "id": "T7",
-        "threat": "DNS rebinding on the HTTP/WS adapter",
-        "case": "`Host: evil.example` -> 421; WS upgrade without bearer -> 401 (adapter not built in alpha)",
-        "path": "docs/contracts/ipc.md §1.1 (contract; adapter cases land with DS-074)",
-        "checks": [],
-        "skip": {
-            "reason": "the HTTP/WS adapter does not exist in the alpha tree (scope delta 4: no ds-web/UI; DS-074 is phase 7, state ready) — there is no listener to probe on vdev",
-            "covered_by": "DS-074's own adapter conformance when it lands (Host/bearer checks incl. the WS upgrade), contract docs/contracts/ipc.md §1.1; no non-Linux CI gate exists in alpha (docs/30-testing.md §8)",
-        },
+        "threat": "DNS rebinding on HTTP/WS adapter",
+        "case": "opt-in /preview debug surface (DS-113, ADR-019): `Host: evil.example` -> 421; missing bearer -> 401 on HTTP and on the WS upgrade; 127.0.0.1-only bind, no listener at all when the surface is off (default)",
+        "path": "tests/conformance/preview/run.py via `python3 tests/conformance/run.py -k preview`; contract docs/contracts/preview.md + docs/contracts/ipc.md §1.1",
+        "checks": [
+            ("run", _suite("tests/conformance/run.py", "preview")),
+        ],
     },
     {
         "id": "T8",
