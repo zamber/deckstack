@@ -59,8 +59,17 @@ fn main() -> ExitCode {
     }
 }
 
-/// SIGTERM/SIGINT → clean exit 0 from the watch loop (`unsafe_code` is denied workspace-
-/// wide, so the handler registration goes through signal-hook like in ds-daemon).
+/// How often the shutdown watchdog re-checks the flag.
+const WATCHDOG_POLL: Duration = Duration::from_millis(50);
+
+/// Grace the watchdog gives the cooperative watch loop to exit on its own before it
+/// exits the process itself (DS-115).
+const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
+
+/// SIGTERM/SIGINT → clean exit 0 (`unsafe_code` is denied workspace-wide, so the handler
+/// registration goes through signal-hook like in ds-daemon). Besides setting the flag,
+/// this spawns the shutdown watchdog (DS-115): the flag alone is only observed between
+/// `be.poll()` calls, so a watch loop blocked inside a D-Bus call would never see it.
 fn install_signal_handlers() {
     let flag = shutdown_flag();
     for sig in [signal_hook::consts::SIGTERM, signal_hook::consts::SIGINT] {
@@ -71,6 +80,36 @@ fn install_signal_handlers() {
                 &format!("cannot register signal {sig} handler: {e} (default action applies)"),
             ),
         }
+    }
+    spawn_shutdown_watchdog(Arc::clone(&flag));
+}
+
+/// DS-115: watchdog thread that exits the process once the shutdown flag is set, even
+/// when the main thread is blocked inside a D-Bus call (`zbus` `Proxy::call`) and can
+/// never observe the flag itself.
+fn spawn_shutdown_watchdog(flag: Arc<AtomicBool>) -> std::thread::JoinHandle<()> {
+    std::thread::Builder::new()
+        .name("ds-focus-shutdown-watchdog".to_string())
+        .spawn(move || watchdog_loop(flag, SHUTDOWN_GRACE, || std::process::exit(0)))
+        .expect("cannot spawn the shutdown watchdog thread")
+}
+
+/// Watchdog body, factored out so tests can substitute the exit action: poll the flag;
+/// once it is set, wait `grace` for the cooperative watch loop to exit on its own, then
+/// call `exit` (in production `std::process::exit(0)`; the `return` only matters in
+/// tests, where the substituted exit action comes back).
+fn watchdog_loop(flag: Arc<AtomicBool>, grace: Duration, exit: impl Fn() + Send + 'static) {
+    loop {
+        if flag.load(Ordering::Relaxed) {
+            std::thread::sleep(grace);
+            log::info(
+                "ds-focus",
+                "shutdown watchdog: flag set and main thread still busy; exiting",
+            );
+            exit();
+            return;
+        }
+        std::thread::sleep(WATCHDOG_POLL);
     }
 }
 
@@ -272,5 +311,54 @@ mod tests {
         sleep_interruptible(t0 + Duration::from_secs(30));
         assert!(t0.elapsed() < Duration::from_secs(5));
         shutdown_flag().store(false, Ordering::Relaxed);
+    }
+
+    /// DS-115: the watchdog must fire while the "main thread" is blocked (here: nobody
+    /// clears the flag, mimicking a watch loop stuck inside a D-Bus call). The exit
+    /// action is observed over a channel with a timeout instead of calling
+    /// `std::process::exit` in the test harness.
+    #[test]
+    fn watchdog_exits_once_the_flag_is_set_while_blocked() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let wd = std::thread::spawn({
+            let flag = Arc::clone(&flag);
+            move || {
+                watchdog_loop(flag, Duration::from_millis(20), move || {
+                    let _ = tx.send(());
+                })
+            }
+        });
+        // let the watchdog reach its poll loop, then simulate the signal arriving while
+        // the main thread is blocked: the flag is set and nothing else exits
+        std::thread::sleep(Duration::from_millis(100));
+        flag.store(true, Ordering::Relaxed);
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("watchdog must exit the process once the shutdown flag is set");
+        wd.join()
+            .expect("watchdog loop returns after the exit action");
+    }
+
+    #[test]
+    fn watchdog_stays_quiet_while_the_flag_is_clear() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let wd = std::thread::spawn({
+            let flag = Arc::clone(&flag);
+            move || {
+                watchdog_loop(flag, Duration::from_millis(20), move || {
+                    let _ = tx.send(());
+                })
+            }
+        });
+        assert!(
+            rx.recv_timeout(Duration::from_millis(300)).is_err(),
+            "watchdog must not exit while the shutdown flag is clear"
+        );
+        flag.store(true, Ordering::Relaxed);
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("watchdog fires once the flag is set");
+        wd.join()
+            .expect("watchdog loop returns after the exit action");
     }
 }

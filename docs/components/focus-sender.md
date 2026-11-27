@@ -44,7 +44,7 @@ watcher (D17).
   backends available on the session (`backend.rs::SelectError::message`); daemon
   unreachable → reconnect with backoff (100 ms doubling to 2 s) for **60 s**, then
   **exit 6** (E_UNREACHABLE) with the `ds daemon start` hint; auth/scope errors keep
-  their IPC exit code (4). SIGTERM/SIGINT exit 0 cleanly (signal-hook, like ds-daemon).
+  their IPC exit code (4). SIGTERM/SIGINT exit 0 cleanly (signal-hook, like ds-daemon); a shutdown watchdog thread additionally exits the process once the shutdown flag is set, so the sender also exits when the main thread is blocked inside a D-Bus call (DS-115).
 - **CLI:** `ds-focus [--backend auto|kwin|wlr|x11] [--interval 250ms] [--settle 300ms]
   [--once] [--inject <json|file.ndjson>] [--socket PATH] [--token-file PATH]
   [--data-dir DIR] [--quiet] [-h|--help] [-V|--version]`. `--once` emits the current
