@@ -62,6 +62,81 @@ def main() -> int:
     if failures:
         return 1
 
+    # DS-113: action-metadata aggregate + /preview route/WS shapes
+    from referencing import Registry, Resource
+
+    registry = Registry().with_resources(
+        [(s["$id"], Resource.from_contents(s)) for s in schemas.values()]
+    )
+
+    def sub_validator(schema_id, defname=None):
+        ref = schema_id if defname is None else f"{schema_id}#/$defs/{defname}"
+        return Draft202012Validator({"$ref": ref}, registry=registry)
+
+    pv_ex = json.loads((FIXTURES / "preview-examples.json").read_text())
+    am = sub_validator("https://deckstack.dev/schemas/action-metadata.json/v1")
+    errs = list(am.iter_errors(pv_ex["action_metadata"]))
+    if errs:
+        failures += 1
+        print(f"FAIL  action-metadata example: {errs[0].message}")
+    else:
+        print("ok  action-metadata aggregate example")
+    for label, bad in pv_ex["action_metadata_negative"].items():
+        errs = list(am.iter_errors(bad))
+        if errs:
+            print(f"ok  action-metadata rejects {label}")
+        else:
+            failures += 1
+            print(f"FAIL  action-metadata should reject {label}")
+    pv_id = "https://deckstack.dev/schemas/preview.json/v1"
+    ws_client = sub_validator(pv_id, "wsClientMessage")
+    ws_server = sub_validator(pv_id, "wsServerMessage")
+    route_item = sub_validator(pv_id, "ws")  # placeholder, replaced below
+    route_item = Draft202012Validator(
+        {"$ref": pv_id + "#/properties/routes/items"}, registry=registry
+    )
+    for i, m in enumerate(pv_ex["ws_client"]):
+        errs = list(ws_client.iter_errors(m))
+        if errs:
+            failures += 1
+            print(f"FAIL  preview ws client[{i}] op={m.get('op')}: {errs[0].message}")
+        else:
+            print(f"ok  preview ws client[{i}] op={m.get('op')}")
+    for label, bad in pv_ex["ws_client_negative"].items():
+        errs = list(ws_client.iter_errors(bad))
+        if errs:
+            print(f"ok  preview ws client rejects {label}")
+        else:
+            failures += 1
+            print(f"FAIL  preview ws client should reject {label}")
+    for i, m in enumerate(pv_ex["ws_server"]):
+        errs = list(ws_server.iter_errors(m))
+        if errs:
+            failures += 1
+            print(f"FAIL  preview ws server[{i}] op={m.get('op')}: {errs[0].message}")
+        else:
+            print(f"ok  preview ws server[{i}] op={m.get('op')}")
+    for label, bad in pv_ex["ws_server_negative"].items():
+        errs = list(ws_server.iter_errors(bad))
+        if errs:
+            print(f"ok  preview ws server rejects {label}")
+        else:
+            failures += 1
+            print(f"FAIL  preview ws server should reject {label}")
+    for label, inst, want in [
+        ("route GET /preview", {"method": "GET", "path": "/preview", "responses": [200, 401, 404]}, True),
+        ("route POST rejected", {"method": "POST", "path": "/preview", "responses": [405]}, False),
+        ("route non-preview path rejected", {"method": "GET", "path": "/api/get", "responses": [404]}, False),
+    ]:
+        errs = list(route_item.iter_errors(inst))
+        if bool(errs) == (not want):
+            print(f"ok  preview route {label}")
+        else:
+            failures += 1
+            print(f"FAIL  preview route {label}: errs={[e.message for e in errs]}")
+    if failures:
+        return 1
+
     # regex regression tests (S8/m2): key index patterns must accept 0,9,10,14 and reject 15,99
     import re
     keys_pat = schemas["state.json"]["properties"]["controls"]["properties"]["keys"]["patternProperties"]

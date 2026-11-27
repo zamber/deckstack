@@ -1,0 +1,61 @@
+{
+  "comment": "Example corpus for schemas/action-metadata.json/v1 and schemas/preview.json/v1 (DS-113). Validated by tests/fixtures/validate.js and validate.py (sh tests/fixtures/validate.sh). The action-metadata entries are aggregates as served at GET /preview/api/action-metadata; the ws entries are JSON text frames of the /preview/ws WebSocket.",
+  "action_metadata": {
+    "protocol": 1,
+    "generated_at_ms": 1732000000000,
+    "core": [
+      {"do": "set", "args": {"path": "state path to set", "value": "schema-validated value"}, "capability": "mutate", "description": "Set a state path in one transaction (rev +1)."},
+      {"do": "emit", "args": {"topic": "event topic (deck/… or app/…)", "payload": "JSON payload"}, "capability": "mutate", "description": "Publish a topic event on the bus."},
+      {"do": "plugin", "args": {"id": "plugin id", "action": "manifest action id", "args": "validated against the action's params schema"}, "capability": "mutate", "description": "Invoke a registered plugin action (2 s timeout)."},
+      {"do": "exec", "args": {"argv": "absolute-path argv array (never a shell)", "cwd": "absolute working directory"}, "capability": "admin scope + allow_exec:true + /policy/exec/allow ∋ argv[0] + /policy/exec/deny ∌ argv[0]", "description": "Fire-and-forget execve with rlimits; no shell, no timeout_ms."},
+      {"do": "sleep", "args": {"ms": "milliseconds to sleep"}, "capability": "—", "description": "Pause the step chain."}
+    ],
+    "plugins": [
+      {
+        "id": "demo",
+        "name": "Demo counter",
+        "version": "0.1.0",
+        "capabilities": ["state.write", "net:lights.lan", "emit"],
+        "actions": [
+          {"id": "bump", "name": "bump", "description": "Increment the counter and set key 0's label/image.", "params": {"type": "object", "properties": {"by": {"type": "integer", "default": 1}}}, "capability": "mutate scope; plugin capabilities above"},
+          {"id": "get_lamp", "name": "get_lamp", "params": {"type": "object", "properties": {}}, "capability": "mutate scope; plugin capabilities above"}
+        ]
+      }
+    ]
+  },
+  "action_metadata_negative": {
+    "unknown core step 'eval'": {"protocol": 1, "core": [{"do": "eval", "args": {}, "capability": "—", "description": "x"}], "plugins": []},
+    "missing plugins array": {"protocol": 1, "core": []},
+    "protocol 2": {"protocol": 2, "core": [], "plugins": []},
+    "plugin action without params": {"protocol": 1, "core": [], "plugins": [{"id": "demo", "name": "d", "version": "0.1.0", "capabilities": [], "actions": [{"id": "bump"}]}]},
+    "bad plugin id": {"protocol": 1, "core": [], "plugins": [{"id": "bad id!", "name": "d", "version": "0.1.0", "capabilities": [], "actions": []}]}
+  },
+  "ws_client": [
+    {"op": "ping", "id": 1},
+    {"op": "get", "id": 2, "path": "/controls"},
+    {"op": "subscribe", "id": 3, "path": "/controls/*"},
+    {"op": "unsubscribe", "id": 4, "path": "/controls/*"}
+  ],
+  "ws_client_negative": {
+    "mutating op set is not a client message": {"op": "set", "ops": []},
+    "op emit": {"op": "emit", "topic": "app/x/y"},
+    "missing path on subscribe": {"op": "subscribe"},
+    "extra field": {"op": "ping", "id": 1, "value": 3}
+  },
+  "ws_server": [
+    {"op": "preview.hello", "protocol": 1, "rev": 7, "server": "ds-daemon/0.1.0", "read_only": true, "note": "read-only debug surface"},
+    {"op": "preview.snapshot", "rev": 7, "state": {"rev": 7, "controls": {"keys": {"0": {"label": "hi"}}}, "bindings": [], "plugins": {}, "devices": {}}, "actions": {"protocol": 1, "core": [], "plugins": []}},
+    {"op": "event", "path": "/controls/keys/0/label", "rev": 8, "value": "yo", "prev": "hi"},
+    {"op": "event", "topic": "app/demo/hi", "path": "/app/demo/hi", "rev": null, "payload": {"n": 1}, "ts_ms": 1732000000000},
+    {"op": "preview.result", "id": 2, "rev": 7, "value": {"keys": {}}},
+    {"op": "preview.result", "id": 3, "subscribed": "/controls/*", "sub": 12},
+    {"op": "preview.result", "id": 1, "pong": true},
+    {"op": "error", "id": 9, "error": {"code": "E_SCOPE", "message": "the /preview surface is read-only"}}
+  ],
+  "ws_server_negative": {
+    "hello not read_only": {"op": "preview.hello", "protocol": 1, "rev": 0, "read_only": false},
+    "error without error object": {"op": "error", "id": 1},
+    "unknown op": {"op": "preview.mutate", "rev": 1},
+    "result missing op": {"id": 1, "pong": true}
+  }
+}

@@ -8,7 +8,7 @@ real binary. Design: ADR-002.
 ```
 ds [--socket PATH] [--token-file PATH] <group> <verb> [args] [flags]
 ds --help | ds <group> --help | ds <group> <verb> --help
-ds schema <state|ipc|stream-frame|plugin-manifest|binding>
+ds schema <state|ipc|stream-frame|plugin-manifest|binding|action-metadata|preview>
 ds describe <path>
 ```
 

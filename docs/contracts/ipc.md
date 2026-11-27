@@ -16,6 +16,13 @@ via `sh tests/fixtures/validate.sh`. Design: ADR-003, D04. R1/R7/R8. Fixes B1/B2
 | WebSocket (opt-in adapter) | `ws://127.0.0.1:<port>/ws`, port in `<dir>/http.port`; `Authorization: Bearer <token>` + `Host: 127.0.0.1\|localhost` (T7) | JSON text frames = control; binary frames = DSF1. **Generic adapter for agents/debug clients only — no UI in alpha** (scope delta 4; post-alpha note: a thin debug/web client could use this later) |
 | HTTP (opt-in adapter, same port) | `GET/POST /api/<op>` only; `/` returns 404 | simple request/response, 1 MiB body cap |
 
+When the DS-113 debug surface is enabled (`ds-daemon --preview` or `/policy/preview=true`
+at boot; default-off), the same loopback adapter additionally serves the read-only
+`/preview` debug routes (`GET /preview` HTML, `GET /preview/api/*` JSON,
+`GET /preview/ws` WebSocket) — contract `docs/contracts/preview.md`, schemas
+`schemas/preview.json` + `schemas/action-metadata.json`. `/preview` accepts **no
+writes** (non-GET → 405) and never issues device/HID writes.
+
 Windows pipe ACL (S5): the pipe is created with an explicit security descriptor
 `D:P(A;;GA;;;SY)(A;;GA;;;<current-user-sid>)` (SYSTEM + owning user only, via
 `CreateNamedPipe` `SECURITY_ATTRIBUTES` / `SetNamedSecurityInfo`); the token dir and

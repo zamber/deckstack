@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deckstack.dev/schemas/action-metadata.json/v1",
+  "title": "deckstack action-metadata aggregate (DS-113)",
+  "description": "Read-only aggregate of every action the daemon can run: the closed core step vocabulary (docs/contracts/actions.md §3) plus every registered plugin's manifest actions (docs/contracts/plugins.md §3, §9). Served by the opt-in loopback /preview debug surface (docs/contracts/preview.md) at GET /preview/api/action-metadata and embedded in the /preview page and the WS snapshot. The document is derived on demand — never stored, never mutates state, never bumps rev.",
+  "type": "object",
+  "required": ["protocol", "core", "plugins"],
+  "additionalProperties": false,
+  "properties": {
+    "protocol": {
+      "const": 1,
+      "description": "Aggregate wire version; additive-only like the control protocol (docs/contracts/ipc.md §2)."
+    },
+    "generated_at_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Daemon clock (ms since the Unix epoch) when the aggregate was built."
+    },
+    "core": {
+      "type": "array",
+      "description": "The closed core step vocabulary of docs/contracts/actions.md §3 — exactly these five, no others are valid in a binding step.",
+      "items": {
+        "type": "object",
+        "required": ["do", "args", "capability", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "do": {"enum": ["set", "emit", "plugin", "exec", "sleep"]},
+          "args": {
+            "type": "object",
+            "description": "Argument fields of the step (name -> short description).",
+            "additionalProperties": {"type": "string", "maxLength": 300}
+          },
+          "capability": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Scope/capability the step requires (mutate, admin scope + /policy/exec allow/deny, none)."
+          },
+          "description": {"type": "string", "maxLength": 500}
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "description": "One entry per registered plugin, built from its manifest (/plugins/<id>/manifest).",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "version", "capabilities", "actions"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,80}$"},
+          "name": {"type": "string", "maxLength": 120},
+          "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "capabilities": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "The plugin's granted capabilities (enforced per request/effect by the host, plugins.md §9)."
+          },
+          "actions": {
+            "type": "array",
+            "description": "The manifest's actions[] verbatim (id, name, description, params JSON Schema).",
+            "items": {
+              "type": "object",
+              "required": ["id", "params"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,80}$"},
+                "name": {"type": "string", "maxLength": 120},
+                "description": {"type": "string", "maxLength": 500},
+                "params": {
+                  "type": "object",
+                  "description": "JSON Schema for the action arguments, verbatim from the plugin manifest; invoke args are validated against it (E_SCHEMA on mismatch)."
+                },
+                "capability": {
+                  "type": "string",
+                  "maxLength": 300,
+                  "description": "What invoking this action requires: mutate scope (plugins.md §9) plus the plugin-level capabilities above."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

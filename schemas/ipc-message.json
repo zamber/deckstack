@@ -62,7 +62,7 @@
       {"properties": {"op": {"const": "stream-stop"}, "target": {"type": "string", "pattern": "^(?:keys|dial|key:(?:[0-9]|1[0-4]))$"}}, "required": ["op", "target"], "description": "B1: drains and closes a stream target; waiting frame dropped, counted."},
       {"properties": {"op": {"const": "daemon"}, "action": {"enum": ["status", "stop", "reload"]}, "device": {"type": "string"}}, "required": ["op", "action"]},
       {"properties": {"op": {"const": "token"}, "action": {"enum": ["list", "issue", "revoke"]}, "scope": {"enum": ["read", "mutate", "admin"]}, "token_id": {"type": "string", "description": "Token id for 'revoke'. Named 'token_id' (not 'id') because the envelope's 'id' is the integer correlation id."}}, "required": ["op", "action"]},
-      {"properties": {"op": {"const": "schema"}, "name": {"enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding"]}}, "required": ["op", "name"]}
+      {"properties": {"op": {"const": "schema"}, "name": {"enum": ["state", "ipc", "stream-frame", "plugin-manifest", "binding", "action-metadata", "preview"]}}, "required": ["op", "name"]}
     ]},
     {"$comment": "=== responses and async server messages (daemon -> client); all have 'ok' except events ===", "anyOf": [
       {

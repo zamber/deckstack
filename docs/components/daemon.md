@@ -13,7 +13,13 @@ host, the event router, the frame plane. Details: `docs/10-architecture.md`,
   `platform` (shim), `persist`.
 - **Public surface:** the IPC contract (`docs/contracts/ipc.md`): NDJSON control endpoint +
   binary stream endpoint + optional WS/HTTP adapter; plugin host endpoints (internal);
-  state schema (`schemas/state.json`).
+  state schema (`schemas/state.json`). DS-113 adds the opt-in read-only localhost-only
+  `/preview` debug surface: `ds-daemon run … --preview` (or `/policy/preview=true` at
+  boot; default-off, `/policy/preview=false` disables it live) binds `127.0.0.1`,
+  publishes the port in `<data-dir>/http.port` and serves `GET /preview` (HTML),
+  `GET /preview/api/action-metadata`, `GET /preview/api/state`, `GET /preview/ws`
+  (live state) — contract `docs/contracts/preview.md`, ADR-019. Read-only: non-GET →
+  405, mutating WS ops → E_SCOPE, never any HID write.
 - **Invariants:**
   1. One writer to the durable state document (the daemon's state task); all durable
      mutations bump `rev`. Frame pushes and `/telemetry` sampling never do (S1).
