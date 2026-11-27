@@ -38,3 +38,28 @@ accessible connectors at rotations 0/90/180 deg CCW. Raw captures: /tmp/ds112-hw
 - `connector-map-labeled.csv` — raw sweep rows with physical labels
 - `deck-map.svg` — visual map of the base (flat orientation) with slots per rotation
 - `tools/map_connectors.py` (repo root tools/) — capture/watch/render tooling
+
+## Keys-module sweep (2026-11-27, second pass, labeled live)
+
+Probe: 15xKey IPS (`2516:01fe`). 11 seatings logged; the "not possible" positions
+(top-middle vertical, everything at 180, parts of 270) produced no rows, as expected.
+
+| position | slot |
+|---|---|
+| top-left, vertical, logo bottom (its shipped spot) | 2-2 |
+| top-right, vertical | 1-3-2 |
+| bottom-right, vertical | 1-3-4 |
+| bottom-middle, vertical | 1-1-2 |
+| bottom-left, vertical | 2-3 |
+| rot90cw (logo left), left side | 1-2-2 |
+| rot90cw, left with roller space on left | 4-1 |
+| rot90cw, right with roller space on right | 4-2 |
+| rot90cw, full right | 2-4 |
+| rot270 (logo right), right edge | 1-4-1 |
+| rot270, left with roller space on left | 3-3 |
+
+Note the screen module uses different connector points than the knob: the same
+physical connector yields a different slot per module kind (e.g. bottom-left is
+1-2-2 for the knob at rot0 but 2-3 for the keys vertical). 2-3 is the reference
+unit's keys slot; 1-3-4 is the reference dial slot — the screen physically covers
+the dial's connector. `connector-map-keys2-labeled.csv` has the raw rows.
