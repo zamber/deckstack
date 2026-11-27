@@ -128,3 +128,16 @@ last rows is best-effort, see caveat above about session-relative rotations.
 Cross-checks: 3-3 is the reference unit's roller slot; 1-1-4 was this deck's shipped
 roller slot (appears at rot270 middle-right + fader space bottom).
 `connector-map-rollers-labeled.csv` has the raw rows.
+
+## Reference (rot0) anchors per module — 2026-11-27, base flat, corner indicator in a fixed standard position
+
+| module | reference seating | slot (rot0 anchor) |
+|---|---|---|
+| knobs (0202) | top-left connector, corner indicator TR | 1-2-3 |
+| keys (01fe) | bottom-right, logo facing user, corner TL | 1-3-4 |
+| faders (0200) | bottom-right ("right"), vertical, corner TR, drag-right=100% | 1-1-3 |
+| rollers (0204) | right edge, full height, corner TR | 1-3-4 |
+| dial (0206) | bottom-right, corner TR | 1-1-3 |
+
+All earlier sweep rotation labels should be re-anchored to these per-module rot0
+slots. `connector-map-ref-labeled.csv` has the raw rows.

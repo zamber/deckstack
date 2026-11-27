@@ -1,0 +1,6 @@
+ts,label,usb_pid,module,abs_path,rel_path,desc
+2026-11-27T23:23:48.080967+00:00,REF knob top-left corner-TR,2516:0202,knobs,3-2-1-2-3,1-2-3,"2516:0202 Cooler Master Co., Ltd. 3xKnob, 2x2"
+2026-11-27T23:28:16.625564+00:00,REF keys bottom-right logo-facing corner-TL,2516:01fe,keys,3-2-1-3-4,1-3-4,"2516:01fe Cooler Master Co., Ltd. 15xKey w/ IPS, 4x3"
+2026-11-27T23:30:16.345105+00:00,REF faders bottom-right vertical corner-TR,2516:0200,faders,3-2-1-1-3,1-1-3,"2516:0200 Cooler Master Co., Ltd. 5xFader, 4x2"
+2026-11-27T23:31:12.941905+00:00,REF rollers right-edge full-height corner-TR,2516:0204,rollers,3-2-1-3-4,1-3-4,"2516:0204 Cooler Master Co., Ltd. 2xRoller, 4x1"
+2026-11-27T23:32:32.829116+00:00,REF dial bottom-right corner-TR,2516:0206,dial,3-2-1-1-3,1-1-3,"2516:0206 Cooler Master Co., Ltd. 1xDial w/ IPS, 2x2"
