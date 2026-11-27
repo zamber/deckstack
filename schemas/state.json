@@ -143,11 +143,11 @@
     },
     "focus": {
       "type": "object",
-      "description": "Ephemeral mirror of the last app/focus/changed event payload. Written by the router in the SAME transaction that dispatches bindings to it (S7), so 'when' conditions on /focus see the new value atomically.",
+      "description": "Ephemeral mirror of the last app/focus/changed event payload. Written by the router in the SAME transaction that dispatches bindings to it (S7), so 'when' conditions on /focus see the new value atomically. 'pid' is optional (DS-114): it is present only when the emitting backend knows the focused process id.",
       "properties": {
         "app": {"type": "string"},
         "title": {"type": "string"},
-        "pid": {"type": "integer"},
+        "pid": {"type": "integer", "description": "Optional (DS-114): absent when the app/focus/changed event carried no pid (absent or null); a present non-integer pid is rejected at ingest with E_SCHEMA."},
         "at_rev": {"type": "integer", "minimum": 0}
       }
     }

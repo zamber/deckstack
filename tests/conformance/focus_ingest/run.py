@@ -15,8 +15,11 @@ ingest" on the wire:
     030 a `when` on path /focus/app sees the NEW value in the same dispatch (chain B);
         the payload-based when also fires; a later binding reads committed /focus
         with at_rev == the dispatch rev
-    040 invalid focus payloads (missing/typed/unknown field, non-object) -> E_SCHEMA
+    040 invalid focus payloads (typed pid / unknown field, non-object) -> E_SCHEMA
         binding-error event, rev unchanged, /focus unchanged, no binding step runs
+    045 DS-114: a payload with pid absent or null is accepted and mirrored into /focus
+        without a pid key (one rev bump); a present non-integer pid ({"pid":"x"}) is
+        still rejected with E_SCHEMA and no state change
     050 two quick events are ingested in arrival order: /focus = the second, two rev
         bumps, two /focus events with consecutive revs, the payload-gated binding
         fired exactly once
@@ -548,7 +551,6 @@ class FocusIngest(unittest.TestCase):
             rev0 = self.rev()
             focus_before = self.get_json("/focus")["value"]
             bad_payloads = [
-                {"app": "code", "title": "W"},                       # missing pid
                 {"app": "code", "title": "W", "pid": "4242"},          # pid not an integer
                 {"app": "code", "title": "W", "pid": 1, "extra": 0},   # unknown field
                 "not-an-object",
@@ -572,6 +574,47 @@ class FocusIngest(unittest.TestCase):
             self.wait_until(lambda: self.get_json("/focus")["value"]["at_rev"] == self.rev(),
                             what="valid payload after rejections")
             self.assertEqual(self.rev(), rev0 + 1)
+        finally:
+            c.close()
+            errs.close()
+
+    def test_045_focus_event_without_pid_is_accepted_and_mirrors(self):
+        # DS-114: {"app":"steam","title":"Steam"} (pid absent) and pid:null are
+        # accepted and update /focus (no pid key, one rev bump); {"pid":"x"} is
+        # still rejected with E_SCHEMA and no state change.
+        c = self.conn()
+        errs = self.conn()
+        try:
+            r = errs.rpc({"id": 2, "op": "subscribe", "path": "/deck/system/*"})
+            self.assertEqual(r["ok"], True, r)
+            rev0 = self.rev()
+            # pid absent -> accepted, mirrored without a pid key
+            self.emit(c, FOCUS_TOPIC, {"app": "steam", "title": "Steam"}, id=250)
+            self.wait_until(lambda: self.get_json("/focus")["value"].get("app") == "steam",
+                            what="pid-less /focus mirror")
+            rev1 = self.rev()
+            self.assertEqual(rev1, rev0 + 1, "one pid-less event = exactly ONE rev bump")
+            self.assertEqual(self.get_json("/focus")["value"],
+                             {"app": "steam", "title": "Steam", "at_rev": rev1})
+            self.assertNotIn("pid", self.get_json("/focus")["value"])
+            # pid:null -> equally accepted
+            self.emit(c, FOCUS_TOPIC,
+                      {"app": "steam", "title": "Steam", "pid": None}, id=251)
+            self.wait_until(lambda: self.get_json("/focus")["value"]["at_rev"] == rev1 + 1,
+                            what="null-pid /focus mirror")
+            self.assertEqual(self.get_json("/focus")["value"],
+                             {"app": "steam", "title": "Steam", "at_rev": rev1 + 1})
+            self.assertEqual(self.rev(), rev1 + 1)
+            # a present non-integer pid is still rejected: E_SCHEMA, no state change
+            self.emit(c, FOCUS_TOPIC,
+                      {"app": "steam", "title": "Steam", "pid": "x"}, id=252)
+            ev = self.next_event(errs, want_topic="deck/system/binding-error")
+            self.assertEqual(ev["payload"]["stage"], "ingest")
+            self.assertEqual(ev["payload"]["topic"], FOCUS_TOPIC)
+            self.assertEqual(ev["payload"]["error"]["code"], "E_SCHEMA")
+            self.assertEqual(self.rev(), rev1 + 1, "the rejected payload must not bump rev")
+            self.assertEqual(self.get_json("/focus")["value"]["at_rev"], rev1 + 1,
+                             "/focus untouched by the rejected payload")
         finally:
             c.close()
             errs.close()

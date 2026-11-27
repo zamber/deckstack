@@ -23,7 +23,9 @@ watcher (D17).
 - **Payload:** one event per settled focus change on the bus topic `app/focus/changed`
   (`docs/contracts/actions.md` §1), emitted with the IPC `emit` op (mutate scope):
   `{"app":"<wm-class>","title":"<title>"}` plus `"pid":<n>` when the backend knows it
-  (KWin does, wlr does not) — the shape `schemas/state.json` `/focus` mirrors. The exact
+  (KWin does, wlr does not) — the shape `schemas/state.json` `/focus` mirrors. The daemon
+  accepts the event with `pid` absent or null and rejects only a present non-integer
+  `pid` (DS-114). The exact
   request is `{"op":"emit","topic":"app/focus/changed","payload":{…}}`, schema-validated
   client-side against `schemas/ipc-message.json` (unit-tested in `focus.rs`).
   ds-focus **never writes `/focus` directly**; the daemon's router mirrors the payload
