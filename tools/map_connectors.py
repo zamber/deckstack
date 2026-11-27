@@ -193,6 +193,36 @@ def cmd_render(a):
         print(f"wrote {a.out}")
     return 0
 
+
+def cmd_watch(a):
+    import time
+    last=None
+    print(f"watching 2516:{a.pid} every {a.interval}s -> {a.map} (Ctrl-C to stop)", flush=True)
+    while True:
+        try:
+            paths=lsusb_tree(); pids=lsusb_pids()
+            hit=None
+            for dev,(pid,desc) in pids.items():
+                if pid==a.pid.lower() and dev in paths:
+                    hit=(dev,paths[dev]); break
+            rel = rel_path(hit[1][1]) if hit else None
+            ab = abs_path(*hit[1]) if hit else None
+            if rel!=last:
+                row={"ts":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                     "label":a.label or "", "usb_pid":f"2516:{a.pid}",
+                     "module":CM_PIDS.get(a.pid.lower(),"?"),
+                     "abs_path":ab or "", "rel_path":rel or "", "desc":"auto-watch"}
+                exists=os.path.exists(a.map)
+                with open(a.map,"a",newline="") as f:
+                    w=csv.DictWriter(f,fieldnames=list(row.keys()))
+                    if not exists: w.writeheader()
+                    w.writerow(row)
+                print(json.dumps(row), flush=True)
+                last=rel
+        except Exception as e:
+            print("poll error:",e,file=sys.stderr,flush=True)
+        time.sleep(a.interval)
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -200,6 +230,10 @@ def main():
     c.add_argument("--pid", default="0202"); c.add_argument("--map", default="/tmp/ds112-hw/connector-map.csv")
     c.set_defaults(fn=cmd_capture)
     m = sub.add_parser("mounted"); m.set_defaults(fn=cmd_mounted)
+    w = sub.add_parser("watch"); w.add_argument("--pid", default="0202")
+    w.add_argument("--map", default="/tmp/ds112-hw/connector-map.csv")
+    w.add_argument("--interval", type=float, default=2.0); w.add_argument("--label", default="")
+    w.set_defaults(fn=cmd_watch)
     r = sub.add_parser("render"); r.add_argument("--map", default="/tmp/ds112-hw/connector-map.csv")
     r.add_argument("--out"); r.add_argument("--ascii", action="store_true")
     r.set_defaults(fn=cmd_render)
