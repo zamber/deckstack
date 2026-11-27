@@ -107,3 +107,12 @@ hardware or another platform and belong in reserved salon-deck sessions.**
 | P3-1 | Hardware-session items as SALON tickets: O2 soak, O3 dual-screen, O4 backend, DS-112 orientation capture | Only closable with the deck; now trackable | per session | `open-questions.md:20-22`; DS-112 |
 | P3-2 | `deckstack-verify` split RFC; runbook session-capture procedure | Unblocks independent verification + evidence | 2–3 h | `60-roadmap.md:72-75`; `runbook.md` |
 | P4-1 | Porting lanes: inventory row 13 (adjust/gamma) first, then 15/16/20 | Small, ticket-sized old-app behaviours | ~1 day each | `docs/porting/inventory.md` |
+
+## 6. Spec tickets filed from this review (2026-11-27, branch `vibe/spec-cheap-wins`)
+
+- **DS-116** — close O6/O11 with a local Landlock ABI probe (ABI 11 measured) + doc updates: `docs/tickets/2026-11-27-landlock-abi-probe-close-o6-o11.md`
+- **DS-117** — cli.md later-phase verb markers (`emit`/`events`/`plugin`/`token`/`daemon restart` refused, exit 1): `docs/tickets/2026-11-27-cli-contract-later-phase-verbs.md`
+- **DS-118** — document ds-vdevctl `panel` as the vdev-only alias of contract-S6 `keys`: `docs/tickets/2026-11-27-vdev-target-vocabulary-panel-alias.md`
+- **DS-119** — mark `/settings` explicitly free-form in `schemas/state.json` + `docs/contracts/state.md`: `docs/tickets/2026-11-27-settings-schema-free-form.md`
+
+Out of scope for this cheap-wins batch (bigger than a spec): the `deckstack-verify` repo split (P3-2) and the DS-113 `/preview` salon-deck map (P2-2).
