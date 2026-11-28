@@ -141,3 +141,88 @@ roller slot (appears at rot270 middle-right + fader space bottom).
 
 All earlier sweep rotation labels should be re-anchored to these per-module rot0
 slots. `connector-map-ref-labeled.csv` has the raw rows.
+
+## Placement matrix (DS-122)
+
+2026-11-28. `placement-matrix.json` maps every observed `(module_kind, slot)` seating of
+the five labeled CSVs to its placement on the base's flat 6x4 cell grid:
+`"<kind>@<slot>": {"col", "row", "rot" (or "rotations"), "confidence"}`. `validate_matrix.py`
+(stdlib only) re-checks the file against the CSVs and this README:
+
+    $ python3 docs/discovery/salon-001/validate_matrix.py
+    placement-matrix.json: 57 entries; per kind {'dial': 1, 'faders': 12, 'keys': 11, 'knobs': 16, 'rollers': 17}; confidence {'derived': 52, 'verified': 5}
+    grid 6x4; ref anchors from README: dial@1-1-3, faders@1-1-3, keys@1-3-4, knobs@1-2-3, rollers@1-3-4
+    PASS: schema ok; every rotated footprint keeps >=1 cell on the 6x4 grid; ref entries match the README reference table; all CSV (kind, rel_path) pairs covered; no kind+slot disagreements
+
+### Derivation method
+
+- Grid: 6 cols x 4 rows, (0,0) top-left as seen by the user facing the deck flat
+  (`deck-map.svg` is drawn in this view). The six labeled connectors of the SVG sit on the
+  top/bottom edges and map to cells: top-left (0,0), middle-top (3,0), top-right (5,0),
+  bottom-left (0,3), bottom-middle (3,3), bottom-right (5,3).
+- `(col, row)` is the **connector cell** of the slot — fixed per slot, which is why a slot
+  observed at several rotations keeps one (col,row) and lists `rotations` instead of `rot`.
+- `rot` is the absolute module rotation, re-anchored to the reference sweep (the ref slot is
+  rot 0) per the caveat above that session labels are relative. The per-kind anchors found in
+  the sweeps: knobs ref 1-2-3 = "top-left rot0", so session rot0/90/180 -> 0/90/180; keys
+  ref 1-3-4 = "bottom-right, keys vertical", so vertical/rot90cw/rot270 -> 0/90/270; faders
+  ref 1-1-3 = "rot180, right", so upright/rot180/rot270 -> 180/0/90; rollers ref 1-3-4 =
+  "upright, middle-right", so upright/rot90cw/rot270 -> 0/90/270; dial has only the ref row
+  1-1-3 -> 0. Positive rotation follows the CCW convention of the knob sweep (deck-map.svg
+  header "per module rotation (CCW)"); the per-session direction differences are absorbed by
+  the ref anchor — the connector cell below was chosen to satisfy the cross-position rule,
+  which pins the direction. (The DS-122 ticket words rotations as CW; under that reading the
+  90/270 values of entries whose session used the opposite direction swap — the connector
+  cells (col,row) are unaffected.)
+- Cross-position rule: the corner indicator sits diagonally across from the connector, so
+  the connector cell is the module corner nearest the deck center. From the reference table
+  the indicator corner at rot 0 is TR for knobs/faders/rollers/dial and TL for keys, so the
+  connector sits at the opposite corner of the rot-0 footprint (BL resp. BR); at rotation r
+  it sits at that corner turned by r, and the footprint extends away from it. Rows labeled
+  with a deck-map connector name use that connector's cell (the knob sweep's table is
+  literally "connector (flat base)"); rows whose labels describe the module (keys
+  rot90/rot270 "left side"/"full right", faders upright "right edge" vs "full right" — the
+  latter hangs over the edge at cell (6,0), like the documented over-edge connectors
+  1-1-1/1-2-4 — and the rollers rows) get the connector cell from that placement.
+- Footprints at rot 0 (owner-measured): keys 4x3, knobs 2x2, dial 2x2, rollers 1x4, faders
+  2x4. Modules may overhang the base edge but keep >= 1 cell on the grid; the validator
+  checks this for every rot candidate of every entry.
+
+### Confidence flags
+
+- `verified` (5 entries): the reference-sweep slots — knobs@1-2-3 (0,0) rot 0, keys@1-3-4
+  (5,3) rot 0, faders@1-1-3 (5,3) rot 0, rollers@1-3-4 (5,3) rot 0, dial@1-1-3 (5,3) rot 0 —
+  each matches the README reference table's seating, slot and corner indicator.
+- `derived` (52 entries): every other sweep row.
+- `rollers@3-3` was logged twice (rot90cw "bottom-middle" and rot270 "middle-left + fader
+  space"); the README warns the last rollers round is best-effort, so the entry keeps the
+  rot90cw connector cell (4,3) and lists `"rotations": [90, 270]`.
+
+### Disagreements with upstream `slots.generated.json`
+
+- Upstream encodes the same connector slots but on a 4x6 **portrait** grid (vertical base)
+  with clockwise rotations and its own 180-degree board flip (`prototype/tools/gen_slots.py`
+  in hubdeck-upstream). Transposing it to our flat grid and trying all dihedral mappings and
+  both rotation-chirality flips, at best 4 of the 56 shared keys agree with our CSV-derived
+  matrix — its placement model is broken for our deck, as the owner said. Our CSVs win.
+- Upstream's `verified` flags mark the **reference unit's** slots (knobs@1-4-3, keys@2-3,
+  rollers@3-3, dial@1-3-4, faders@1-1-3), which differ from our ref-sweep anchors for
+  knobs/keys/rollers/dial (1-2-3, 1-3-4, 1-3-4, 1-1-3). Note `crates/ds-vdev/src/hub.rs`
+  `reference_slot()` currently encodes the reference-unit values for keys/rollers/dial
+  (2-3, 3-3, 1-3-4), disagreeing with `connector-map-ref-labeled.csv` for those kinds.
+- 21 upstream entries hang outside its own 4x6 grid (negative cols, marked `derived`); every
+  entry of our matrix keeps >= 1 cell on the 6x4 grid (validator check). knobs@3-4 is
+  observed in our knob sweep but absent from upstream's table entirely.
+
+### Not placed confidently
+
+- `rollers@3-3`'s second observation (rot270 "middle-left + fader space") does not yield the
+  same connector cell as its rot90cw row; it is kept only as a `rotations` candidate at (4,3)
+  per the README best-effort note on the last rollers round.
+- faders upright "right edge" (1-2-2, cell (5,0)) vs "full right" (2-4, cell (6,0)): the
+  README notes one upright position was described twice; the two are distinguished only by
+  the over-edge reading of "full right" — both `derived`.
+- keys vertical rows use the deck-map connector cells (e.g. keys@2-2 at (0,0), footprint
+  overhanging the top-left corner with 1 cell on grid); the alternative on-deck reading
+  would put the connector at the inner corner (3,2). Both satisfy the cross-position rule;
+  the connector-cell reading matches the knob sweep's "connector (flat base)" table.
