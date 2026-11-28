@@ -68,7 +68,7 @@ The plan covers the scope, but contains **BLOCKER-level contract inconsistencies
 | R3 | Arbitrary button behaviour | **partial** | Bindings + core vocabulary (set/emit/plugin/exec/sleep) covers observable attributes, but exec has **M1/M2 security gaps**; need verification all hardware attributes are reachable |
 | R4 | Composability | **partial** | External senders (ds-focus, cron) via CLI; but **M2 cwd restriction breaks composability**; chains A/B defined in actions.md §6 |
 | R5 | Streaming first class | **partial** | Separate binary plane, latest-frame-wins queues; but **B1/B2 block implementation**; R5 test proxy defined in 30-testing.md §6 |
-| R6 | Plugin isolation + Python compatibility | **partial** | Process-per-plugin, capability grants, rlimits; ds-plugin-py wrapper; but **M1 exec path bypass affects plugins too**; Landlock availability OPEN O6 |
+| R6 | Plugin isolation + Python compatibility | **partial** | Process-per-plugin, capability grants, rlimits; ds-plugin-py wrapper; but **M1 exec path bypass affects plugins too**; Landlock availability RESOLVED (DS-116, ABI 11 measured) |
 | R7 | Transports | **partial** | Unix socket + Windows named pipe + opt-in WS/HTTP; but **M6 Windows pipe perf unmeasured** |
 | R8 | Security (no RCE) | **partial** | Scoped tokens, no eval, exec policy; but **M1 relative argv**, **M3 path traversal**, **M4 token rotation race** are concrete bypasses; threat model covers T1-T10 but mitigations incomplete |
 | R9 | Windows support | **partial** | Named pipes, PowerShell examples; but **M6 perf unmeasured**, **M7 macOS untested** means overall platform support incomplete |

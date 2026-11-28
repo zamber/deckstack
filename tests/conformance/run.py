@@ -827,6 +827,18 @@ def _position_suite():
     from position.run import position_suite
     return position_suite()
 
+def _docs_markers_suite():
+    """The DS-116..119 doc-marker suite (tests/conformance/docs_markers/): one shared
+    home for the doc-wording assertions of the doc tickets (DS-116 asserts the OPEN
+    O6/O11 markers are gone from docs/ and the rows are RESOLVED; DS-117/118/119 add
+    theirs here). `-k docs_markers` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from docs_markers.run import docs_markers_suite
+    return docs_markers_suite()
+
+
 
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
@@ -881,6 +893,8 @@ def main():
         suite.addTests(_plugins_suite())
         suite.addTests(_preview_suite())
         suite.addTests(_position_suite())
+        suite.addTests(_docs_markers_suite())
+
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):

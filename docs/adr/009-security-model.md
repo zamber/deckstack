@@ -35,7 +35,7 @@ Non-goals: root/user self-protection, remote exposure, multi-user beyond ACLs
 - **Trust all local processes** — rejected: R8 explicitly names malicious local config as
   a threat.
 - **Full sandboxing (seccomp/containers)** — rejected as default: rlimits+Landlock cover
-  T3; seccomp profile is a phase-5 hardening option if Landlock is unavailable (OPEN O6).
+  T3; seccomp profile is a phase-5 hardening option if Landlock is unavailable (RESOLVED DS-116: available, ABI 11, on the target kernel family).
 
 ## Consequences
 
