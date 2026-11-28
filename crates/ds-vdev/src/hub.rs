@@ -273,9 +273,11 @@ impl Hub {
         self.lock().orientation
     }
 
-    /// Rotate the base: set the orientation, broadcast the orientation input report to every
-    /// connected host (exactly what the hardware's tilt switch does, ~2 reports/s), so the
-    /// daemon publishes `deck/device/<serial>/orientation`. Returns the new orientation.
+    /// Rotate the base: set the orientation and broadcast the orientation input report to
+    /// every connected host (exactly what the hardware's tilt switch does, SALON-001
+    /// finding 1 — the daemon also re-reads the orientation feature 0x35 on its rescan
+    /// tick, so a broadcast lost in a reconnect window is recovered within one tick).
+    /// Returns the new orientation.
     pub fn set_orientation(&self, o: Orientation) -> Orientation {
         {
             let mut st = self.lock();

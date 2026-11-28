@@ -929,6 +929,28 @@ fn service_connected(
         let now = Instant::now();
         if now >= next_rescan {
             next_rescan = now + RESCAN_BUSY;
+            // DS-112: re-read the base orientation (feature 0x35). The tilt switch
+            // heartbeats ~2 reports/s on hardware; polling also recovers a broadcast lost
+            // in a reconnect window, and a rotation re-keys every module's position.
+            if let Some(base) = transport.module_id(ModuleKind::Base) {
+                if let Ok(ans) = transport.query(&base, 0x35, Duration::from_millis(500)) {
+                    if let Some(o) = ans.get(1..).and_then(ds_protocol::parse_orientation) {
+                        if o != *orientation {
+                            *orientation = o;
+                            lifecycle::log(
+                                "info",
+                                "ds-daemon::device",
+                                &format!("base orientation -> {}", orientation_name(o)),
+                            );
+                            bus.publish(router::device_event(
+                                &base.serial,
+                                "orientation",
+                                serde_json::json!({"orientation": orientation_name(o)}),
+                            ));
+                        }
+                    }
+                }
+            }
             let mut moved: Vec<(ModuleKind, Option<Slot>)> = Vec::new();
             for kind in ModuleKind::ALL {
                 if transport.module_id(kind).is_none() {
@@ -1103,6 +1125,15 @@ pub fn spawn_registrar(
                 }
                 let payload = msg.get("payload").cloned().unwrap_or(Value::Null);
                 let mut map = entries2.lock().unwrap();
+                // The base orientation is deck-wide: a rotation re-keys every module's
+                // (slot, orientation) identity, so an orientation event flips every entry.
+                if event == "orientation" {
+                    if let Some(v) = payload.get("orientation") {
+                        for e in map.values_mut() {
+                            e["orientation"] = v.clone();
+                        }
+                    }
+                }
                 let entry = map
                     .entry(serial.to_string())
                     .or_insert_with(|| serde_json::json!({}));
@@ -1128,17 +1159,30 @@ pub fn spawn_registrar(
                 }
                 let rev = state2.rev().ok().unwrap_or(0);
                 entry["last_seen_rev"] = serde_json::json!(rev);
-                let tx = ds_state::Transaction::new(vec![ds_state::Op::set(
-                    format!("/devices/{serial}"),
-                    entry.clone(),
-                )]);
+                // an orientation event re-keys the whole deck: commit every entry
+                let mut to_commit: Vec<(String, Value)> = Vec::new();
+                if event == "orientation" {
+                    for (s, e) in map.iter() {
+                        let mut e = e.clone();
+                        e["last_seen_rev"] = serde_json::json!(rev);
+                        to_commit.push((s.clone(), e));
+                    }
+                } else {
+                    to_commit.push((serial.to_string(), entry.clone()));
+                }
                 drop(map);
-                if let Err(e) = state2.set(tx) {
-                    lifecycle::log(
-                        "warn",
-                        "ds-daemon::device",
-                        &format!("devices registry: set /devices/{serial} failed: {e}"),
-                    );
+                for (s, v) in to_commit {
+                    let tx = ds_state::Transaction::new(vec![ds_state::Op::set(
+                        format!("/devices/{s}"),
+                        v,
+                    )]);
+                    if let Err(e) = state2.set(tx) {
+                        lifecycle::log(
+                            "warn",
+                            "ds-daemon::device",
+                            &format!("devices registry: set /devices/{s} failed: {e}"),
+                        );
+                    }
                 }
             }));
             bus.subscribe(
