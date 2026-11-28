@@ -40,9 +40,10 @@ use ds_device::handshake::{HandshakeConfig, ModuleState};
 use ds_device::hotplug::{self, IoFault, Lifecycle, Phase, RescanPolicy};
 use ds_device::module::module_info;
 use ds_device::rate::RateLimiter;
+use ds_device::slot::DeviceKey;
 use ds_device::transport::{DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
-use ds_protocol::{LedTarget, ModuleKind};
+use ds_protocol::{LedTarget, ModuleKind, Orientation};
 use mh_device::ModuleId;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -224,6 +225,8 @@ pub fn spawn_with(
                 lifecycle: Lifecycle::new(max_failures),
                 transport: None,
                 modules: Vec::new(),
+                keys: Vec::new(),
+                orientation: Orientation::Horizontal,
                 unhealthy: HashSet::new(),
                 latest: HashMap::new(),
                 led: RateLimiter::new(ds_device::rate::DEFAULT_LED_RATE_PER_S),
@@ -387,6 +390,12 @@ struct Task {
     transport: Option<Box<dyn Transport>>,
     /// Handshaken modules of the live connection.
     modules: Vec<ModuleState>,
+    /// DS-112: the (slot, orientation) identity keys of the live connection, recorded at
+    /// connect — the rescan comparison is keyed by position, not by serial alone.
+    keys: Vec<(ModuleId, DeviceKey)>,
+    /// DS-112: the current base orientation (part of every module's identity key); updated
+    /// from base orientation input reports.
+    orientation: Orientation,
     /// Modules currently unhealthy (no sends to them; handshake retried on rescan).
     unhealthy: HashSet<ModuleId>,
     /// Latest push per target — the re-push source after a reconnect (latest-frame-wins).
@@ -534,6 +543,9 @@ impl Task {
                     let _ = t.close();
                     return;
                 }
+                // DS-112: record the (slot, orientation) identity keys of the live connection
+                // before the transport is stored (the rescan compares against these).
+                self.keys = hotplug::identity_keys(&*t, self.orientation);
                 self.transport = Some(t);
                 self.unhealthy = report
                     .unresponsive
@@ -678,6 +690,24 @@ impl Task {
                     for ev in events {
                         self.bus.publish(ev);
                     }
+                    // DS-112: the base orientation is part of the identity key; a rotation
+                    // re-keys every module and re-pushes the cached targets (idempotent).
+                    if let ds_protocol::Input::Orientation(o) = input {
+                        if o != self.orientation {
+                            self.orientation = o;
+                            self.log(
+                                "info",
+                                &format!(
+                                    "base orientation -> {}; re-keying by (slot, orientation)",
+                                    ds_device::orientation_name(o)
+                                ),
+                            );
+                            if let Some(t) = &self.transport {
+                                self.keys = hotplug::identity_keys(&**t, self.orientation);
+                            }
+                            self.repush();
+                        }
+                    }
                     self.last_io = Instant::now();
                     self.log(
                         "info",
@@ -758,13 +788,34 @@ impl Task {
         }
     }
 
-    /// Periodic rescan while connected: for `hid:` URIs compare the enumerated module set
-    /// with the open one — a hot-plugged (or unplugged) module triggers a reconnect, which
-    /// re-handshakes and re-pushes.
+    /// Periodic rescan while connected. DS-112: the identity key is `(slot, orientation)`
+    /// in addition to the serial, so the rescan compares the live transport's placement keys
+    /// with the keys recorded at connect — a module moved to another connector (or a base
+    /// rotation, which re-keys without any USB event) triggers a reconnect, which
+    /// re-handshakes and re-pushes keyed by position. For `hid:` URIs the enumerated module
+    /// set (serials + slots from sysfs) is compared too — a hot-plugged or unplugged module.
     fn periodic_rescan(&mut self) {
         let Some(uri) = &self.uri else {
             return;
         };
+        if let Some(t) = &self.transport {
+            let changes = hotplug::placement_changes(&**t, self.orientation, &self.keys);
+            if !changes.is_empty() {
+                let desc: Vec<String> = changes
+                    .iter()
+                    .map(|(id, key)| format!("{}:{}", id.kind.name(), key))
+                    .collect();
+                self.log(
+                    "warn",
+                    &format!(
+                        "rescan: placement changed ({}); reconnecting keyed by position",
+                        desc.join(", ")
+                    ),
+                );
+                self.on_gone("rescan detected a changed (slot, orientation) placement");
+                return;
+            }
+        }
         if uri.scheme() != "hid" {
             return;
         }

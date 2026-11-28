@@ -25,7 +25,7 @@
           "$ref": "#/$defs/device"
         }
       },
-      "description": "Keyed by USB serial (read at connect, upstream/crates/mh-device/src/hub.rs:241-245)."
+      "description": "Keyed by USB serial (read at connect, upstream/crates/mh-device/src/hub.rs:241-245). DS-112: the module identity key is (slot, orientation) in addition to the serial, so a reseated/rotated module remaps to the same logical position; `slot`/`position`/`orientation` carry the placement."
     },
     "controls": {
       "type": "object",
@@ -209,7 +209,9 @@
         "kind": {"enum": ["keys", "dial", "m0-base", "faders", "knobs", "rollers"]},
         "model": {"type": "string"},
         "pid": {"type": "integer"},
-        "slot": {"type": "string", "description": "USB port path, e.g. 1-4-3 (upstream/PROTOCOL.md:107)."},
+        "slot": {"type": "string", "description": "USB port path relative to the base's top hub, e.g. 1-4-3 (abs 3-2-1-4-3; upstream/PROTOCOL.md:107, SALON-001). Base MCU is 1-4-4."},
+        "position": {"type": "integer", "minimum": 0, "maximum": 127, "description": "DS-112: connector index derived from the slot's port path (base-4 decode tagged by path length; SALON-001 connector grid)."},
+        "orientation": {"enum": ["horizontal", "vertical"], "description": "DS-112: base orientation at seating — mirrors the deck/device/<serial>/orientation event payload (flat=0x01 horizontal, upright=0x00 vertical)."},
         "connection": {"enum": ["connected", "disconnected"]},
         "last_seen_rev": {"type": "integer", "minimum": 0}
       }

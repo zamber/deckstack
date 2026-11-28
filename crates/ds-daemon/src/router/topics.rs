@@ -42,8 +42,9 @@ pub const TOPIC_ROOTS: [&str; 4] = ["deck", "app", "daemon", "plugin"];
 /// Gestures of `deck/control/<control>/<gesture>` (actions.md §1 + `value`).
 pub const GESTURES: [&str; 7] = ["down", "up", "long", "double", "rotate", "slide", "value"];
 
-/// Events of `deck/device/<serial>/<event>`.
-pub const DEVICE_EVENTS: [&str; 4] = ["connected", "disconnected", "orientation", "faders"];
+/// Events of `deck/device/<serial>/<event>` (`moved` = DS-112 placement change: the module's
+/// (slot, orientation) identity key changed, e.g. a reseat in another connector).
+pub const DEVICE_EVENTS: [&str; 5] = ["connected", "disconnected", "orientation", "faders", "moved"];
 
 /// Events of `deck/system/<event>` (actions.md §1).
 pub const SYSTEM_EVENTS: [&str; 6] = [

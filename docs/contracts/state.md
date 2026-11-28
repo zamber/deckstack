@@ -25,7 +25,7 @@ top-level paths:
 
 ```
 /meta            {version: 1, rev, daemon_pid, started_at, protocol: 1}
-/devices/<serial>            {kind, model, pid, slot, connection, last_seen_rev}
+/devices/<serial>            {kind, model, pid, slot, position, orientation, connection, last_seen_rev}
 /controls/keys/<0-14>        {image, label, brightness}
 /controls/dial               {image, label, brightness}
 /controls/panel              {image, label, brightness}  (image also accepts the panel-only `colors` visual, DS-111)
@@ -55,12 +55,21 @@ schema itself, not only by the write path: `/controls/keys` accepts exactly `"0"
 `/controls/dial` is a single control, not a map. `/streams` and `/telemetry/streams`
 accept only the target vocabulary `keys | dial | key:<0-14>`.
 
-**Identity across hot-plug:** `/devices/<serial>` — serial read at connect
-(`upstream/crates/mh-device/src/hub.rs:241-245`). Control paths hang off the *kind slot*
-(`keys`, `dial`, `knobs.0`), not the serial; when a module with a known serial
-reconnects, the daemon re-links its slot and re-pushes the last state. Two same-kind
-modules: `keys` mirrors; a second knob/fader/roller set addresses by serial suffix
-(`upstream/PROTOCOL.md:130-139`).
+**Identity across hot-plug (DS-112):** `/devices/<serial>` — serial read at connect
+(`upstream/crates/mh-device/src/hub.rs:241-245`), but the module **identity key is
+`(slot, orientation)` in addition to the serial**: `slot` is the USB port path relative to
+the base's top hub (abs `3-2-1-4-3` → `1-4-3`; base MCU `1-4-4`; SALON-001), `position` is
+the connector index derived from that port path within the connector grid, and
+`orientation` mirrors the `deck/device/<serial>/orientation` payload
+(`horizontal` = flat `0x01`, `vertical` = upright `0x00`). Every physical connector
+exposes a different slot per module rotation, so a reseated or rotated module remaps to
+the same logical position instead of appearing as a new device. Control paths hang off
+the *kind slot* (`keys`, `dial`, `knobs.0`), not the serial, so any module in any of the
+26 connectors stays logically addressed (`/controls/knobs/<i>` etc.); when a module with
+a known `(slot, orientation)` key hot-plugs, the daemon re-handshakes (≥ 600 ms settle,
+double command) and re-pushes the cached frames/LEDs keyed by position, idempotently.
+Two same-kind modules: `keys` mirrors; a second knob/fader/roller set addresses by
+serial suffix (`upstream/PROTOCOL.md:130-139`).
 
 ## 2. Bindings representation (S2)
 

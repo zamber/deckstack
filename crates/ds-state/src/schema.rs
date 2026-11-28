@@ -138,7 +138,7 @@ mod tests {
         let sha = "a".repeat(64);
         let doc = json!({
             "meta": {"version": 1, "rev": 42, "protocol": 1, "daemon_pid": 7, "started_at": "2026-11-22T10:00:00Z"},
-            "devices": {"ABC123": {"kind": "keys", "model": "M4315", "pid": 510, "slot": "1-4-3", "connection": "connected", "last_seen_rev": 40}},
+            "devices": {"ABC123": {"kind": "keys", "model": "M4315", "pid": 510, "slot": "1-4-3", "position": 78, "orientation": "horizontal", "connection": "connected", "last_seen_rev": 40}},
             "controls": {
                 "keys": {"0": {"image": {"kind": "color", "value": "#3cc86e"}, "label": "Salon", "brightness": 80}},
                 "dial": {"image": {"kind": "frame", "target": "dial", "seq": 7, "sha256": sha}},

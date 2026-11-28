@@ -215,6 +215,10 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
         device::spawn(device, shutdown.clone(), bus.clone(), Some(frames.clone()));
     let (state, state_thread) =
         StateTask::spawn_shared(Arc::clone(&store), Some(device_handle.clone()), bus.clone());
+    // DS-112: the /devices/<serial> registry — turns deck/device/<serial>/{connected,moved,
+    // orientation,disconnected} events into /devices/<serial> entries (position, orientation,
+    // connection) through the state task, the single writer.
+    let _registry_thread = device::spawn_registrar(bus.clone(), state.clone(), shutdown.clone());
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {
