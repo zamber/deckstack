@@ -178,8 +178,9 @@
     "rollers|1-1-4": ["bottom-right",270], "rollers|2-1": ["bottom-right",270], "rollers|3-2": ["bottom-left",270],
     "dial|1-1-3": ["bottom-right",0], "dial|1-3-4": ["bottom-right",0]
   };
-  var ANCHOR_EDGE = { "top-left":"top", "middle-top":"top", "top-right":"top",
-    "bottom-left":"bottom", "bottom-middle":"bottom", "bottom-right":"bottom", "left":"left", "right":"right" };
+  var ANCHOR_EDGE = { "top-left":"top", "top-mid-left":"top", "middle-top":"top", "top-mid-right":"top", "top-right":"top",
+    "bottom-left":"bottom", "bottom-mid-left":"bottom", "bottom-middle":"bottom", "bottom-mid-right":"bottom", "bottom-right":"bottom",
+    "left-top":"left", "left":"left", "left-bottom":"left", "right-top":"right", "right":"right", "right-bottom":"right" };
   // module footprint in cells [w,h] at rot 0 (flat grid)
   var FOOTPRINT = { keys: [4,3], dial: [2,2], knobs: [2,2], faders: [2,4], rollers: [1,4], base: [6,4] };
 
@@ -189,15 +190,22 @@
     return "horizontal";
   }
 
+  // Modules mount on the base PERIMETER, resting one cell onto the slab and
+  // overhanging outward; the slab is the 6x4 (flat) / 4x6 (vertical) cell field.
+  // Rects may lie outside the slab.
   function cellRect(anchor, rot, fp, cols, rows) {
     var w = fp[0], h = fp[1];
     if (rot === 90 || rot === 270) { var t = w; w = h; h = t; }
     var edge = ANCHOR_EDGE[anchor] || "top";
     var col, row;
-    if (edge === "top") { row = 0; col = anchor === "top-left" ? 0 : anchor === "top-right" ? cols - w : Math.floor((cols - w) / 2); }
-    else if (edge === "bottom") { row = rows - h; col = anchor === "bottom-left" ? 0 : anchor === "bottom-right" ? cols - w : Math.floor((cols - w) / 2); }
-    else if (edge === "left") { col = 0; row = Math.floor((rows - h) / 2); }
-    else { col = cols - w; row = Math.floor((rows - h) / 2); }
+    var tops = ["top-left","top-mid-left","middle-top","top-mid-right","top-right"];
+    var bottoms = ["bottom-left","bottom-mid-left","bottom-middle","bottom-mid-right","bottom-right"];
+    var lefts = ["left-top","left","left-bottom"];
+    var rights = ["right-top","right","right-bottom"];
+    if (edge === "top") { row = 1 - h; var i = tops.indexOf(anchor); col = Math.round((cols - w) * i / (tops.length - 1)); }
+    else if (edge === "bottom") { row = rows - 1; var j = bottoms.indexOf(anchor); col = Math.round((cols - w) * j / (bottoms.length - 1)); }
+    else if (edge === "left") { col = 1 - w; var k = lefts.indexOf(anchor); row = Math.round((rows - h) * k / (lefts.length - 1)); }
+    else { col = cols - 1; var m = rights.indexOf(anchor); row = Math.round((rows - h) * m / (rights.length - 1)); }
     return { col: col, row: row, w: w, h: h };
   }
 
@@ -207,85 +215,100 @@
     var vertical = baseOrientation() === "vertical";
     document.getElementById("orientation").textContent =
       "orientation: " + (vertical ? "vertical (4×6)" : "flat (6×4)");
-    var CW = 110, CH = 80, GAP = 8;
+    var CW = 96, CH = 96, GAP = 8; // square cells
     var cols = vertical ? 4 : 6, rows = vertical ? 6 : 4;
-    if (vertical) { var tc = CW; CW = CH; CH = tc; } // cells become tall in vertical
-    var W = cols * (CW + GAP) + GAP, H = rows * (CH + GAP) + GAP;
+    // canvas includes a one-module margin around the slab for overhanging modules
+    var MW = 5, MH = 5; // margin in cells (max module extent)
+    var W = (cols + 2 * MW) * (CW + GAP) + GAP, H = (rows + 2 * MH) * (CH + GAP) + GAP;
+    var OX = MW * (CW + GAP) + GAP, OY = MH * (CH + GAP) + GAP; // slab origin
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
 
     var slab = svgEl("g", { "class": "base" }, svg);
-    svgEl("rect", { x: GAP, y: GAP, width: W - 2 * GAP, height: H - 2 * GAP, rx: 18, "class": "slab" }, slab);
-    // faint cell grid
+    svgEl("rect", { x: OX, y: OY, width: cols * (CW + GAP) - GAP, height: rows * (CH + GAP) - GAP, rx: 18, "class": "slab" }, slab);
     for (var gy = 0; gy < rows; gy++) for (var gx = 0; gx < cols; gx++)
-      svgEl("rect", { x: GAP + gx * (CW + GAP), y: GAP + gy * (CH + GAP), width: CW, height: CH, "class": "gridcell" }, slab);
-    svgText(slab, GAP + 12, GAP + H - 2 * GAP - 10, "MasterHub base " + (vertical ? "4×6 (vertical)" : "6×4 (flat)"), "slab-label");
+      svgEl("rect", { x: OX + gx * (CW + GAP), y: OY + gy * (CH + GAP), width: CW, height: CH, "class": "gridcell" }, slab);
+    svgText(slab, OX + cols * (CW + GAP) - GAP, OY + rows * (CH + GAP) + 22, "MasterHub base " + (vertical ? "4×6 (vertical)" : "6×4 (flat)"), "slab-label").setAttribute("text-anchor", "end");
 
     var devs = state.devices || {};
     var usedCells = {};
+    var order = ["top-left","top-mid-left","middle-top","top-mid-right","top-right","left-top","left","left-bottom","right-top","right","right-bottom","bottom-left","bottom-mid-left","bottom-middle","bottom-mid-right","bottom-right"];
     Object.keys(devs).sort().forEach(function (serial) {
       var d = devs[serial] || {};
       if (/base$/.test(d.kind || "")) { return; }
       var mapped = SLOT_ROT[d.kind + "|" + (d.slot || "")];
-      var rot = mapped ? mapped[1] : 0;
       var fp = FOOTPRINT[d.kind] || [2, 1];
-      var order = ["top-left","middle-top","top-right","left","right","bottom-left","bottom-middle","bottom-right"];
+      var rots = mapped ? [mapped[1], (mapped[1] + 90) % 360, (mapped[1] + 180) % 360, (mapped[1] + 270) % 360] : [0, 90, 180, 270];
       var anchors = mapped ? [mapped[0]].concat(order) : order;
-      var anchor = null, rect = null;
-      for (var ai = 0; ai < anchors.length; ai++) {
-        var cand = cellRect(anchors[ai], rot, fp, cols, rows);
-        var clash = false;
-        for (var cy = cand.row; cy < cand.row + cand.h && !clash; cy++)
-          for (var cx = cand.col; cx < cand.col + cand.w && !clash; cx++)
-            if (usedCells[cy + "," + cx]) { clash = true; }
-        if (!clash) { anchor = anchors[ai]; rect = cand; break; }
-      }
-      if (!rect) { anchor = mapped ? mapped[0] : "middle-top"; rect = cellRect(anchor, rot, fp, cols, rows); }
-      for (var uy = rect.row; uy < rect.row + rect.h; uy++)
-        for (var ux = rect.col; ux < rect.col + rect.w; ux++) { usedCells[uy + "," + ux] = true; }
-      drawModule(svg, d, serial, anchor, rot, cols, rows, CW, CH, GAP);
+      var placed = null;
+      outer:
+      for (var ai = 0; ai < anchors.length; ai++)
+        for (var ri = 0; ri < rots.length; ri++) {
+          var cand = cellRect(anchors[ai], rots[ri], fp, cols, rows);
+          var clash = false;
+          for (var cy = cand.row; cy < cand.row + cand.h && !clash; cy++)
+            for (var cx = cand.col; cx < cand.col + cand.w && !clash; cx++)
+              if (usedCells[cy + "," + cx]) { clash = true; }
+          if (!clash) { placed = { anchor: anchors[ai], rot: rots[ri], rect: cand }; break outer; }
+        }
+      if (!placed) { placed = { anchor: mapped ? mapped[0] : "middle-top", rot: mapped ? mapped[1] : 0, rect: cellRect(mapped ? mapped[0] : "middle-top", mapped ? mapped[1] : 0, fp, cols, rows) }; }
+      for (var uy = placed.rect.row; uy < placed.rect.row + placed.rect.h; uy++)
+        for (var ux = placed.rect.col; ux < placed.rect.col + placed.rect.w; ux++) { usedCells[uy + "," + ux] = true; }
+      drawModule(svg, d, serial, placed, OX, OY, CW, CH, GAP);
     });
   }
 
-  function drawModule(svg, d, serial, anchor, rot, cols, rows, CW, CH, GAP) {
-    var fp = FOOTPRINT[d.kind] || [2, 1];
-    var r = cellRect(anchor, rot, fp, cols, rows);
-    var x = GAP + r.col * (CW + GAP), y = GAP + r.row * (CH + GAP);
+  function drawModule(svg, d, serial, placed, OX, OY, CW, CH, GAP) {
+    var r = placed.rect, rot = placed.rot;
+    var x = OX + r.col * (CW + GAP), y = OY + r.row * (CH + GAP);
     var w = r.w * CW + (r.w - 1) * GAP, h = r.h * CH + (r.h - 1) * GAP;
     var disconnected = d.connection === "disconnected";
-    var g = svgEl("g", {
-      "class": "module m-" + d.kind + (disconnected ? " disconnected" : ""),
-      transform: "translate(" + (x + w / 2) + "," + (y + h / 2) + ") rotate(" + (-rot) + ") translate(" + (-w / 2) + "," + (-h / 2) + ")"
-    }, svg);
-    svgEl("rect", { x: 0, y: 0, width: w, height: h, rx: 10, "class": "body" }, g);
-    svgText(g, 8, 15, d.kind + " · slot " + (d.slot || "?") + " · " + rot + "°", "mod-label");
-    svgText(g, w - 8, 15, disconnected ? "DISCONNECTED" : "connected", "mod-status").setAttribute("text-anchor", "end");
+    var g = svgEl("g", { "class": "module m-" + d.kind + (disconnected ? " disconnected" : "") }, svg);
+    svgEl("rect", { x: x, y: y, width: w, height: h, rx: 10, "class": "body" }, g);
+    svgText(g, x + 8, y + 15, d.kind + " · slot " + (d.slot || "?") + " · " + rot + "°", "mod-label");
+    svgText(g, x + w - 8, y + h - 8, disconnected ? "DISCONNECTED" : (d.connection || "connected"), "mod-status").setAttribute("text-anchor", "end");
+    var inner = svgEl("g", { transform: "translate(" + (x + w / 2) + "," + (y + h / 2) + ") rotate(" + rot + ") translate(" + (-(w / 2)) + "," + (-(h / 2)) + ")" }, g);
     var c = state.controls || {};
-    if (d.kind === "keys" || d.kind === "dial") {
-      var sx = 6, sy = 22, sw = w - 12, sh = h - 34;
-      svgEl("rect", { x: sx, y: sy, width: sw, height: sh, rx: 4, "class": "screen" }, g);
-      var img = svgEl("image", { x: sx, y: sy, width: sw, height: sh, "class": "frameshot", "data-kind": d.kind, preserveAspectRatio: "xMidYMid meet" }, g);
+    if (d.kind === "keys") {
+      var sw = w - 12, sh = h - 34;
+      svgEl("rect", { x: x + 6, y: y + 22, width: sw, height: sh, rx: 4, "class": "screen" }, g);
+      var img = svgEl("image", { x: x + 6, y: y + 22, width: sw, height: sh, "class": "frameshot", preserveAspectRatio: "xMidYMid meet" }, g);
       frameTargets[d.kind] = { img: img, sha: null };
+    } else if (d.kind === "dial") {
+      var sw2 = w - 12, sh2 = h - 34;
+      svgEl("rect", { x: x + 6, y: y + 22, width: sw2, height: sh2, rx: 4, "class": "screen" }, g);
+      var img2 = svgEl("image", { x: x + 6, y: y + 22, width: sw2, height: sh2, "class": "frameshot", preserveAspectRatio: "xMidYMid meet" }, g);
+      frameTargets[d.kind] = { img: img2, sha: null };
+      var dv = c.dial && typeof c.dial.value === "number" ? c.dial.value : 0;
+      var ang = -120 + (dv / 100) * 240;
+      var dc = svgEl("g", { transform: "translate(" + (x + w / 2) + "," + (y + h / 2 + 6) + ") rotate(" + ang + ")" }, g);
+      svgEl("circle", { cx: 0, cy: 0, r: Math.min(w, h) * 0.3, "class": "knob dial-knob" }, dc);
+      svgEl("rect", { x: -2, y: -Math.min(w, h) * 0.3, width: 4, height: Math.min(w, h) * 0.12, rx: 2, "class": "dial-tick" }, dc);
     } else if (d.kind === "knobs") {
       var kn = c.knobs || {};
+      var kpos = [[0.5, 0.32], [0.3, 0.72], [0.7, 0.72]]; // triangle: knob 1 top, 2/3 bottom
       for (var k = 0; k < 3; k++) {
         var kc = kn[String(k)] || {};
-        var cx = w * (k === 2 ? 0.5 : (k === 0 ? 0.28 : 0.72)), cy = h * (k === 2 ? 0.66 : 0.42);
-        svgEl("circle", { cx: cx, cy: cy, r: Math.min(w, h) * 0.18, fill: kc.led || kc.color || "#3a4150", "class": "knob" }, g);
+        var kv = typeof kc.value === "number" ? kc.value : 0;
+        var ka = -120 + (kv / 100) * 240;
+        var kg = svgEl("g", { transform: "translate(" + (w * kpos[k][0]) + "," + (h * kpos[k][1]) + ")" }, inner);
+        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w, h) * 0.19, "class": "knob", fill: kc.led || kc.color || "#4a5468" }, kg);
+        var kt = svgEl("g", { transform: "rotate(" + ka + ")" }, kg);
+        svgEl("rect", { x: -2, y: -Math.min(w, h) * 0.19, width: 4, height: Math.min(w, h) * 0.1, rx: 2, "class": "dial-tick" }, kt);
       }
     } else if (d.kind === "faders") {
       var fa = c.faders || {};
       for (var f = 0; f < 5; f++) {
         var fx = 12 + f * ((w - 24) / 5);
-        svgEl("rect", { x: fx, y: 26, width: 6, height: h - 44, rx: 3, "class": "track" }, g);
+        svgEl("rect", { x: fx, y: 26, width: 6, height: h - 44, rx: 3, "class": "track" }, inner);
         var v = (fa[String(f)] && typeof fa[String(f)].value === "number") ? fa[String(f)].value : 50;
-        svgEl("rect", { x: fx - 2, y: 26 + (h - 44) * (1 - v / 100), width: 10, height: 8, rx: 2, "class": "handle" }, g);
+        svgEl("rect", { x: fx - 2, y: 26 + (h - 44) * (1 - v / 100), width: 10, height: 8, rx: 2, "class": "handle" }, inner);
       }
     } else if (d.kind === "rollers") {
       var ro = c.rollers || {};
       for (var r2 = 0; r2 < 2; r2++) {
         var rc = ro[String(r2)] || {};
         svgEl("rect", { x: 10, y: 26 + r2 * ((h - 40) / 2), width: w - 20, height: (h - 40) / 2 - 4, rx: 6,
-          fill: rc.led || rc.color || "#3a4150", "class": "roller" }, g);
+          fill: rc.led || rc.color || "#4a5468", "class": "roller" }, inner);
       }
     }
     g.addEventListener("click", function () { select({ type: "device", serial: serial }); });
