@@ -17,20 +17,10 @@
   var state = { rev: null, controls: {}, bindings: [], plugins: {}, devices: {} };
   var actions = null;
   var ws = null;
-  var httpOk = false;
   var selection = null; // {type:"control",path} | {type:"device",serial}
   var renderTimer = null;
 
   function apiBase() { return "http://127.0.0.1:" + port; }
-
-  function getJSON(path) {
-    return fetch(apiBase() + path, {
-      headers: { "Authorization": "Bearer " + token }
-    }).then(function (r) {
-      if (!r.ok) { throw new Error(path + " -> HTTP " + r.status); }
-      return r.json();
-    });
-  }
 
   function setConn(up, note) {
     var c = document.getElementById("conn");
@@ -40,30 +30,17 @@
 
   function setRev() {
     document.getElementById("rev").textContent =
-      state.rev === null ? "" : "rev " + state.rev + (httpOk ? " · http+ws" : " · ws only");
+      state.rev === null ? "" : "rev " + state.rev + " · ws";
   }
 
-  function connect() {
-    if (!port || !token) {
-      document.getElementById("connect-panel").classList.remove("hidden");
-      return;
+  function setPath(obj, path, value) {
+    var segs = path.split("/").filter(Boolean);
+    var o = obj;
+    for (var i = 0; i < segs.length - 1; i++) {
+      if (typeof o[segs[i]] !== "object" || o[segs[i]] === null) { o[segs[i]] = {}; }
+      o = o[segs[i]];
     }
-    document.getElementById("connect-panel").classList.add("hidden");
-    Promise.all([getJSON("/preview/api/state"), getJSON("/preview/api/action-metadata")])
-      .then(function (res) {
-        httpOk = true;
-        state = res[0];
-        actions = res[1];
-        setConn(true);
-        renderAll();
-        openWs();
-      })
-      .catch(function () {
-        // Cross-origin static server: no CORS headers on /preview, so the HTTP
-        // reads are blocked — the WS snapshot carries the same {state, actions}.
-        httpOk = false;
-        openWs();
-      });
+    o[segs[segs.length - 1]] = value;
   }
 
   function openWs() {
@@ -100,6 +77,18 @@
       setTimeout(function () { if (port && token) { openWs(); } }, 3000);
     };
     ws.onerror = function () { setConn(false, "connection failed"); };
+  }
+
+  function connect() {
+    if (!port || !token) {
+      document.getElementById("connect-panel").classList.remove("hidden");
+      return;
+    }
+    document.getElementById("connect-panel").classList.add("hidden");
+    // WS-only transport: the daemon's /preview sends hello + snapshot (state and
+    // action-metadata) over the websocket, and websockets are not subject to CORS,
+    // so this works from any static origin (no fetch, no preflight, no 401/CORS).
+    openWs();
   }
 
   function setPath(obj, path, value) {
@@ -159,49 +148,142 @@
   }
 
   // ---- deck map --------------------------------------------------------------
+  // Physical connector anchors on the base slab (flat orientation, 6x4 cells;
+  // vertical transposes to 4x6). Coordinates in cell units, from the SALON-001
+  // hardware sweeps (docs/discovery/salon-001/README.md).
+  var ANCHORS = {
+    "top-left": [0.9, 0.0], "middle-top": [3.0, 0.0], "top-right": [5.1, 0.0],
+    "bottom-left": [0.9, 4.0], "bottom-middle": [3.0, 4.0], "bottom-right": [5.1, 4.0],
+    "left": [0.0, 2.0], "right": [6.0, 2.0]
+  };
+  // (module kind, slot) -> [anchor, rotation deg CCW], from the SALON-001 sweeps.
+  var SLOT_MAP = {
+    "knobs|1-2-3": ["top-left",0], "knobs|1-2-4": ["top-left",90],
+    "knobs|3-1": ["middle-top",0], "knobs|1-1-1": ["middle-top",90], "knobs|3-3": ["middle-top",180],
+    "knobs|3-4": ["top-right",0], "knobs|1-4-3": ["top-right",90], "knobs|1-4-1": ["top-right",180],
+    "knobs|1-2-2": ["bottom-left",0], "knobs|4-4": ["bottom-left",90],
+    "knobs|4-2": ["bottom-middle",0], "knobs|2-3": ["bottom-middle",90], "knobs|2-1": ["bottom-middle",180],
+    "knobs|1-1-3": ["bottom-right",0], "knobs|1-3-4": ["bottom-right",90], "knobs|1-3-1": ["bottom-right",180],
+    "keys|2-2": ["top-left",0], "keys|1-3-2": ["top-right",0], "keys|1-3-4": ["bottom-right",0],
+    "keys|1-1-2": ["bottom-middle",0], "keys|2-3": ["bottom-left",0],
+    "keys|1-2-2": ["left",90], "keys|4-1": ["left",90], "keys|4-2": ["right",90],
+    "keys|2-4": ["right",90], "keys|1-4-1": ["right",270], "keys|3-3": ["left",270],
+    "faders|1-2-2": ["right",0], "faders|4-1": ["right",0], "faders|4-2": ["middle-top",0],
+    "faders|2-4": ["right",0], "faders|1-1-3": ["right",180], "faders|1-4-1": ["middle-top",180],
+    "faders|3-3": ["top-left",270], "faders|1-1-1": ["top-right",270], "faders|1-4-3": ["top-right",270],
+    "faders|1-3-4": ["bottom-right",270], "faders|1-1-2": ["bottom-middle",270], "faders|2-3": ["bottom-left",270],
+    "rollers|1-2-1": ["left",0], "rollers|4-4": ["left",0], "rollers|4-3": ["left",0],
+    "rollers|1-3-4": ["middle-top",0], "rollers|1-2-3": ["right",0], "rollers|3-1": ["right",0],
+    "rollers|1-2-2": ["left",90], "rollers|4-1": ["right",90], "rollers|4-2": ["bottom-left",90],
+    "rollers|3-3": ["bottom-middle",90], "rollers|1-4-1": ["bottom-right",90],
+    "rollers|1-4-2": ["top-left",270], "rollers|1-3-1": ["top-right",270], "rollers|1-3-3": ["top-right",270],
+    "rollers|1-1-4": ["bottom-right",270], "rollers|2-1": ["bottom-right",270], "rollers|3-2": ["bottom-left",270]
+  };
+  // module footprint in cell units: [w, h]
+  var FOOTPRINT = { keys: [3.0, 1.1], dial: [1.5, 1.5], knobs: [2.0, 1.2], faders: [3.0, 1.0], rollers: [2.2, 0.9], base: [6, 4] };
+
+  function baseOrientation() {
+    var devs = state.devices || {};
+    for (var k in devs) { if (/base$/.test(devs[k].kind) && devs[k].orientation) { return devs[k].orientation; } }
+    return "horizontal";
+  }
+
   function renderDeck() {
     var svg = document.getElementById("deck");
     while (svg.firstChild) { svg.removeChild(svg.firstChild); }
     var vertical = baseOrientation() === "vertical";
     document.getElementById("orientation").textContent =
       "orientation: " + (vertical ? "vertical (4×6)" : "flat (6×4)");
-    var cols = vertical ? 4 : 6;
-    var rows = Math.ceil(CONNECTORS / cols);
-    var cw = 92, ch = 46, gap = 6;
-    svg.setAttribute("viewBox", "0 0 " + (cols * (cw + gap) + gap) + " " + (rows * (ch + gap) + gap));
+    var CW = 110, CH = 80, GAP = 8;
+    var cols = vertical ? 4 : 6, rows = vertical ? 6 : 4;
+    var W = cols * (CW + GAP) + GAP, H = rows * (CH + GAP) + GAP;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+
+    // base slab
+    var slab = svgEl("g", { "class": "base" }, svg);
+    svgEl("rect", { x: GAP, y: GAP, width: cols * (CW + GAP) - GAP, height: rows * (CH + GAP) - GAP, rx: 18, "class": "slab" }, slab);
+    svgText(slab, GAP + 12, GAP + 20, "MasterHub base " + (vertical ? "4×6" : "6×4"), "slab-label");
 
     var devs = state.devices || {};
     var serials = Object.keys(devs).sort();
-    var used = {};
-    var placements = [];
-    serials.forEach(function (serial, i) {
+    var usedAnchors = {};
+    serials.forEach(function (serial) {
       var d = devs[serial] || {};
-      var pos = (typeof d.position === "number" && isFinite(d.position)) ? d.position : null;
-      if (pos === null || used[pos] || pos < 0 || pos >= CONNECTORS) {
-        pos = 0;
-        while (used[pos]) { pos++; }
+      if (/base$/.test(d.kind || "")) { return; }
+      var key = d.kind + "|" + (d.slot || "");
+      var mapped = SLOT_MAP[key];
+      var anchor, rot;
+      if (mapped) { anchor = mapped[0]; rot = mapped[1]; }
+      else {
+        // fallback: first free anchor in reading order
+        var order = ["top-left","middle-top","top-right","left","right","bottom-left","bottom-middle","bottom-right"];
+        anchor = order.find(function (a) { return !usedAnchors[a]; }) || "middle-top";
+        rot = 0;
       }
-      used[pos] = true;
-      placements.push({ serial: serial, pos: pos, dev: d, fallback: typeof d.position !== "number" });
+      usedAnchors[anchor] = true;
+      drawModule(svg, d, serial, anchor, rot, vertical, CW, CH, GAP);
     });
+  }
 
-    var taken = {};
-    placements.forEach(function (p) { taken[p.pos] = p; });
-    for (var c = 0; c < CONNECTORS; c++) {
-      var col = c % cols, row = Math.floor(c / cols);
-      var x = gap + col * (cw + gap), y = gap + row * (ch + gap);
-      var g = svgEl("g", { "class": "cell" }, svg);
-      svgEl("rect", { x: x, y: y, width: cw, height: ch, rx: 6 }, g);
-      svgText(g, x + 6, y + 14, "#" + c, "pos");
-      var p = taken[c];
-      if (p) {
-        g.setAttribute("class", "cell occupied" + (p.dev.connection === "disconnected" ? " disconnected" : ""));
-        svgText(g, x + 6, y + 28, p.dev.kind || "?", "kind");
-        svgText(g, x + 6, y + 40, p.serial + (p.fallback ? " (serial order)" : ""), "serial");
-        if (p.dev.slot) { svgText(g, x + cw - 6, y + 14, "slot " + p.dev.slot, "pos"); }
-        g.addEventListener("click", function () { select({ type: "device", serial: p.serial }); });
+  function drawModule(svg, d, serial, anchor, rot, vertical, CW, CH, GAP) {
+    var cols = vertical ? 4 : 6, rows = vertical ? 6 : 4;
+    var ax = GAP + ANCHORS[anchor][0] * (CW + GAP) + (ANCHORS[anchor][0] >= cols ? 0 : 0);
+    var ay = GAP + ANCHORS[anchor][1] * (CH + GAP);
+    if (vertical) { // transpose: swap cell coords
+      var t = ANCHORS[anchor];
+      ax = GAP + t[1] * (CW + GAP); ay = GAP + t[0] * (CH + GAP);
+    }
+    var fp = FOOTPRINT[d.kind] || [1.5, 1.0];
+    var w = fp[0] * CW, h = fp[1] * CH;
+    var disconnected = d.connection === "disconnected";
+    var g = svgEl("g", {
+      "class": "module m-" + d.kind + (disconnected ? " disconnected" : ""),
+      transform: "translate(" + (ax - w / 2) + "," + (ay - h / 2) + ") rotate(" + (-rot) + " " + (w / 2) + " " + (h / 2) + ")"
+    }, svg);
+    svgEl("rect", { x: 0, y: 0, width: w, height: h, rx: 10, "class": "body" }, g);
+    var label = d.kind + " · slot " + (d.slot || "?") + " · " + (rot ? rot + "°" : "0°");
+    svgText(g, 8, 16, label, "mod-label");
+    svgText(g, 8, h - 8, serial + (disconnected ? " · DISCONNECTED" : " · " + (d.connection || "connected")), "mod-status");
+    // per-kind content: screen preview / control state
+    var c = state.controls || {};
+    if (d.kind === "keys") {
+      var scr = svgEl("rect", { x: 6, y: 22, width: w - 12, height: h - 36, rx: 4, "class": "screen" }, g);
+      var keys = c.keys || {};
+      for (var i = 0; i < 15; i++) {
+        var kx = 10 + (i % 5) * ((w - 20) / 5), ky = 26 + Math.floor(i / 5) * ((h - 42) / 3);
+        var kd = keys[String(i)] || {};
+        svgEl("rect", { x: kx, y: ky, width: (w - 20) / 5 - 3, height: (h - 42) / 3 - 3, rx: 2,
+          fill: kd.color || "#20242c", "class": "key" }, g);
+        if (kd.label) { svgText(g, kx + 3, ky + 11, String(kd.label).slice(0, 6), "key-label"); }
+      }
+    } else if (d.kind === "dial") {
+      var dv = c.dial || {};
+      svgEl("circle", { cx: w / 2, cy: (h + 14) / 2, r: Math.min(w, h) / 2 - 10, "class": "screen" }, g);
+      if (dv.label) { svgText(g, w / 2, (h + 14) / 2 + 4, String(dv.label).slice(0, 10), "dial-label").setAttribute("text-anchor", "middle"); }
+    } else if (d.kind === "knobs") {
+      var kn = c.knobs || {};
+      for (var k = 0; k < 3; k++) {
+        var kc = kn[String(k)] || {};
+        var cx = w * (k === 2 ? 0.5 : (k === 0 ? 0.28 : 0.72)), cy = h * (k === 2 ? 0.68 : 0.4);
+        svgEl("circle", { cx: cx, cy: cy, r: Math.min(w, h) * 0.2, fill: kc.led || kc.color || "#3a4150", "class": "knob" }, g);
+      }
+    } else if (d.kind === "faders") {
+      var fa = c.faders || {};
+      for (var f = 0; f < 5; f++) {
+        var fx = 12 + f * ((w - 24) / 5);
+        svgEl("rect", { x: fx, y: 24, width: 6, height: h - 40, rx: 3, "class": "track" }, g);
+        var v = (fa[String(f)] && typeof fa[String(f)].value === "number") ? fa[String(f)].value : 50;
+        svgEl("rect", { x: fx - 2, y: 24 + (h - 40) * (1 - v / 100), width: 10, height: 8, rx: 2, "class": "handle" }, g);
+      }
+    } else if (d.kind === "rollers") {
+      var ro = c.rollers || {};
+      for (var r = 0; r < 2; r++) {
+        var rc = ro[String(r)] || {};
+        svgEl("rect", { x: 10, y: 26 + r * ((h - 36) / 2), width: w - 20, height: (h - 36) / 2 - 4, rx: 6,
+          fill: rc.led || rc.color || "#3a4150", "class": "roller" }, g);
       }
     }
+    g.addEventListener("click", function () { select({ type: "device", serial: serial }); });
   }
 
   // ---- controls --------------------------------------------------------------
