@@ -18,7 +18,27 @@ if conf_dir not in sys.path:
     sys.path.insert(0, conf_dir)
 from cli.run import LATER_PHASE_VERBS  # noqa: E402
 
-class DocsMarkers(unittest.TestCase):
+
+ROOT = Path(__file__).resolve().parents[3]
+DOCS = ROOT / "docs"
+
+# (ticket, forbidden substrings, required substrings) — forbidden scan covers every
+# docs/**/*.md except docs/tickets/; required substrings are checked per named file.
+FORBIDDEN_EVERYWHERE = {
+    "DS-116": ["OPEN O6", "OPEN O11"],
+}
+REQUIRED_IN = {
+    "DS-116": {
+        "docs/open-questions.md": ["RESOLVED (DS-116", "ABI 11"],
+    },
+}
+
+
+def _doc_files():
+    return sorted(p for p in DOCS.rglob("*.md") if "tickets" not in p.relative_to(DOCS).parts)
+
+
+class DocsMarkersDS116(unittest.TestCase):
     def test_docs_markers_ds_116_o6_o11_closed(self):
         """DS-116: no `OPEN O6`/`OPEN O11` marker survives under docs/ (tickets dir
         excluded — the specs quote the markers), and docs/open-questions.md carries the
@@ -42,7 +62,21 @@ class DocsMarkers(unittest.TestCase):
             self.fail("doc-marker violations:\n  " + "\n  ".join(problems))
 
 
-class DocsMarkers(unittest.TestCase):
+ROOT = Path(__file__).resolve().parents[3]
+DOCS = ROOT / "docs"
+
+# The later-phase verb list has one source of truth: the CLI suite's LATER_PHASE_VERBS
+# (tests/conformance/cli/run.py, mirroring bins/ds/src/cli.rs LATER_PHASE).
+_CONF_DIR = ROOT / "tests" / "conformance"
+if str(_CONF_DIR) not in sys.path:
+    sys.path.insert(0, str(_CONF_DIR))
+from cli.run import LATER_PHASE_VERBS  # noqa: E402
+
+# DS-117: the canonical refusal marker that must appear on every refused cli.md row.
+CLI_REFUSAL_MARKER = "recognized but refused in alpha, exit 1"
+
+
+class DocsMarkersDS117(unittest.TestCase):
     def test_docs_markers_ds_117_cli_later_phase_verbs_refused(self):
         """DS-117: docs/contracts/cli.md marks the recognized-but-refused verbs — every
         LATER_PHASE verb row (emit/events/plugin/token) and the daemon row (for the
@@ -95,7 +129,21 @@ class DocsMarkers(unittest.TestCase):
             self.fail("doc-marker violations:\n  " + "\n  ".join(problems))
 
 
-class DocsMarkers(unittest.TestCase):
+ROOT = Path(__file__).resolve().parents[3]
+DOCS = ROOT / "docs"
+
+# DS-118: the canonical alias marker that must appear in all three docs.
+PANEL_ALIAS_MARKER = "vdev-only alias"
+
+# DS-118: the S6 sentences the alias note must NOT replace — the contract vocabulary
+# for the `ds` CLI and all state paths stays `keys | key:<0-14> | dial` only.
+S6_VOCAB_GUARDS = {
+    "docs/contracts/streaming.md": "`panel`/`screen` are not targets",
+    "docs/contracts/state.md": "no\n`panel`/`screen` synonyms",
+}
+
+
+class DocsMarkersDS118(unittest.TestCase):
     def test_docs_markers_ds_118_vdev_panel_alias_of_s6_keys(self):
         """DS-118: the vdev-only `panel` alias of the S6 `keys` target is documented in
         all three places — docs/components/virtual-device.md (the ds-vdevctl surface),
@@ -123,6 +171,25 @@ class DocsMarkers(unittest.TestCase):
                                 "not weaken the contract vocabulary" % (rel, guard))
         if problems:
             self.fail("doc-marker violations:\n  " + "\n  ".join(problems))
+
+
+ROOT = Path(__file__).resolve().parents[3]
+SCHEMA = ROOT / "schemas" / "state.json"
+CONTRACT = ROOT / "docs" / "contracts" / "state.md"
+
+VERBOSE = "--verbose" in sys.argv
+
+
+def _settings_node():
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    return schema["properties"]["settings"]
+
+
+def _settings_contract_line():
+    for line in CONTRACT.read_text(encoding="utf-8").splitlines():
+        if line.startswith("/settings/"):
+            return line
+    raise AssertionError("docs/contracts/state.md has no /settings/... line")
 
 
 class DocsMarkersDS119(unittest.TestCase):
@@ -154,7 +221,7 @@ class DocsMarkersDS119(unittest.TestCase):
 def docs_markers_suite():
     suite = unittest.TestSuite()
     loader = unittest.defaultTestLoader
-    for cls in (DocsMarkers, DocsMarkersDS119):
+    for cls in (DocsMarkersDS116, DocsMarkersDS117, DocsMarkersDS118, DocsMarkersDS119):
         suite.addTests(loader.loadTestsFromTestCase(cls))
     return suite
 
