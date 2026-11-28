@@ -226,7 +226,10 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     // clients rely on that). With no device, or a device that fails to open, this returns
     // immediately; with a connected device it waits for the registry to go idle (≤ 5 s).
     if opts.device.is_some() {
-        let boot_wait = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        // cap 3 s: the DS-022 handshake alone needs ~800 ms (600 ms settle + 200 ms
+        // re-settle, per screen module in parallel), registration ~100 ms; beyond that
+        // we accept the (rare) async registration instead of delaying boot further
+        let boot_wait = std::time::Instant::now() + std::time::Duration::from_secs(3);
         while std::time::Instant::now() < boot_wait {
             let s = device_status.lock().unwrap().clone().unwrap_or_default();
             if s.starts_with("connected") {
