@@ -355,13 +355,22 @@ fn kill9_leaves_stale_pid_and_the_next_start_recovers() {
         .to_string();
     let mut conn = ControlConn::connect(&first.socket());
     conn.hello_auth(&token);
+    // DS-112: boot also commits the /devices registration (one coalesced transaction), so
+    // the first user set lands at cur+1, not necessarily rev 1 — assert the exact increment
+    let r0 = conn.round(json!({"id": 1, "op": "get", "path": "/meta"}));
+    let cur = r0["rev"].as_u64().expect("rev is a number");
     let r = conn.round(json!({
         "id": 2, "op": "set",
         "ops": [{"op": "set", "path": "/controls/keys/0/image",
                  "value": {"kind": "color", "value": "#3cc86e"}}]
     }));
     assert_eq!(r["ok"], json!(true), "set: {r}");
-    assert_eq!(r["rev"], json!(1));
+    let set_rev = r["rev"].as_u64().expect("set reply carries the new rev");
+    assert_eq!(
+        set_rev,
+        cur + 1,
+        "the set commits exactly one rev above the current one"
+    );
     wait_software_mode_on(&vdev_sock, Duration::from_secs(5));
     let (code, sig) = first.signal_and_wait("-KILL", Duration::from_secs(10));
     assert_eq!(
@@ -391,10 +400,16 @@ fn kill9_leaves_stale_pid_and_the_next_start_recovers() {
     conn.hello_auth(&token);
     let r = conn.round(json!({"id": 3, "op": "get", "path": "/"}));
     assert_eq!(r["ok"], json!(true));
-    assert_eq!(
-        r["rev"],
-        json!(1),
+    // the committed control value survived the crash; rev never went backwards (the
+    // recovered run's own boot commits — DS-112 /devices registration — may add more)
+    assert!(
+        r["rev"].as_u64().unwrap() >= set_rev,
         "the atomically committed state survived the crash: {r}"
+    );
+    assert_eq!(
+        r["result"]["value"]["controls"]["keys"]["0"]["image"]["value"],
+        json!("#3cc86e"),
+        "the committed image value survived the crash: {r}"
     );
     // re-handshake on connect: keys back in software mode
     wait_software_mode_on(&vdev_sock, Duration::from_secs(5));

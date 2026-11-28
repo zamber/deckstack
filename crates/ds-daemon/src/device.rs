@@ -1155,102 +1155,159 @@ pub fn spawn_registrar(
     bus: Bus,
     state: crate::state::StateHandle,
     shutdown: Shutdown,
-) -> JoinHandle<()> {
-    std::thread::Builder::new()
+) -> (JoinHandle<()>, Arc<RegistryState>) {
+    let shared = Arc::new(RegistryState {
+        entries: Mutex::new(HashMap::new()),
+        dirty: Mutex::new(std::collections::HashSet::new()),
+        cv: std::sync::Condvar::new(),
+        ever_committed: AtomicU64::new(0),
+    });
+    let shared2 = Arc::clone(&shared);
+    let shared3 = Arc::clone(&shared);
+    let state2 = state.clone();
+    let sink = router::FnSink(Arc::new(move |msg: &Value| {
+        let Some(topic) = msg.get("topic").and_then(Value::as_str) else {
+            return;
+        };
+        let Some(rest) = topic.strip_prefix("deck/device/") else {
+            return;
+        };
+        let mut segs = rest.split('/');
+        let (Some(serial), Some(event)) = (segs.next(), segs.next()) else {
+            return;
+        };
+        if segs.next().is_some() || serial.is_empty() {
+            return;
+        }
+        let payload = msg.get("payload").cloned().unwrap_or(Value::Null);
+        let mut map = shared2.entries.lock().unwrap();
+        // The base orientation is deck-wide: a rotation re-keys every module's
+        // (slot, orientation) identity, so an orientation event flips every entry.
+        let deck_wide = event == "orientation";
+        if deck_wide {
+            if let Some(v) = payload.get("orientation") {
+                for e in map.values_mut() {
+                    e["orientation"] = v.clone();
+                }
+            }
+        }
+        let entry = map
+            .entry(serial.to_string())
+            .or_insert_with(|| serde_json::json!({}));
+        match event {
+            "connected" | "moved" => {
+                for f in ["kind", "pid", "slot", "position", "orientation"] {
+                    if let Some(v) = payload.get(f) {
+                        entry[f] = v.clone();
+                    }
+                }
+                entry["connection"] = serde_json::json!("connected");
+            }
+            "orientation" => {
+                if let Some(v) = payload.get("orientation") {
+                    entry["orientation"] = v.clone();
+                }
+                entry["connection"] = serde_json::json!("connected");
+            }
+            "disconnected" => {
+                entry["connection"] = serde_json::json!("disconnected");
+            }
+            _ => {}
+        }
+        // mark dirty (an orientation event re-keys the whole deck)
+        let mut dirty = shared2.dirty.lock().unwrap();
+        if deck_wide {
+            for s in map.keys() {
+                dirty.insert(s.clone());
+            }
+        } else {
+            dirty.insert(serial.to_string());
+        }
+        drop(dirty);
+        drop(map);
+        shared2.cv.notify_one();
+    }));
+    bus.subscribe(
+        router::Pattern::Topic(
+            router::TopicPattern::parse("deck/device/*").expect("valid pattern"),
+        ),
+        None,
+        "deck/device/*".to_string(),
+        Arc::new(sink),
+    );
+    let thread = std::thread::Builder::new()
         .name("ds-device-registry".into())
         .spawn(move || {
-            let entries: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(HashMap::new()));
-            let entries2 = Arc::clone(&entries);
-            let state2 = state.clone();
-            let sink = router::FnSink(Arc::new(move |msg: &Value| {
-                let Some(topic) = msg.get("topic").and_then(Value::as_str) else {
-                    return;
-                };
-                let Some(rest) = topic.strip_prefix("deck/device/") else {
-                    return;
-                };
-                let mut segs = rest.split('/');
-                let (Some(serial), Some(event)) = (segs.next(), segs.next()) else {
-                    return;
-                };
-                if segs.next().is_some() || serial.is_empty() {
-                    return;
-                }
-                let payload = msg.get("payload").cloned().unwrap_or(Value::Null);
-                let mut map = entries2.lock().unwrap();
-                // The base orientation is deck-wide: a rotation re-keys every module's
-                // (slot, orientation) identity, so an orientation event flips every entry.
-                if event == "orientation" {
-                    if let Some(v) = payload.get("orientation") {
-                        for e in map.values_mut() {
-                            e["orientation"] = v.clone();
+            // Coalescing committer: all dirty entries go into ONE transaction (one rev
+            // bump per batch), so a burst of boot-time connected events costs a single
+            // revision and clients never see rev move while idle.
+            loop {
+                let dirty: Vec<String> = {
+                    let mut g = shared3.dirty.lock().unwrap();
+                    loop {
+                        if !g.is_empty() || shutdown.get() {
+                            break;
                         }
+                        let (ng, _) = shared3
+                            .cv
+                            .wait_timeout(g, Duration::from_millis(100))
+                            .unwrap();
+                        g = ng;
                     }
+                    let d = g.drain().collect::<Vec<_>>();
+                    d
+                };
+                if dirty.is_empty() {
+                    if shutdown.get() {
+                        break;
+                    }
+                    continue;
                 }
-                let entry = map
-                    .entry(serial.to_string())
-                    .or_insert_with(|| serde_json::json!({}));
-                match event {
-                    "connected" | "moved" => {
-                        for f in ["kind", "pid", "slot", "position", "orientation"] {
-                            if let Some(v) = payload.get(f) {
-                                entry[f] = v.clone();
-                            }
-                        }
-                        entry["connection"] = serde_json::json!("connected");
-                    }
-                    "orientation" => {
-                        if let Some(v) = payload.get("orientation") {
-                            entry["orientation"] = v.clone();
-                        }
-                        entry["connection"] = serde_json::json!("connected");
-                    }
-                    "disconnected" => {
-                        entry["connection"] = serde_json::json!("disconnected");
-                    }
-                    _ => {}
-                }
+                let entries = shared3.entries.lock().unwrap();
                 let rev = state2.rev().ok().unwrap_or(0);
-                entry["last_seen_rev"] = serde_json::json!(rev);
-                // an orientation event re-keys the whole deck: commit every entry
-                let mut to_commit: Vec<(String, Value)> = Vec::new();
-                if event == "orientation" {
-                    for (s, e) in map.iter() {
+                let mut ops = Vec::new();
+                for serial in &dirty {
+                    if let Some(e) = entries.get(serial) {
                         let mut e = e.clone();
                         e["last_seen_rev"] = serde_json::json!(rev);
-                        to_commit.push((s.clone(), e));
+                        ops.push(ds_state::Op::set(format!("/devices/{serial}"), e));
                     }
-                } else {
-                    to_commit.push((serial.to_string(), entry.clone()));
                 }
-                drop(map);
-                for (s, v) in to_commit {
-                    let tx = ds_state::Transaction::new(vec![ds_state::Op::set(
-                        format!("/devices/{s}"),
-                        v,
-                    )]);
-                    if let Err(e) = state2.set(tx) {
-                        lifecycle::log(
+                drop(entries);
+                if !ops.is_empty() {
+                    let tx = ds_state::Transaction::new(ops);
+                    match state2.set(tx) {
+                        Ok(_) => {
+                            shared3.ever_committed.store(1, Ordering::SeqCst);
+                        }
+                        Err(e) => lifecycle::log(
                             "warn",
                             "ds-daemon::device",
-                            &format!("devices registry: set /devices/{s} failed: {e}"),
-                        );
+                            &format!("devices registry: commit failed: {e}"),
+                        ),
                     }
                 }
-            }));
-            bus.subscribe(
-                router::Pattern::Topic(
-                    router::TopicPattern::parse("deck/device/*").expect("valid pattern"),
-                ),
-                None,
-                "deck/device/*".to_string(),
-                Arc::new(sink),
-            );
-            while !shutdown.get() {
-                std::thread::sleep(Duration::from_millis(100));
             }
         })
-        .expect("spawn ds-device-registry thread")
+        .expect("spawn ds-device-registry thread");
+    (thread, shared)
+}
+
+/// Shared state of the /devices registry, so the daemon can wait (bounded) for the initial
+/// registration to complete before it starts accepting clients.
+pub struct RegistryState {
+    entries: Mutex<HashMap<String, Value>>,
+    dirty: Mutex<std::collections::HashSet<String>>,
+    cv: std::sync::Condvar,
+    ever_committed: AtomicU64,
+}
+
+impl RegistryState {
+    /// True once at least one batch was committed and nothing is pending — i.e. /devices is
+    /// settled and rev will not move on its own.
+    pub fn idle(&self) -> bool {
+        self.ever_committed.load(Ordering::SeqCst) > 0 && self.dirty.lock().unwrap().is_empty()
+    }
 }
 fn handle_push(
     transport: Option<&dyn Transport>,
