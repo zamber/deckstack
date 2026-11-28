@@ -47,7 +47,7 @@
     var url = "ws://127.0.0.1:" + port + "/preview/ws?token=" + encodeURIComponent(token);
     ws = new WebSocket(url);
     ws.onopen = function () {
-      ["/controls/*", "/devices/*", "/bindings/*", "/plugins/*", "/deck/*"].forEach(function (p, i) {
+      ["/controls", "/devices", "/bindings", "/plugins", "/deck", "/app"].forEach(function (p, i) {
         ws.send(JSON.stringify({ id: i + 1, op: "subscribe", path: p }));
       });
     };
@@ -64,7 +64,7 @@
         return;
       }
       if (msg.op === "preview.frame") { handleFrame(msg); return; }
-      if (msg.op === "event") {
+      if (msg.op === "event") { if (window.WSDEBUG) { console.log("ws event", msg.path, JSON.stringify(msg.value)); }
         if (msg.path && Object.prototype.hasOwnProperty.call(msg, "value")) {
           setPath(state, msg.path, msg.value);
         }
@@ -181,7 +181,7 @@
   var ANCHOR_EDGE = { "top-left":"top", "middle-top":"top", "top-right":"top",
     "bottom-left":"bottom", "bottom-middle":"bottom", "bottom-right":"bottom", "left":"left", "right":"right" };
   // module footprint in cells [w,h] at rot 0 (flat grid)
-  var FOOTPRINT = { keys: [3,2], dial: [2,2], knobs: [2,1], faders: [3,1], rollers: [2,1], base: [6,4] };
+  var FOOTPRINT = { keys: [4,3], dial: [2,2], knobs: [2,2], faders: [2,4], rollers: [1,4], base: [6,4] };
 
   function baseOrientation() {
     var devs = state.devices || {};
@@ -221,17 +221,27 @@
     svgText(slab, GAP + 12, GAP + H - 2 * GAP - 10, "MasterHub base " + (vertical ? "4×6 (vertical)" : "6×4 (flat)"), "slab-label");
 
     var devs = state.devices || {};
-    var used = {};
+    var usedCells = {};
     Object.keys(devs).sort().forEach(function (serial) {
       var d = devs[serial] || {};
       if (/base$/.test(d.kind || "")) { return; }
       var mapped = SLOT_ROT[d.kind + "|" + (d.slot || "")];
-      var anchor = mapped ? mapped[0] : null, rot = mapped ? mapped[1] : 0;
-      if (!anchor || used[anchor]) {
-        var order = ["top-left","middle-top","top-right","left","right","bottom-left","bottom-middle","bottom-right"];
-        anchor = order.find(function (a) { return !used[a]; }) || "middle-top";
+      var rot = mapped ? mapped[1] : 0;
+      var fp = FOOTPRINT[d.kind] || [2, 1];
+      var order = ["top-left","middle-top","top-right","left","right","bottom-left","bottom-middle","bottom-right"];
+      var anchors = mapped ? [mapped[0]].concat(order) : order;
+      var anchor = null, rect = null;
+      for (var ai = 0; ai < anchors.length; ai++) {
+        var cand = cellRect(anchors[ai], rot, fp, cols, rows);
+        var clash = false;
+        for (var cy = cand.row; cy < cand.row + cand.h && !clash; cy++)
+          for (var cx = cand.col; cx < cand.col + cand.w && !clash; cx++)
+            if (usedCells[cy + "," + cx]) { clash = true; }
+        if (!clash) { anchor = anchors[ai]; rect = cand; break; }
       }
-      used[anchor] = true;
+      if (!rect) { anchor = mapped ? mapped[0] : "middle-top"; rect = cellRect(anchor, rot, fp, cols, rows); }
+      for (var uy = rect.row; uy < rect.row + rect.h; uy++)
+        for (var ux = rect.col; ux < rect.col + rect.w; ux++) { usedCells[uy + "," + ux] = true; }
       drawModule(svg, d, serial, anchor, rot, cols, rows, CW, CH, GAP);
     });
   }

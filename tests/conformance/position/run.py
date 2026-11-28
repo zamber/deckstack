@@ -52,7 +52,7 @@ SUITE_TIMEOUT_S = 300
 BINARIES = ("ds", "ds-daemon", "ds-vdev", "ds-vdevctl")
 
 # DS-112 identity expectations (SALON-001 rot0 anchors; position = base-4 decode of the
-# port path tagged by its length): knobs 1-2-3 -> 70, keys 1-3-4 -> 75, base 1-4-4 -> 79
+# port path tagged by its length): knobs 1-2-3 -> 70, keys 2-3 -> 22, rollers 3-3 -> 26, base 1-4-4 -> 79
 KNOBS_SERIAL = "virtual-0202"
 KEYS_SERIAL = "virtual-01fe"
 
@@ -424,11 +424,11 @@ class Position(unittest.TestCase):
         # SALON-001 rot0 anchors: slot + derived connector position + base orientation
         expect = {
             "virtual-01f6": ("m0-base", "1-4-4", 79),
-            "virtual-01fe": ("keys", "1-3-4", 75),
+            "virtual-01fe": ("keys", "2-3", 22),
             "virtual-0200": ("faders", "1-1-3", 66),
             "virtual-0202": ("knobs", "1-2-3", 70),
-            "virtual-0204": ("rollers", "1-3-4", 75),
-            "virtual-0206": ("dial", "1-1-3", 66),
+            "virtual-0204": ("rollers", "3-3", 26),
+            "virtual-0206": ("dial", "1-3-4", 75),
         }
         for serial, (kind, slot, position) in expect.items():
             d = devs[serial]

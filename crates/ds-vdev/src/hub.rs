@@ -37,15 +37,15 @@ pub const DEFAULT_BACKLIGHT: u8 = 50;
 /// The DS-112 reference (rot0) slot anchors per module kind, base flat, corner indicator in
 /// the fixed standard position — the SALON-001 reference sweep
 /// (`docs/discovery/salon-001/README.md`, connector-map-ref-labeled.csv):
-/// knobs `1-2-3`, keys `1-3-4`, faders `1-1-3`, rollers `1-3-4`, dial `1-1-3`, base MCU
+/// knobs `1-2-3`, keys `2-3`, faders `1-1-3`, rollers `3-3`, dial `1-3-4`, base MCU
 /// `1-4-4`.
 pub fn reference_slot(kind: ModuleKind) -> Slot {
     let s = match kind {
         ModuleKind::Knobs => "1-2-3",
-        ModuleKind::Keys => "1-3-4",
+        ModuleKind::Keys => "2-3",
         ModuleKind::Faders => "1-1-3",
-        ModuleKind::Rollers => "1-3-4",
-        ModuleKind::Dial => "1-1-3",
+        ModuleKind::Rollers => "3-3",
+        ModuleKind::Dial => "1-3-4",
         ModuleKind::Base => BASE_MCU_SLOT,
     };
     Slot::parse(s).expect("reference slots are valid port paths")
@@ -259,6 +259,15 @@ impl Hub {
         let mut st = self.lock();
         if !st.slots.contains_key(&pid) {
             return Err(format!("module {} is not served by this hub", kind.name()));
+        }
+        // A connector seats exactly one module: reject moves onto an occupied slot
+        // (the physical base would not allow two modules in one connector).
+        if let Some(other) = st.slots.iter().find(|(p, s)| **s == slot && **p != pid) {
+            return Err(format!(
+                "slot {} is occupied by pid {:#06x}",
+                slot.as_str(),
+                other.0
+            ));
         }
         let pos = slot.position();
         st.slots.insert(pid, slot);
@@ -1139,10 +1148,10 @@ mod tests {
         let hub = Hub::new(HubConfig::default());
         // boot: every module at its SALON-001 rot0 anchor
         assert_eq!(hub.slot(ModuleKind::Knobs).unwrap().as_str(), "1-2-3");
-        assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "1-3-4");
+        assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "2-3");
         assert_eq!(hub.slot(ModuleKind::Faders).unwrap().as_str(), "1-1-3");
-        assert_eq!(hub.slot(ModuleKind::Rollers).unwrap().as_str(), "1-3-4");
-        assert_eq!(hub.slot(ModuleKind::Dial).unwrap().as_str(), "1-1-3");
+        assert_eq!(hub.slot(ModuleKind::Rollers).unwrap().as_str(), "3-3");
+        assert_eq!(hub.slot(ModuleKind::Dial).unwrap().as_str(), "1-3-4");
         assert_eq!(
             hub.slot(ModuleKind::Base).unwrap().as_str(),
             ds_device::slot::BASE_MCU_SLOT
@@ -1156,7 +1165,7 @@ mod tests {
         let ans = &out.replies[0].payload;
         assert_eq!(ans[0], 0x03);
         assert_eq!(ans[1], SLOT_FEATURE_ID);
-        assert_eq!(&ans[3..3 + 5], b"1-3-4");
+        assert_eq!(&ans[3..3 + 3], b"2-3");
         // base orientation feature read: flat = 0x01
         let base_pid = module_info(ModuleKind::Base).pid;
         let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, base_pid, vec![0x35]).unwrap());
@@ -1190,6 +1199,17 @@ mod tests {
         assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "3-1");
         assert!(hub.control("move keys nonsense").is_err());
         assert!(hub.control("move nope 1-1-1").is_err());
+        // DS-112: a move onto another module's slot is refused (one module per connector)
+        let taken = hub.control("slots").unwrap().join("\n");
+        let first_slot = taken
+            .lines()
+            .find_map(|l| l.split_whitespace().find(|w| w.contains('-')))
+            .unwrap()
+            .to_string();
+        let other = if first_slot == "1-4-3" { "keys" } else { "knobs" };
+        assert!(hub
+            .control(&format!("move {other} {first_slot}"))
+            .is_err());
         let lines = hub.control("orientation vertical").unwrap();
         assert!(lines[0].contains("vertical"));
         assert_eq!(hub.orientation(), Orientation::Vertical);
