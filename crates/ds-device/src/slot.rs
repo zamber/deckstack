@@ -167,12 +167,14 @@ mod tests {
     #[test]
     fn parses_the_salon001_slots() {
         for s in [
-            "1-4-3", "1-4-4", "3-1", "1-1-1", "3-3", "2-3", "4-4", "1-2-3", "1-3-4", "2-2",
-            "4-1", "2-4", "1-4-2", "1-1-4", "3-2", "4-3", "1-2-1",
+            "1-4-3", "1-4-4", "3-1", "1-1-1", "3-3", "2-3", "4-4", "1-2-3", "1-3-4", "2-2", "4-1",
+            "2-4", "1-4-2", "1-1-4", "3-2", "4-3", "1-2-1",
         ] {
             assert!(Slot::parse(s).is_some(), "{s}");
         }
-        for bad in ["", "0-1", "5-1", "1-2-3-4", "1--2", "a-b", "1-", "-1", "12-3"] {
+        for bad in [
+            "", "0-1", "5-1", "1-2-3-4", "1--2", "a-b", "1-", "-1", "12-3",
+        ] {
             assert!(Slot::parse(bad).is_none(), "{bad:?}");
         }
     }
@@ -180,10 +182,7 @@ mod tests {
     #[test]
     fn abs_path_strips_bus_and_rootport() {
         // SALON-001: abs 3-2-1-4-3 -> slot 1-4-3; base MCU abs 3-2-1-4-4 -> 1-4-4
-        assert_eq!(
-            Slot::from_abs_path("3-2-1-4-3").unwrap().as_str(),
-            "1-4-3"
-        );
+        assert_eq!(Slot::from_abs_path("3-2-1-4-3").unwrap().as_str(), "1-4-3");
         assert_eq!(
             Slot::from_abs_path("3-2-1-4-4").unwrap().as_str(),
             BASE_MCU_SLOT

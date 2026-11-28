@@ -39,3 +39,12 @@ a runtime dependency.
    pixel claims (`docs/90-verification.md`).
 4. The old app is never a runtime dependency; coexistence is not a goal (the HID device
    has one owner — `hubdeck/docs/masterhub-protocol.md:36-37`).
+
+## Interim workaround: `knobs.roles` pinning (DS-112 req 6)
+
+Until position mapping landed, the predecessor Salon app pinned knob roles by hand with
+the `hubdeck` config key `knobs.roles` — a per-serial/per-slot hand mapping, not a deckstack
+feature. With DS-112 implemented (ADR-021), modules are identified by `(slot, orientation)`
+in addition to the serial and control paths stay logical (`/controls/knobs/<i>`), so the
+pinning is no longer needed; it is documented here only as the historical interim
+workaround for the Salon deck, not as a deckstack capability.

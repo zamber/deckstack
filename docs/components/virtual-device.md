@@ -33,6 +33,16 @@ so the real `ds-device` code path (chunking, framing, safety) runs unchanged.
   at runtime on the control socket (`throttle …`, see below) and from the Rust API
   (`Hub::set_throttle` / `Hub::set_credits`). Exact semantics under
   §"Throttle and backpressure knobs (DS-035)".
+- **DS-112 placement model:** every virtual module has a **slot** (USB port path relative
+  to the base's top hub, e.g. `1-4-3`) seeded from the SALON-001 per-module rot0 anchors
+  (`reference_slot`: knobs `1-2-3`, keys `1-3-4`, faders `1-1-3`, rollers `1-3-4`, dial
+  `1-1-3`, base MCU `1-4-4`) plus a base **orientation** (flat = `0x01` horizontal,
+  upright = `0x00` vertical). The slot is answered by feature read `0x39` (ASCII, a
+  vdev-only read — real HID takes the slot from the sysfs port path) and the orientation by
+  the base's `0x35` read; both change at runtime via the control socket, and `reports`
+  shows `slot=… position=…` per module. This is the virtual model for testing
+  configuration permutations (module kind × connector × base orientation) — see
+  `crates/ds-vdev/tests/ds112_permutations.rs`.
 - **Dependencies:** ds-protocol (mh-protocol) for report building/parsing.
 - **Test command:** `cargo test -p ds-vdev`; the conformance suite
   (`python tests/conformance/run.py`) starts ds-vdev itself.
@@ -79,11 +89,20 @@ Requests (first word = command):
 ```
 ping
 frames [target]            # target: panel | key:N | dial; body: "<target> <sha256> <bytes>B seq=<n>"
-reports                    # one line per served module (pid, report lengths, tags, state)
+reports                    # one line per served module (pid, report lengths, tags, state, slot, position)
 writes [n]                 # last n report log entries (seq, pid, kind, len, refused, at_ms)
 throttle <kbps|off> [drop-after|off] [credits=<burst>/<refill>/<period_ms>[@<seed>]|off]
 inject <event-json>        # one ndjson event (see below), broadcast as an 0x81 INPUT frame
+slots                      # DS-112: one line per module: "<kind> pid=<hex> slot=<path> position=<n>"
+move <module> <slot>       # DS-112: reseat a module in another connector (same pid/serial)
+orientation <horiz|vert>   # DS-112: rotate the base; broadcasts the tilt INPUT frame to hosts
+replug                     # DS-112: close every host connection (they reconnect to the same hub)
 ```
+
+`move` replies `moved <kind> pid=<hex> slot=<path> position=<n>`; `orientation` replies
+`orientation <name> (0x<byte>) broadcast to hosts`; `replug` replies
+`replug requested; <n> connection(s) will close`. None of them touches host→device HID
+bytes — they steer the virtual deck's placement state only.
 
 `throttle` replies `throttle kbps=<n|off> drop_after=<n|off> credits=<b>/<r>/<ms>[@<seed>] remaining=<n>|off`
 (the `remaining` field is the credit bucket's current fill; it is only present while a

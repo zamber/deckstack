@@ -1505,14 +1505,20 @@ mod tests {
         // a reconnect lands on a fresh transport, like a replugged vdev. The slot map is
         // SHARED with the test so a "move" on the live connection is visible to the rescan.
         let slots1 = Arc::new(StdMutex::new(
-            [(ModuleKind::Keys, ds_device::slot::Slot::parse("1-3-4").unwrap())]
-                .into_iter()
-                .collect(),
+            [(
+                ModuleKind::Keys,
+                ds_device::slot::Slot::parse("1-3-4").unwrap(),
+            )]
+            .into_iter()
+            .collect(),
         ));
         let slots2 = Arc::new(StdMutex::new(
-            [(ModuleKind::Keys, ds_device::slot::Slot::parse("3-1").unwrap())]
-                .into_iter()
-                .collect(),
+            [(
+                ModuleKind::Keys,
+                ds_device::slot::Slot::parse("3-1").unwrap(),
+            )]
+            .into_iter()
+            .collect(),
         ));
         let fake1 = FakeTransport::new();
         let fake2 = FakeTransport::new();

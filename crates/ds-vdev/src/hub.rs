@@ -235,10 +235,7 @@ impl Hub {
 
     /// The DS-112 slot of one module (by kind), if the hub serves it.
     pub fn slot(&self, kind: ModuleKind) -> Option<Slot> {
-        self.lock()
-            .slots
-            .get(&module_info(kind).pid)
-            .cloned()
+        self.lock().slots.get(&module_info(kind).pid).cloned()
     }
 
     /// All current module slots as `(kind, slot)` pairs, sorted by kind name
@@ -715,7 +712,9 @@ impl Hub {
             }
             "replug" => {
                 let n = self.replug();
-                Ok(vec![format!("replug requested; {n} connection(s) will close")])
+                Ok(vec![format!(
+                    "replug requested; {n} connection(s) will close"
+                )])
             }
             "writes" => {
                 let mut fields = rest.split_whitespace();
@@ -1151,7 +1150,9 @@ mod tests {
         assert_eq!(hub.orientation(), Orientation::Horizontal);
 
         // the slot feature read answers the current slot (what VirtualTransport::module_slot parses)
-        let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, keys_pid(), vec![SLOT_FEATURE_ID]).unwrap());
+        let out = hub.handle_frame(
+            &Frame::new(kind::FEATURE_GET, keys_pid(), vec![SLOT_FEATURE_ID]).unwrap(),
+        );
         let ans = &out.replies[0].payload;
         assert_eq!(ans[0], 0x03);
         assert_eq!(ans[1], SLOT_FEATURE_ID);
@@ -1162,17 +1163,28 @@ mod tests {
         assert_eq!(out.replies[0].payload[3], 0x01);
 
         // move the knobs to another connector (slot change, same pid/serial)
-        let pos = hub.set_slot(ModuleKind::Knobs, Slot::parse("1-4-3").unwrap()).unwrap();
+        let pos = hub
+            .set_slot(ModuleKind::Knobs, Slot::parse("1-4-3").unwrap())
+            .unwrap();
         assert_eq!(pos, 78);
         assert_eq!(hub.slot(ModuleKind::Knobs).unwrap().as_str(), "1-4-3");
-        let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, module_info(ModuleKind::Knobs).pid, vec![SLOT_FEATURE_ID]).unwrap());
+        let out = hub.handle_frame(
+            &Frame::new(
+                kind::FEATURE_GET,
+                module_info(ModuleKind::Knobs).pid,
+                vec![SLOT_FEATURE_ID],
+            )
+            .unwrap(),
+        );
         assert_eq!(&out.replies[0].payload[3..3 + 5], b"1-4-3");
         assert!(Slot::parse("9-9").is_none());
 
         // control protocol: slots / move / orientation / replug
         let lines = hub.control("slots").unwrap();
         assert_eq!(lines.len(), 6);
-        assert!(lines.iter().any(|l| l.starts_with("knobs pid=0x0202 slot=1-4-3 position=78")));
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("knobs pid=0x0202 slot=1-4-3 position=78")));
         let lines = hub.control("move keys 3-1").unwrap();
         assert_eq!(lines[0], "moved keys pid=0x01fe slot=3-1 position=24");
         assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "3-1");
@@ -1202,7 +1214,10 @@ mod tests {
 
         // reports carry slot + position
         let reports = hub.reports();
-        assert!(reports.iter().any(|r| r.contains("slot=1-4-3 position=78")), "{reports:?}");
+        assert!(
+            reports.iter().any(|r| r.contains("slot=1-4-3 position=78")),
+            "{reports:?}"
+        );
     }
 
     #[test]

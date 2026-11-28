@@ -44,7 +44,13 @@ pub const GESTURES: [&str; 7] = ["down", "up", "long", "double", "rotate", "slid
 
 /// Events of `deck/device/<serial>/<event>` (`moved` = DS-112 placement change: the module's
 /// (slot, orientation) identity key changed, e.g. a reseat in another connector).
-pub const DEVICE_EVENTS: [&str; 5] = ["connected", "disconnected", "orientation", "faders", "moved"];
+pub const DEVICE_EVENTS: [&str; 5] = [
+    "connected",
+    "disconnected",
+    "orientation",
+    "faders",
+    "moved",
+];
 
 /// Events of `deck/system/<event>` (actions.md §1).
 pub const SYSTEM_EVENTS: [&str; 6] = [

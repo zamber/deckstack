@@ -336,7 +336,9 @@ impl Transport for VirtualTransport {
         // (it answers even before the software-mode handshake — a virtual module never
         // wedges; on real HID this read does not exist and the slot comes from sysfs).
         let id = virtual_module_id(kind);
-        let answer = self.query(&id, SLOT_FEATURE_ID, Duration::from_millis(500)).ok()?;
+        let answer = self
+            .query(&id, SLOT_FEATURE_ID, Duration::from_millis(500))
+            .ok()?;
         // answer shape: report id 0x03, feature id, len, then the ASCII slot
         let payload = answer.get(3..)?;
         let end = payload

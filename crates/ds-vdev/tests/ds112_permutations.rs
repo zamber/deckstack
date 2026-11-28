@@ -26,8 +26,8 @@ use ds_vdev::{sha256_hex, Hub, HubConfig, Target, VdevServer};
 /// Every connector port path observed in the SALON-001 sweeps, plus the base MCU slot.
 const CONNECTORS: [&str; 28] = [
     "1-1-1", "1-1-2", "1-1-3", "1-1-4", "1-2-1", "1-2-2", "1-2-3", "1-2-4", "1-3-1", "1-3-2",
-    "1-3-3", "1-3-4", "1-4-1", "1-4-2", "1-4-3", "1-4-4", "2-1", "2-2", "2-3", "2-4", "3-1",
-    "3-2", "3-3", "3-4", "4-1", "4-2", "4-3", "4-4",
+    "1-3-3", "1-3-4", "1-4-1", "1-4-2", "1-4-3", "1-4-4", "2-1", "2-2", "2-3", "2-4", "3-1", "3-2",
+    "3-3", "3-4", "4-1", "4-2", "4-3", "4-4",
 ];
 
 fn test_dir(name: &str) -> PathBuf {
@@ -108,7 +108,11 @@ fn permutation_matrix_kind_x_connector_x_orientation() {
         }
     }
     // 5 module kinds x 28 slots x 2 orientations + the base at its own slot x 2 = 282
-    assert_eq!(cases, 5 * 28 * 2 + 2, "expected the full matrix, got {cases}");
+    assert_eq!(
+        cases,
+        5 * 28 * 2 + 2,
+        "expected the full matrix, got {cases}"
+    );
     let _ = server.hub().orientation();
 }
 
@@ -158,10 +162,7 @@ fn move_then_replug_keeps_position_identity_and_frame_sha() {
     let t = ds_device::open(&uri).unwrap();
     let keys = virtual_module_id(ModuleKind::Keys);
     hotplug::handshake_module(&*t, &keys, fast_cfg()).unwrap();
-    assert_eq!(
-        t.module_slot(ModuleKind::Keys).unwrap().as_str(),
-        "1-3-4"
-    );
+    assert_eq!(t.module_slot(ModuleKind::Keys).unwrap().as_str(), "1-3-4");
     let known = hotplug::identity_keys(&*t, Orientation::Horizontal);
     assert!(hotplug::placement_changes(&*t, Orientation::Horizontal, &known).is_empty());
 
@@ -175,10 +176,14 @@ fn move_then_replug_keeps_position_identity_and_frame_sha() {
 
     // MOVE the keys module to another connector (same serial/pid): the identity key changes
     // with the position, and a rescan of the still-open transport sees it
-    hub.set_slot(ModuleKind::Keys, Slot::parse("3-1").unwrap()).unwrap();
+    hub.set_slot(ModuleKind::Keys, Slot::parse("3-1").unwrap())
+        .unwrap();
     let changes = hotplug::placement_changes(&*t, Orientation::Horizontal, &known);
     assert_eq!(changes.len(), 1, "the move is a placement change");
-    assert_eq!(changes[0].1, DeviceKey::new(Slot::parse("3-1").unwrap(), Orientation::Horizontal));
+    assert_eq!(
+        changes[0].1,
+        DeviceKey::new(Slot::parse("3-1").unwrap(), Orientation::Horizontal)
+    );
     assert_eq!(t.module_slot(ModuleKind::Keys).unwrap().position(), 24);
     t.close().unwrap();
 
@@ -192,7 +197,10 @@ fn move_then_replug_keeps_position_identity_and_frame_sha() {
         t2.send(&keys, &r).unwrap();
     }
     let entry = hub.frame(Target::Key(0)).unwrap();
-    assert_eq!(entry.sha256, sha_before, "frame sha intact after move+replug+re-push");
+    assert_eq!(
+        entry.sha256, sha_before,
+        "frame sha intact after move+replug+re-push"
+    );
 
     // base rotation re-keys every module without any USB event
     hub.set_orientation(Orientation::Vertical);
