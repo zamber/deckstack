@@ -105,7 +105,7 @@ RAWISH = re.compile(
 )
 # ds-vdevctl commands that exist today and are NOT host->device raw writes ("writes" is
 # the read-only write LOG, "inject" broadcasts device->host INPUT frames only).
-VDEVCTL_SAFE = {"ping", "frames", "reports", "writes", "throttle", "inject", "clock"}
+VDEVCTL_SAFE = {"ping", "frames", "reports", "writes", "throttle", "inject", "clock", "slots", "move", "orientation", "replug"}
 
 # The request ops schemas/ipc-message.json declares (walked at test time from the
 # daemon's own `ds schema ipc`, so the assertion tracks the schema, not this list).
