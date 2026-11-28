@@ -54,13 +54,19 @@
     ws.onmessage = function (m) {
       var msg;
       try { msg = JSON.parse(m.data); } catch (e) { return; }
-      if (msg.op === "preview.hello") { setConn(true); return; }
+      if (msg.op === "preview.hello") {
+        setConn(true);
+        if (window.__helloAt === undefined) { window.__helloAt = performance.now(); }
+        startFramePolling(); // DS-126: the frame stream starts on hello, before/without the snapshot
+        return;
+      }
       if (msg.op === "preview.snapshot") {
         state = msg.state || state;
         actions = msg.actions || actions;
         setConn(true);
+        syncDevicesBadge(false);
         renderAll();
-        if (!frameTimer) { frameTimer = setInterval(pollFrames, 400); pollFrames(); }
+        startFramePolling();
         return;
       }
       if (msg.op === "preview.frame") { handleFrame(msg); return; }
@@ -69,6 +75,7 @@
           setPath(state, msg.path, msg.value);
         }
         if (typeof msg.rev === "number") { state.rev = msg.rev; }
+        if (msg.path && msg.path.indexOf("/devices") === 0) { onDevicesEvent(); return; }
         renderSoon();
         return;
       }
@@ -279,8 +286,29 @@
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
     var OX = M * U + GAP, OY = M * U + GAP;
 
+    // DS-127: hubdeck gradients (DeckView.tsx Defs) — dark board, bevelled module
+    // bodies, recessed trays. Pure SVG defs, no deps.
+    var defs = svgEl("defs", {}, svg);
+    function lingrad(id, stops, x1, y1, x2, y2) {
+      var g = svgEl("linearGradient", { id: id, x1: x1, y1: y1, x2: x2, y2: y2 }, defs);
+      stops.forEach(function (s) {
+        svgEl("stop", { offset: s[0], "stop-color": s[1], "stop-opacity": s[2] === undefined ? 1 : s[2] }, g);
+      });
+    }
+    lingrad("ds-board", [[0, "#25242c"], [1, "#121116"]], 0, 0, 0, 1);
+    lingrad("ds-bevel", [[0, "#34343c"], [0.35, "#16161a"], [1, "#060607"]], 0, 0, 0, 1);
+    lingrad("ds-mod", [[0, "#1b1b20"], [1, "#111115"]], 0, 0, 0, 1);
+    lingrad("ds-hl", [[0, "#ffffff", 0.16], [0.3, "#ffffff", 0.04], [1, "#ffffff", 0.015]], 0, 0, 0, 1);
+    lingrad("ds-recess", [[0, "#000000", 0.9], [0.5, "#000000", 0.3], [1, "#ffffff", 0.09]], 0, 0, 0, 1);
+    lingrad("ds-cyl", [[0, "#040405"], [0.2, "#2c2b33"], [0.4, "#72717d"], [0.56, "#3b3a43"], [1, "#040405"]], 0, 0, 0, 1);
+    lingrad("ds-thumb", [[0, "#4a4954"], [0.5, "#24232b"], [1, "#15141a"]], 0, 0, 0, 1);
+    var knobg = svgEl("radialGradient", { id: "ds-knob", cx: 0.38, cy: 0.3, r: 0.8 }, defs);
+    [[0, "#55545f"], [0.55, "#26252d"], [1, "#0f0f13"]].forEach(function (s) {
+      svgEl("stop", { offset: s[0], "stop-color": s[1] }, knobg);
+    });
+
     var slab = svgEl("g", { "class": "base" }, svg);
-    svgEl("rect", { x: OX, y: OY, width: cols * U - GAP, height: rows * U - GAP, rx: 18, "class": "slab" }, slab);
+    svgEl("rect", { x: OX, y: OY, width: cols * U - GAP, height: rows * U - GAP, rx: 18, "class": "slab", fill: "url(#ds-board)" }, slab);
     for (var gy = 0; gy < rows; gy++) for (var gx = 0; gx < cols; gx++)
       svgEl("rect", { x: OX + gx * U, y: OY + gy * U, width: CELL, height: CELL, "class": "gridcell" }, slab);
     svgText(slab, OX + 12, OY + 20, "MasterHub base " + cols + "×" + rows, "slab-label");
@@ -296,6 +324,7 @@
         return p.d.kind + " · slot " + (p.d.slot || "?") + " (" + p.unplaced + ")";
       }).join("   "), "slab-label");
     }
+    applyCachedFrames(); // DS-126: re-apply streamed frames to the fresh <image> elements
   }
 
   // Draws one module at its grid spot. The body is placed in board space; the
@@ -306,8 +335,15 @@
     var x = OX + p.col * U, y = OY + p.row * U;
     var w = p.w * CELL + (p.w - 1) * GAP, h = p.h * CELL + (p.h - 1) * GAP;
     var w0 = fp[0] * CELL + (fp[0] - 1) * GAP, h0 = fp[1] * CELL + (fp[1] - 1) * GAP;
-    var g = svgEl("g", { "class": "module m-" + d.kind, transform: "translate(" + x + "," + y + ")" }, svg);
-    svgEl("rect", { x: 0, y: 0, width: w, height: h, rx: 14, "class": "body" }, g);
+    var disc = d.connection === "disconnected";
+    var g = svgEl("g", { "class": "module m-" + d.kind + (disc ? " disconnected" : ""), "data-serial": serial, transform: "translate(" + x + "," + y + ")" }, svg);
+    // DS-127: bevelled dark body (hubdeck ModuleBody): outer bevel rect, black
+    // inner edge, face gradient, thin top highlight — no colored outline. A
+    // disconnected module would get only a subtle red dashed stroke (CSS).
+    svgEl("rect", { x: 3, y: 3, width: w - 6, height: h - 6, rx: 17, "class": "body-outer" }, g);
+    svgEl("rect", { x: 3.5, y: 3.5, width: w - 7, height: h - 7, rx: 16.5, "class": "body-edge" }, g);
+    svgEl("rect", { x: 8, y: 8, width: w - 16, height: h - 16, rx: 12, "class": "body" }, g);
+    svgEl("rect", { x: 8.5, y: 8.5, width: w - 17, height: h - 17, rx: 11.5, "class": "body-hl" }, g);
     svgText(g, 8, 15, d.kind + " · slot " + (d.slot || "?") + " · " + p.rot + "°", "mod-label");
     var inner = svgEl("g", { transform: "translate(" + (w / 2) + "," + (h / 2) + ") rotate(" + (-p.rot) + ") translate(" + (-(w0 / 2)) + "," + (-(h0 / 2)) + ")" }, g);
     var c = state.controls || {};
@@ -319,7 +355,9 @@
         var dv = c.dial && typeof c.dial.value === "number" ? c.dial.value : 0;
         var ang = -120 + (dv / 100) * 240;
         var dc = svgEl("g", { transform: "translate(" + (w0 / 2) + "," + (h0 / 2) + ") rotate(" + ang + ")" }, inner);
-        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.32, "class": "dial-knob" }, dc);
+        // DS-126: outline-only dial — stroke ring + tick, transparent fill — so
+        // the streamed dial screen stays visible underneath.
+        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.32, "class": "dial-ring" }, dc);
         svgEl("rect", { x: -2, y: -Math.min(w0, h0) * 0.32, width: 4, height: Math.min(w0, h0) * 0.13, rx: 2, "class": "dial-tick" }, dc);
       }
     } else if (d.kind === "knobs") {
@@ -330,7 +368,10 @@
         var kv = typeof kc.value === "number" ? kc.value : 0;
         var ka = -120 + (kv / 100) * 240;
         var kg = svgEl("g", { transform: "translate(" + (w0 * kpos[k][0]) + "," + (h0 * kpos[k][1]) + ")" }, inner);
-        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.2, "class": "knob", fill: ledColor(kc.led) || kc.color || "#4a5468" }, kg);
+        var kfill = ledColor(kc.led) || kc.color || null;
+        var kattr = { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.2, "class": "knob" };
+        if (kfill) { kattr.fill = kfill; }
+        svgEl("circle", kattr, kg);
         var kt = svgEl("g", { transform: "rotate(" + ka + ")" }, kg);
         svgEl("rect", { x: -2, y: -Math.min(w0, h0) * 0.2, width: 4, height: Math.min(w0, h0) * 0.1, rx: 2, "class": "dial-tick" }, kt);
       }
@@ -350,32 +391,71 @@
       var ro = c.rollers || {};
       for (var r2 = 0; r2 < 2; r2++) {
         var rc = ro[String(r2)] || {};
-        var rx = r2 === 0 ? w0 * 0.06 : w0 * 0.52;
-        var rw = w0 * 0.42, ry = h0 * 0.24, rh = h0 * 0.52;
-        svgEl("rect", { x: rx, y: ry, width: rw, height: rh, rx: rh / 2, "class": "roller", fill: ledColor(rc.led) || rc.color || "#4a5468" }, inner);
-        for (var rib = 1; rib < 6; rib++)
-          svgEl("line", { x1: rx + rib * rw / 6, y1: ry + 4, x2: rx + rib * rw / 6, y2: ry + rh - 4, "class": "rib" }, inner);
+        // DS-126: the two ribbed wheels sit SIDE BY SIDE along the module's LONG
+        // axis. The rot0 footprint is 1 wide x 4 tall, so in the local frame the
+        // long (4-cell) axis is y; with the module rotated 90° on the deck the
+        // wheels render side by side along the long edge on screen.
+        var rw = w0 * 0.44, rh = h0 * 0.42;
+        var rx = (w0 - rw) / 2, ry = r2 === 0 ? h0 * 0.05 : h0 * 0.53;
+        var rfill = ledColor(rc.led) || rc.color || null;
+        var rattr = { x: rx, y: ry, width: rw, height: rh, rx: rw / 2, "class": "roller" };
+        if (rfill) { rattr.fill = rfill; }
+        svgEl("rect", rattr, inner);
+        for (var rib = 1; rib < 6; rib++) {
+          var rxp = rx + rib * rw / 6;
+          svgEl("line", { x1: rxp, y1: ry + 4, x2: rxp, y2: ry + rh - 4, "class": "rib" }, inner);
+          svgEl("line", { x1: rxp, y1: ry + 5, x2: rxp, y2: ry + rh - 3, "class": "rib-hi" }, inner);
+        }
       }
     }
     g.addEventListener("click", function () { select({ type: "device", serial: serial }); });
   }
 
-  // ---- frame stream (screenshot stream over WS, DS-121) ----------------------
-  var frameTargets = {};
+  // ---- frame stream (screenshot stream over WS, DS-121/DS-126) ----------------------
+  // frameCache lives OUTSIDE the re-created DOM: it holds the last frame (data URL
+  // + sha) per target kind and survives every renderDeck(), so a re-render can
+  // never blank a screen — applyCachedFrames() re-applies the cached href to the
+  // new <image> elements right after each render. While a frame request is in
+  // flight the previous frame stays on screen (hrefs are only ever replaced,
+  // never cleared).
+  var FRAME_KINDS = ["keys", "dial"];
+  var FRAME_POLL_MS = 140; // DS-126: <= 150 ms
+  var frameCache = {};   // kind -> {sha, href}
+  var frameTargets = {}; // kind -> {img, sha} — rebuilt by every renderDeck()
   var frameTimer = null;
+
+  function startFramePolling() {
+    if (frameTimer) { return; }
+    frameTimer = setInterval(pollFrames, FRAME_POLL_MS);
+    pollFrames();
+  }
   function pollFrames() {
     if (!ws || ws.readyState !== 1) { return; }
-    Object.keys(frameTargets).forEach(function (kind, i) {
-      ws.send(JSON.stringify({ id: 900 + i, op: "frame", target: kind === "keys" ? "keys" : "dial" }));
+    // Poll the fixed screen kinds, not the current DOM targets: polling starts on
+    // preview.hello (before any module is drawn) and the answers land in
+    // frameCache, so a screen lights up the moment its module appears.
+    FRAME_KINDS.forEach(function (kind, i) {
+      ws.send(JSON.stringify({ id: 900 + i, op: "frame", target: kind }));
     });
   }
   function handleFrame(msg) {
-    var t = frameTargets[msg.target === "keys" ? "keys" : "dial"];
-    if (!t || !t.img) { return; }
-    if (msg.sha256 && msg.sha256 !== t.sha && msg.data) {
-      t.sha = msg.sha256;
-      t.img.setAttribute("href", "data:image/jpeg;base64," + msg.data);
+    var kind = msg.target === "dial" ? "dial" : "keys";
+    if (msg.sha256 && msg.data && (!frameCache[kind] || frameCache[kind].sha !== msg.sha256)) {
+      frameCache[kind] = { sha: msg.sha256, href: "data:image/jpeg;base64," + msg.data };
+      if (window.__frameFirstAt === undefined) { window.__frameFirstAt = performance.now(); }
     }
+    var c = frameCache[kind];
+    var t = frameTargets[kind];
+    if (t && t.img && c) {
+      t.sha = c.sha;
+      t.img.setAttribute("href", c.href);
+    }
+  }
+  function applyCachedFrames() {
+    Object.keys(frameTargets).forEach(function (kind) {
+      var t = frameTargets[kind], c = frameCache[kind];
+      if (t && t.img && c) { t.sha = c.sha; t.img.setAttribute("href", c.href); }
+    });
   }
 
   // ---- controls --------------------------------------------------------------
@@ -546,7 +626,37 @@
     renderTimer = setTimeout(function () { renderTimer = null; renderAll(); }, 60);
   }
 
+  // DS-126: every /devices event (connect/disconnect/slot-change/serial-change on
+  // replug — the old serial goes `disconnected`, the new serial may land on a new
+  // slot) re-solves and re-renders immediately, no debounce: the map never keeps a
+  // stale module. The off-deck strip lists disconnected units, the new serial is
+  // placed at its slot by the same solver pass.
+  var lastDevicesSig = null;
+  function devicesSignature() {
+    var devs = state.devices || {};
+    return Object.keys(devs).sort().map(function (s) {
+      var d = devs[s] || {};
+      return s + ":" + (d.kind || "?") + "@" + (d.slot || "?") + ":" + (d.connection || "?");
+    }).join("|");
+  }
+  function syncDevicesBadge(flash) {
+    var el = document.getElementById("devcount");
+    if (!el) { return; }
+    var devs = state.devices || {};
+    el.textContent = "devices: " + Object.keys(devs).length;
+    var sig = devicesSignature();
+    if (sig !== lastDevicesSig) {
+      lastDevicesSig = sig;
+      if (flash) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    }
+  }
+  function onDevicesEvent() {
+    renderAll();
+    syncDevicesBadge(true);
+  }
+
   function renderAll() {
+    window.__renderCount = (window.__renderCount || 0) + 1;
     setRev();
     renderDeck();
     renderControls();
