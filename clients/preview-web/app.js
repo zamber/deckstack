@@ -100,16 +100,6 @@
     openWs();
   }
 
-  function setPath(obj, path, value) {
-    var segs = path.split("/").filter(Boolean);
-    var o = obj;
-    for (var i = 0; i < segs.length - 1; i++) {
-      if (typeof o[segs[i]] !== "object" || o[segs[i]] === null) { o[segs[i]] = {}; }
-      o = o[segs[i]];
-    }
-    o[segs[segs.length - 1]] = value;
-  }
-
   // ---- topic grammar (docs/contracts/actions.md §2): '/' and '.' both split
   // segments; a pattern is a segment-wise prefix of the topic, '*' = one segment.
   function segs(t) { return t.split(/[./]/).filter(Boolean); }
@@ -126,22 +116,6 @@
       var s = segs(t);
       return matchPattern(p, s) || matchPattern(s, p);
     });
-  }
-
-  // ---- orientation (DS-112, defensive: field may not exist yet) ------------
-  function baseOrientation() {
-    var devs = state.devices || {};
-    var found = null;
-    Object.keys(devs).forEach(function (serial) {
-      var d = devs[serial] || {};
-      var o = d.orientation;
-      if (o === undefined || o === null) { return; }
-      if (typeof o === "object") { o = o.value !== undefined ? o.value : JSON.stringify(o); }
-      o = String(o).toLowerCase();
-      if (o === "00" || o === "upright" || o === "vertical") { found = "vertical"; }
-      else if (o === "01" || o === "flat") { found = found || "flat"; }
-    });
-    return found || "flat";
   }
 
   function svgEl(tag, attrs, parent) {
