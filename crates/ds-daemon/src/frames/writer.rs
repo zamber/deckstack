@@ -222,6 +222,7 @@ fn finish(
             slot.stats.bytes += jpeg.len() as u64;
             slot.stats.last_seq = Some(frame.seq);
             slot.stats.last_sha256 = Some(sha256_hex(&jpeg));
+            slot.stats.last_payload = Some(jpeg.clone());
             slot.stats.last_frame_at = Some(Instant::now());
             slot.stats.window_sent += 1;
             slot.stats.note_writer_ms(elapsed);

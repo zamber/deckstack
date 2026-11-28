@@ -31,6 +31,8 @@
 use crate::actions_meta;
 use crate::lifecycle::Shutdown;
 use crate::router::{Bus, FnSink, Pattern};
+use crate::frames::service::FrameService;
+use crate::frames::FrameTarget;
 use crate::state::StateHandle;
 use ds_ipc::auth::TokenSet;
 use serde_json::{json, Value};
@@ -172,7 +174,22 @@ pub struct PreviewServer {
     shutdown: Shutdown,
     state: StateHandle,
     bus: Bus,
+    frames: Option<Arc<FrameService>>,
     data_dir: PathBuf,
+}
+
+fn b64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for c in data.chunks(3) {
+        let b = [c[0], *c.get(1).unwrap_or(&0), *c.get(2).unwrap_or(&0)];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(T[((n >> 18) & 63) as usize] as char);
+        out.push(T[((n >> 12) & 63) as usize] as char);
+        out.push(if c.len() > 1 { T[((n >> 6) & 63) as usize] as char } else { '=' });
+        out.push(if c.len() > 2 { T[(n & 63) as usize] as char } else { '=' });
+    }
+    out
 }
 
 impl PreviewServer {
@@ -182,6 +199,7 @@ impl PreviewServer {
     pub fn start(
         state: StateHandle,
         bus: Bus,
+        frames: Option<Arc<FrameService>>,
         data_dir: &Path,
         shutdown: Shutdown,
         enabled_at_boot: bool,
@@ -198,6 +216,7 @@ impl PreviewServer {
             shutdown,
             state,
             bus,
+            frames,
             data_dir: data_dir.to_path_buf(),
         });
         let srv = Arc::clone(&server);
@@ -205,6 +224,36 @@ impl PreviewServer {
             .name("ds-preview-accept".into())
             .spawn(move || srv.accept_loop(listener))?;
         Ok(server)
+    }
+
+    /// Fallback for the frame stream: re-encode the current control image from state
+    /// (read-only) when no frame has been sent yet on the frame plane.
+    fn frame_from_state(&self, target: crate::frames::FrameTarget) -> Option<(String, Vec<u8>)> {
+        let path = match target {
+            crate::frames::FrameTarget::Panel => "/controls/panel/image",
+            crate::frames::FrameTarget::Dial => "/controls/dial/image",
+            crate::frames::FrameTarget::Key(n) => {
+                return self.state.get(&format!("/controls/keys/{n}/image"), None).ok().and_then(|r| {
+                    let v = r.value;
+                    if v.get("kind").and_then(|k| k.as_str()) == Some("file") {
+                        v.get("path").and_then(|p| p.as_str()).map(|p| p.to_string())
+                    } else { None }
+                }).and_then(|p| self.encode_image_file(target, &p));
+            }
+        };
+        let v = self.state.get(path, None).ok()?.value;
+        if v.get("kind").and_then(|k| k.as_str()) != Some("file") {
+            return None;
+        }
+        let p = v.get("path")?.as_str()?;
+        self.encode_image_file(target, p)
+    }
+
+    fn encode_image_file(&self, target: crate::frames::FrameTarget, path: &str) -> Option<(String, Vec<u8>)> {
+        let wire = crate::device::read_image_file(path).ok()?;
+        let jpeg = crate::frames::encode::encode_frame(target, &wire).ok()?;
+        let sha = ds_device::chunks::sha256_of(&jpeg).iter().map(|b| format!("{b:02x}")).collect();
+        Some((sha, jpeg))
     }
 
     /// The bound port (also in `<data-dir>/http.port`).
@@ -430,7 +479,7 @@ impl PreviewServer {
             .send(json!({
                 "op": "preview.hello", "protocol": 1, "rev": rev,
                 "server": crate::server_name(), "read_only": true,
-                "note": "read-only debug surface: ping/get/subscribe/unsubscribe only",
+                "note": "read-only debug surface: ping/get/subscribe/unsubscribe/frame (read-only)",
             }))
             .is_err()
         {
@@ -545,6 +594,28 @@ impl PreviewServer {
                                     let _ = writer.send(err_reply(id, e.code.as_str(), &e.message));
                                 }
                             }
+                        }
+                        "frame" => {
+                            let Some(tname) = msg.get("target").and_then(Value::as_str) else {
+                                let _ = writer.send(err_reply(id, "E_SCHEMA", "frame needs a target"));
+                                continue;
+                            };
+                            let Some(target) = FrameTarget::parse(tname) else {
+                                let _ = writer.send(err_reply(id, "E_SCHEMA", "unknown frame target"));
+                                continue;
+                            };
+                            let mut r = match &self.frames {
+                                Some(f) => match f.last_frame(target) {
+                                    Some((sha, bytes)) => json!({"op": "preview.frame", "target": tname, "sha256": sha, "encoding": "base64", "data": b64(&bytes)}),
+                                    None => match self.frame_from_state(target) {
+                                        Some((sha, bytes)) => json!({"op": "preview.frame", "target": tname, "sha256": sha, "encoding": "base64", "data": b64(&bytes)}),
+                                        None => json!({"op": "preview.frame", "target": tname, "sha256": null, "data": null}),
+                                    },
+                                },
+                                None => json!({"op": "preview.frame", "target": tname, "sha256": null, "data": null}),
+                            };
+                            if let Some(id) = id { r["id"] = id; }
+                            if writer.send(r).is_err() { break; }
                         }
                         "subscribe" => {
                             let Some(path) = msg.get("path").and_then(Value::as_str) else {
@@ -909,7 +980,7 @@ mod tests {
         lifecycle::ensure_token(&dir).unwrap();
         let bus = Bus::new();
         let (state, st) = crate::state::StateTask::spawn(Store::fresh(), None, bus.clone());
-        let srv = PreviewServer::start(state.clone(), bus.clone(), &dir, Shutdown::manual(), true)
+        let srv = PreviewServer::start(state.clone(), bus.clone(), None, &dir, Shutdown::manual(), true)
             .unwrap();
         (tmp, srv, state, st, bus)
     }

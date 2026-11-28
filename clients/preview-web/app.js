@@ -47,7 +47,7 @@
     var url = "ws://127.0.0.1:" + port + "/preview/ws?token=" + encodeURIComponent(token);
     ws = new WebSocket(url);
     ws.onopen = function () {
-      ["/controls/*", "/devices/*", "/bindings/*", "/plugins/*"].forEach(function (p, i) {
+      ["/controls/*", "/devices/*", "/bindings/*", "/plugins/*", "/deck/*"].forEach(function (p, i) {
         ws.send(JSON.stringify({ id: i + 1, op: "subscribe", path: p }));
       });
     };
@@ -60,8 +60,10 @@
         actions = msg.actions || actions;
         setConn(true);
         renderAll();
+        if (!frameTimer) { frameTimer = setInterval(pollFrames, 400); pollFrames(); }
         return;
       }
+      if (msg.op === "preview.frame") { handleFrame(msg); return; }
       if (msg.op === "event") {
         if (msg.path && Object.prototype.hasOwnProperty.call(msg, "value")) {
           setPath(state, msg.path, msg.value);
@@ -148,16 +150,12 @@
   }
 
   // ---- deck map --------------------------------------------------------------
-  // Physical connector anchors on the base slab (flat orientation, 6x4 cells;
-  // vertical transposes to 4x6). Coordinates in cell units, from the SALON-001
-  // hardware sweeps (docs/discovery/salon-001/README.md).
-  var ANCHORS = {
-    "top-left": [0.9, 0.0], "middle-top": [3.0, 0.0], "top-right": [5.1, 0.0],
-    "bottom-left": [0.9, 4.0], "bottom-middle": [3.0, 4.0], "bottom-right": [5.1, 4.0],
-    "left": [0.0, 2.0], "right": [6.0, 2.0]
-  };
-  // (module kind, slot) -> [anchor, rotation deg CCW], from the SALON-001 sweeps.
-  var SLOT_MAP = {
+  // Faithful grid layout: the base is a cols x rows slab of unit cells (flat 6x4,
+  // vertical 4x6). Each physical connector anchors a module's cell range; modules
+  // snap inside the slab, sized by their footprint in cells, rotated about center.
+  // Connector anchors + (kind, slot) -> rotation come from the SALON-001 sweeps
+  // (docs/discovery/salon-001/README.md).
+  var SLOT_ROT = {
     "knobs|1-2-3": ["top-left",0], "knobs|1-2-4": ["top-left",90],
     "knobs|3-1": ["middle-top",0], "knobs|1-1-1": ["middle-top",90], "knobs|3-3": ["middle-top",180],
     "knobs|3-4": ["top-right",0], "knobs|1-4-3": ["top-right",90], "knobs|1-4-1": ["top-right",180],
@@ -177,15 +175,30 @@
     "rollers|1-2-2": ["left",90], "rollers|4-1": ["right",90], "rollers|4-2": ["bottom-left",90],
     "rollers|3-3": ["bottom-middle",90], "rollers|1-4-1": ["bottom-right",90],
     "rollers|1-4-2": ["top-left",270], "rollers|1-3-1": ["top-right",270], "rollers|1-3-3": ["top-right",270],
-    "rollers|1-1-4": ["bottom-right",270], "rollers|2-1": ["bottom-right",270], "rollers|3-2": ["bottom-left",270]
+    "rollers|1-1-4": ["bottom-right",270], "rollers|2-1": ["bottom-right",270], "rollers|3-2": ["bottom-left",270],
+    "dial|1-1-3": ["bottom-right",0], "dial|1-3-4": ["bottom-right",0]
   };
-  // module footprint in cell units: [w, h]
-  var FOOTPRINT = { keys: [3.0, 1.1], dial: [1.5, 1.5], knobs: [2.0, 1.2], faders: [3.0, 1.0], rollers: [2.2, 0.9], base: [6, 4] };
+  var ANCHOR_EDGE = { "top-left":"top", "middle-top":"top", "top-right":"top",
+    "bottom-left":"bottom", "bottom-middle":"bottom", "bottom-right":"bottom", "left":"left", "right":"right" };
+  // module footprint in cells [w,h] at rot 0 (flat grid)
+  var FOOTPRINT = { keys: [3,2], dial: [2,2], knobs: [2,1], faders: [3,1], rollers: [2,1], base: [6,4] };
 
   function baseOrientation() {
     var devs = state.devices || {};
-    for (var k in devs) { if (/base$/.test(devs[k].kind) && devs[k].orientation) { return devs[k].orientation; } }
+    for (var k in devs) { if (/base$/.test(devs[k].kind || "") && devs[k].orientation) { return devs[k].orientation; } }
     return "horizontal";
+  }
+
+  function cellRect(anchor, rot, fp, cols, rows) {
+    var w = fp[0], h = fp[1];
+    if (rot === 90 || rot === 270) { var t = w; w = h; h = t; }
+    var edge = ANCHOR_EDGE[anchor] || "top";
+    var col, row;
+    if (edge === "top") { row = 0; col = anchor === "top-left" ? 0 : anchor === "top-right" ? cols - w : Math.floor((cols - w) / 2); }
+    else if (edge === "bottom") { row = rows - h; col = anchor === "bottom-left" ? 0 : anchor === "bottom-right" ? cols - w : Math.floor((cols - w) / 2); }
+    else if (edge === "left") { col = 0; row = Math.floor((rows - h) / 2); }
+    else { col = cols - w; row = Math.floor((rows - h) / 2); }
+    return { col: col, row: row, w: w, h: h };
   }
 
   function renderDeck() {
@@ -196,94 +209,94 @@
       "orientation: " + (vertical ? "vertical (4×6)" : "flat (6×4)");
     var CW = 110, CH = 80, GAP = 8;
     var cols = vertical ? 4 : 6, rows = vertical ? 6 : 4;
+    if (vertical) { var tc = CW; CW = CH; CH = tc; } // cells become tall in vertical
     var W = cols * (CW + GAP) + GAP, H = rows * (CH + GAP) + GAP;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
 
-    // base slab
     var slab = svgEl("g", { "class": "base" }, svg);
-    svgEl("rect", { x: GAP, y: GAP, width: cols * (CW + GAP) - GAP, height: rows * (CH + GAP) - GAP, rx: 18, "class": "slab" }, slab);
-    svgText(slab, GAP + 12, GAP + 20, "MasterHub base " + (vertical ? "4×6" : "6×4"), "slab-label");
+    svgEl("rect", { x: GAP, y: GAP, width: W - 2 * GAP, height: H - 2 * GAP, rx: 18, "class": "slab" }, slab);
+    // faint cell grid
+    for (var gy = 0; gy < rows; gy++) for (var gx = 0; gx < cols; gx++)
+      svgEl("rect", { x: GAP + gx * (CW + GAP), y: GAP + gy * (CH + GAP), width: CW, height: CH, "class": "gridcell" }, slab);
+    svgText(slab, GAP + 12, GAP + H - 2 * GAP - 10, "MasterHub base " + (vertical ? "4×6 (vertical)" : "6×4 (flat)"), "slab-label");
 
     var devs = state.devices || {};
-    var serials = Object.keys(devs).sort();
-    var usedAnchors = {};
-    serials.forEach(function (serial) {
+    var used = {};
+    Object.keys(devs).sort().forEach(function (serial) {
       var d = devs[serial] || {};
       if (/base$/.test(d.kind || "")) { return; }
-      var key = d.kind + "|" + (d.slot || "");
-      var mapped = SLOT_MAP[key];
-      var anchor, rot;
-      if (mapped) { anchor = mapped[0]; rot = mapped[1]; }
-      else {
-        // fallback: first free anchor in reading order
+      var mapped = SLOT_ROT[d.kind + "|" + (d.slot || "")];
+      var anchor = mapped ? mapped[0] : null, rot = mapped ? mapped[1] : 0;
+      if (!anchor || used[anchor]) {
         var order = ["top-left","middle-top","top-right","left","right","bottom-left","bottom-middle","bottom-right"];
-        anchor = order.find(function (a) { return !usedAnchors[a]; }) || "middle-top";
-        rot = 0;
+        anchor = order.find(function (a) { return !used[a]; }) || "middle-top";
       }
-      usedAnchors[anchor] = true;
-      drawModule(svg, d, serial, anchor, rot, vertical, CW, CH, GAP);
+      used[anchor] = true;
+      drawModule(svg, d, serial, anchor, rot, cols, rows, CW, CH, GAP);
     });
   }
 
-  function drawModule(svg, d, serial, anchor, rot, vertical, CW, CH, GAP) {
-    var cols = vertical ? 4 : 6, rows = vertical ? 6 : 4;
-    var ax = GAP + ANCHORS[anchor][0] * (CW + GAP) + (ANCHORS[anchor][0] >= cols ? 0 : 0);
-    var ay = GAP + ANCHORS[anchor][1] * (CH + GAP);
-    if (vertical) { // transpose: swap cell coords
-      var t = ANCHORS[anchor];
-      ax = GAP + t[1] * (CW + GAP); ay = GAP + t[0] * (CH + GAP);
-    }
-    var fp = FOOTPRINT[d.kind] || [1.5, 1.0];
-    var w = fp[0] * CW, h = fp[1] * CH;
+  function drawModule(svg, d, serial, anchor, rot, cols, rows, CW, CH, GAP) {
+    var fp = FOOTPRINT[d.kind] || [2, 1];
+    var r = cellRect(anchor, rot, fp, cols, rows);
+    var x = GAP + r.col * (CW + GAP), y = GAP + r.row * (CH + GAP);
+    var w = r.w * CW + (r.w - 1) * GAP, h = r.h * CH + (r.h - 1) * GAP;
     var disconnected = d.connection === "disconnected";
     var g = svgEl("g", {
       "class": "module m-" + d.kind + (disconnected ? " disconnected" : ""),
-      transform: "translate(" + (ax - w / 2) + "," + (ay - h / 2) + ") rotate(" + (-rot) + " " + (w / 2) + " " + (h / 2) + ")"
+      transform: "translate(" + (x + w / 2) + "," + (y + h / 2) + ") rotate(" + (-rot) + ") translate(" + (-w / 2) + "," + (-h / 2) + ")"
     }, svg);
     svgEl("rect", { x: 0, y: 0, width: w, height: h, rx: 10, "class": "body" }, g);
-    var label = d.kind + " · slot " + (d.slot || "?") + " · " + (rot ? rot + "°" : "0°");
-    svgText(g, 8, 16, label, "mod-label");
-    svgText(g, 8, h - 8, serial + (disconnected ? " · DISCONNECTED" : " · " + (d.connection || "connected")), "mod-status");
-    // per-kind content: screen preview / control state
+    svgText(g, 8, 15, d.kind + " · slot " + (d.slot || "?") + " · " + rot + "°", "mod-label");
+    svgText(g, w - 8, 15, disconnected ? "DISCONNECTED" : "connected", "mod-status").setAttribute("text-anchor", "end");
     var c = state.controls || {};
-    if (d.kind === "keys") {
-      var scr = svgEl("rect", { x: 6, y: 22, width: w - 12, height: h - 36, rx: 4, "class": "screen" }, g);
-      var keys = c.keys || {};
-      for (var i = 0; i < 15; i++) {
-        var kx = 10 + (i % 5) * ((w - 20) / 5), ky = 26 + Math.floor(i / 5) * ((h - 42) / 3);
-        var kd = keys[String(i)] || {};
-        svgEl("rect", { x: kx, y: ky, width: (w - 20) / 5 - 3, height: (h - 42) / 3 - 3, rx: 2,
-          fill: kd.color || "#20242c", "class": "key" }, g);
-        if (kd.label) { svgText(g, kx + 3, ky + 11, String(kd.label).slice(0, 6), "key-label"); }
-      }
-    } else if (d.kind === "dial") {
-      var dv = c.dial || {};
-      svgEl("circle", { cx: w / 2, cy: (h + 14) / 2, r: Math.min(w, h) / 2 - 10, "class": "screen" }, g);
-      if (dv.label) { svgText(g, w / 2, (h + 14) / 2 + 4, String(dv.label).slice(0, 10), "dial-label").setAttribute("text-anchor", "middle"); }
+    if (d.kind === "keys" || d.kind === "dial") {
+      var sx = 6, sy = 22, sw = w - 12, sh = h - 34;
+      svgEl("rect", { x: sx, y: sy, width: sw, height: sh, rx: 4, "class": "screen" }, g);
+      var img = svgEl("image", { x: sx, y: sy, width: sw, height: sh, "class": "frameshot", "data-kind": d.kind, preserveAspectRatio: "xMidYMid meet" }, g);
+      frameTargets[d.kind] = { img: img, sha: null };
     } else if (d.kind === "knobs") {
       var kn = c.knobs || {};
       for (var k = 0; k < 3; k++) {
         var kc = kn[String(k)] || {};
-        var cx = w * (k === 2 ? 0.5 : (k === 0 ? 0.28 : 0.72)), cy = h * (k === 2 ? 0.68 : 0.4);
-        svgEl("circle", { cx: cx, cy: cy, r: Math.min(w, h) * 0.2, fill: kc.led || kc.color || "#3a4150", "class": "knob" }, g);
+        var cx = w * (k === 2 ? 0.5 : (k === 0 ? 0.28 : 0.72)), cy = h * (k === 2 ? 0.66 : 0.42);
+        svgEl("circle", { cx: cx, cy: cy, r: Math.min(w, h) * 0.18, fill: kc.led || kc.color || "#3a4150", "class": "knob" }, g);
       }
     } else if (d.kind === "faders") {
       var fa = c.faders || {};
       for (var f = 0; f < 5; f++) {
         var fx = 12 + f * ((w - 24) / 5);
-        svgEl("rect", { x: fx, y: 24, width: 6, height: h - 40, rx: 3, "class": "track" }, g);
+        svgEl("rect", { x: fx, y: 26, width: 6, height: h - 44, rx: 3, "class": "track" }, g);
         var v = (fa[String(f)] && typeof fa[String(f)].value === "number") ? fa[String(f)].value : 50;
-        svgEl("rect", { x: fx - 2, y: 24 + (h - 40) * (1 - v / 100), width: 10, height: 8, rx: 2, "class": "handle" }, g);
+        svgEl("rect", { x: fx - 2, y: 26 + (h - 44) * (1 - v / 100), width: 10, height: 8, rx: 2, "class": "handle" }, g);
       }
     } else if (d.kind === "rollers") {
       var ro = c.rollers || {};
-      for (var r = 0; r < 2; r++) {
-        var rc = ro[String(r)] || {};
-        svgEl("rect", { x: 10, y: 26 + r * ((h - 36) / 2), width: w - 20, height: (h - 36) / 2 - 4, rx: 6,
+      for (var r2 = 0; r2 < 2; r2++) {
+        var rc = ro[String(r2)] || {};
+        svgEl("rect", { x: 10, y: 26 + r2 * ((h - 40) / 2), width: w - 20, height: (h - 40) / 2 - 4, rx: 6,
           fill: rc.led || rc.color || "#3a4150", "class": "roller" }, g);
       }
     }
     g.addEventListener("click", function () { select({ type: "device", serial: serial }); });
+  }
+
+  // ---- frame stream (screenshot stream over WS, DS-121) ----------------------
+  var frameTargets = {};
+  var frameTimer = null;
+  function pollFrames() {
+    if (!ws || ws.readyState !== 1) { return; }
+    Object.keys(frameTargets).forEach(function (kind, i) {
+      ws.send(JSON.stringify({ id: 900 + i, op: "frame", target: kind === "keys" ? "keys" : "dial" }));
+    });
+  }
+  function handleFrame(msg) {
+    var t = frameTargets[msg.target === "keys" ? "keys" : "dial"];
+    if (!t || !t.img) { return; }
+    if (msg.sha256 && msg.sha256 !== t.sha && msg.data) {
+      t.sha = msg.sha256;
+      t.img.setAttribute("href", "data:image/jpeg;base64," + msg.data);
+    }
   }
 
   // ---- controls --------------------------------------------------------------

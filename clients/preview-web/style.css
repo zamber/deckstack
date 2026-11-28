@@ -133,3 +133,13 @@ text { fill: var(--text); font-family: ui-monospace, monospace; }
 .dial-label { fill: #d7dde5; font-size: 10px; }
 .track { fill: #1a1e25; }
 .handle { fill: #adbac7; }
+.gridcell { fill: none; stroke: #262b33; stroke-width: 1; }
+.frameshot { opacity: 0.95; }
+.mod-status { font-weight: bold; }
+.module.disconnected .mod-status { fill: #f85149; }
+.module:not(.disconnected) .mod-status { fill: #7ee787; }
+
+.deck-wrap { grid-column: 1 / -1; }
+.deck-wrap { min-width: 640px; }
+.module .body { fill: #3a4150; stroke: #7ee787; stroke-width: 2; }
+.screen { fill: #000; }

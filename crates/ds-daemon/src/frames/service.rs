@@ -92,6 +92,8 @@ pub struct TargetStats {
     pub bytes: u64,
     pub last_seq: Option<u64>,
     pub last_sha256: Option<String>,
+    /// Last successfully sent device-JPEG payload (DS-121 preview frame stream).
+    pub last_payload: Option<Vec<u8>>,
     pub last_frame_at: Option<Instant>,
     /// Ring of the last writer send durations (for `writer_ms_p99`).
     pub writer_ms: std::collections::VecDeque<std::time::Duration>,
@@ -109,6 +111,7 @@ impl TargetStats {
             bytes: 0,
             last_seq: None,
             last_sha256: None,
+            last_payload: None,
             last_frame_at: None,
             writer_ms: std::collections::VecDeque::with_capacity(129),
             window_sent: 0,
@@ -340,6 +343,11 @@ impl FrameService {
         frame.arrival = self.inner.arrival.fetch_add(1, Ordering::SeqCst);
         self.inner.queued_bytes.fetch_add(len, Ordering::SeqCst);
         let slot = slots.entry(target).or_default();
+        // DS-121 preview frame stream: remember the newest accepted frame per target.
+        if frame.pre_encoded {
+            slot.stats.last_payload = Some(frame.payload.clone());
+            slot.stats.last_sha256 = Some(ds_device::chunks::sha256_of(&frame.payload).iter().map(|b| format!("{b:02x}")).collect());
+        }
         if let Some(old) = slot.waiting.replace(frame) {
             // Latest-frame-wins: the new frame replaces only the waiting one (counted).
             self.inner
@@ -393,6 +401,13 @@ impl FrameService {
     }
 
     /// Current stats snapshots for all known targets.
+    /// Latest successfully sent frame for `target` as (sha256, device-JPEG bytes).
+    pub fn last_frame(&self, target: FrameTarget) -> Option<(String, Vec<u8>)> {
+        let slots = self.inner.slots.lock().unwrap();
+        let st = &slots.get(&target)?.stats;
+        Some((st.last_sha256.clone()?, st.last_payload.clone()?))
+    }
+
     pub fn all_stats(&self) -> Value {
         let slots = self.inner.slots.lock().unwrap();
         let now = Instant::now();

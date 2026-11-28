@@ -283,6 +283,7 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
         match crate::preview::PreviewServer::start(
             state.clone(),
             bus.clone(),
+            Some(Arc::new(frames.clone())),
             &data_dir,
             shutdown.clone(),
             true,
