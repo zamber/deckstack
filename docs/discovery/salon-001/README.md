@@ -214,6 +214,18 @@ the five labeled CSVs to its placement on the base's flat 6x4 cell grid:
   entry of our matrix keeps >= 1 cell on the 6x4 grid (validator check). knobs@3-4 is
   observed in our knob sweep but absent from upstream's table entirely.
 
+### Camera-verified corrections (SALON-003 / DS-125, 2026-11-28)
+
+The webcam facing view of the physical deck (current seating: keys `2-2` top-left,
+knobs `1-4-3` top-right, rollers `1-1-4` bottom-left horizontal, dial `1-3-4`
+bottom-right, faders unplugged) confirmed `keys@2-2` and corrected two entries, now
+`confidence: "verified-camera"` with a `source` note (see `verification-ds124.md`):
+
+- `rollers@1-1-4`: was (2,2) rot 270 from the best-effort last rollers round; camera
+  shows connector cell (0,3), cells c0-3 r3 horizontal → now (0,3), rotations [90, 270].
+- `dial@1-3-4`: was missing (the dial sweep logged only the ref row); camera shows
+  connector (5,3), cells c4-5 r2-3 → added as (5,3) rot 0.
+
 ### Not placed confidently
 
 - `rollers@3-3`'s second observation (rot270 "middle-left + fader space") does not yield the

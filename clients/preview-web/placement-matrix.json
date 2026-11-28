@@ -240,10 +240,14 @@
     "row": 3
   },
   "rollers@1-1-4": {
-    "col": 2,
-    "confidence": "derived",
-    "rot": 270,
-    "row": 2
+    "col": 0,
+    "row": 3,
+    "rotations": [
+      90,
+      270
+    ],
+    "confidence": "verified-camera",
+    "source": "camera: verification-ds124.md \u00a74-5 (SALON-003, 2026-11-28)"
   },
   "rollers@1-2-1": {
     "col": 0,
@@ -343,5 +347,12 @@
     "confidence": "derived",
     "rot": 0,
     "row": 3
+  },
+  "dial@1-3-4": {
+    "col": 5,
+    "row": 3,
+    "rot": 0,
+    "confidence": "verified-camera",
+    "source": "camera: verification-ds124.md \u00a74-5 (SALON-003, 2026-11-28)"
   }
 }

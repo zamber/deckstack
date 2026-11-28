@@ -101,21 +101,51 @@ def transpose(col, row, orientation):
     return (row, col) if orientation == "vertical" else (col, row)
 
 
-def candidates_for(matrix, kind, slot, orientation):
+def top_left_from_connector(kind, cc, cr, rot, cols, rows):
+    """DS-122 matrix semantics: (cc, cr) is the CONNECTOR cell — the module's
+    outward (deck-edge) corner; the module extends inward onto the grid.
+    Edge-middle connectors are ambiguous between two corners; the cross-position
+    rule picks: the corner indicator at rot 0 is TL for keys, TR for the others,
+    the connector sits diagonally opposite, turned by rot (CCW positive).
+    Mirrors topLeftOf() in clients/preview-web/app.js (DS-124)."""
+    w, h = rotated_wh(kind, rot)
+    cx, cy = (cols - 1) / 2.0, (rows - 1) / 2.0
+    dx = -1 if cc < cx else 1 if cc > cx else 0
+    dy = -1 if cr < cy else 1 if cr > cy else 0
+    corners = [(0, 0), (w - 1, 0), (w - 1, h - 1), (0, h - 1)]  # TL, TR, BR, BL
+    if dx != 0 and dy != 0:
+        idx = 0 if dx < 0 and dy < 0 else 1 if dx > 0 and dy < 0 else 2 if dx > 0 else 3
+    else:
+        cands = [0, 1] if dy < 0 else [2, 3] if dy > 0 else [0, 3] if dx < 0 else [1, 2]
+        kind0 = 0 if kind == "keys" else 1
+        want = (kind0 + 3 * ((rot // 90) % 4) + 2) % 4
+        idx = want if want in cands else cands[0]
+    off = corners[idx]
+    return cc - off[0], cr - off[1], w, h
+
+
+def candidates_for(matrix, kind, slot, orientation, connector_semantics=False):
     """Expand the matrix entry "<kind>@<slot>" into candidate placements on the
-    orientation's grid. Square 2x2 modules get all 4 in-place rotations."""
+    orientation's grid. Square 2x2 modules get all 4 in-place rotations.
+    connector_semantics=True reads (col,row) as the connector cell (DS-122);
+    False reads it as the footprint top-left (legacy inline matrices)."""
     entry = matrix.get(f"{kind}@{slot}")
     if entry is None:
         return []
     col, row = transpose(entry["col"], entry["row"], orientation)
     rots = [0, 90, 180, 270] if kind in SQUARE_KINDS else list(entry.get("rotations") or [entry.get("rot", 0)])
+    cols, rows = grid_dims(orientation)
     out, seen = [], set()
     for rot in rots:
-        w, h = rotated_wh(kind, rot)
-        key = (col, row, rot)
+        if connector_semantics:
+            c, r, w, h = top_left_from_connector(kind, col, row, rot, cols, rows)
+        else:
+            c, r = col, row
+            w, h = rotated_wh(kind, rot)
+        key = (c, r, rot)
         if key not in seen:
             seen.add(key)
-            out.append({"col": col, "row": row, "rot": rot, "w": w, "h": h})
+            out.append({"col": c, "row": r, "rot": rot, "w": w, "h": h})
     return out
 
 
@@ -169,7 +199,7 @@ def _area(kind):
     return w * h
 
 
-def solve(devices, orientation="horizontal", matrix=None):
+def solve(devices, orientation="horizontal", matrix=None, connector_semantics=False):
     """Place every device; returns one result dict per input device, in input
     order. Deterministic: same input -> same output."""
     matrix = REFERENCE_MATRIX if matrix is None else matrix
@@ -186,7 +216,7 @@ def solve(devices, orientation="horizontal", matrix=None):
     used_slots = {}
 
     def valid_candidates(dev):
-        cands = candidates_for(matrix, dev["kind"], dev["slot"], orientation)
+        cands = candidates_for(matrix, dev["kind"], dev["slot"], orientation, connector_semantics)
         valid, n_overlap, n_off = [], 0, 0
         for cand in cands:
             cells = cells_of(cand)

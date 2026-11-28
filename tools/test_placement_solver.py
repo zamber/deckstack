@@ -209,11 +209,49 @@ def test_d_edge_cases():
           f"{len(ps.REFERENCE_MATRIX)} matrix entries placeable alone")
 
 
+def test_e_full_matrix_connector_semantics_camera():
+    """DS-122 placement-matrix.json in connector-cell semantics (the webapp's
+    topLeftOf semantics, mirrored by ps.top_left_from_connector) must reproduce
+    the camera-verified placements from verification-ds124.md §4-5."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "..", "docs", "discovery", "salon-001", "placement-matrix.json")) as f:
+        matrix = json.load(f)
+    # real deck config seen by the webcam (SALON-003): keys 2-2, knobs 1-4-3,
+    # rollers 1-1-4, dial 1-3-4, faders unplugged
+    devs = [dev(p) for p in [("keys", "2-2"), ("knobs", "1-4-3"), ("rollers", "1-1-4"), ("dial", "1-3-4")]]
+    res = ps.solve(devs, "horizontal", matrix=matrix, connector_semantics=True)
+    by = {r["kind"]: r for r in res}
+    check(all(not r.get("unplaced") for r in res),
+          f"(e) real-deck config places all 4 modules: {[r.get('reason') for r in res if r.get('unplaced')]}")
+    check((by["keys"]["col"], by["keys"]["row"]) == (0, 0), "(e) keys@2-2 top-left (0,0)")
+    check((by["knobs"]["col"], by["knobs"]["row"]) == (4, 0), "(e) knobs@1-4-3 top-right (4,0)")
+    check((by["rollers"]["col"], by["rollers"]["row"]) == (0, 3) and by["rollers"]["rotation"] % 180 == 90,
+          f"(e) rollers@1-1-4 bottom-left horizontal (0,3) rot90/270, got {(by['rollers']['col'], by['rollers']['row'], by['rollers']['rotation'])}")
+    check((by["dial"]["col"], by["dial"]["row"]) == (4, 2), "(e) dial@1-3-4 bottom-right (4,2)")
+    # no overlaps in the combined real-deck layout
+    occupied = set()
+    for r in res:
+        cells = {tuple(c) for c in r["cells"]}
+        check(not (cells & occupied), f"(e) no overlap at {r['kind']}")
+        occupied |= cells
+    # ref anchors still land on their README seatings under connector semantics
+    ref_expect = {"knobs@1-2-3": (0, 0), "keys@1-3-4": (2, 1), "faders@1-1-3": (4, 0),
+                  "rollers@1-3-4": (5, 0), "dial@1-1-3": (4, 2)}
+    for key, want in ref_expect.items():
+        kind, slot = key.split("@")
+        r = ps.solve([dev((kind, slot))], "horizontal", matrix=matrix, connector_semantics=True)[0]
+        check(not r.get("unplaced") and (r["col"], r["row"]) == want,
+              f"(e) ref {key} -> top-left {want}, got {(r.get('col'), r.get('row'))}")
+    print("PASS (e) full matrix, connector-cell semantics, camera-verified real-deck layout "
+          "(keys TL, knobs TR, rollers BL horizontal, dial BR; ref anchors on their seatings)")
+
+
 def main():
     test_a_permutations_and_subsets()
     test_b_vertical_transpose()
     test_c_2x2_in_place_rotation()
     test_d_edge_cases()
+    test_e_full_matrix_connector_semantics_camera()
     print(f"--- {checks} checks, {len(failures)} failures ---")
     if failures:
         print("PLACEMENT SOLVER TESTS FAILED")

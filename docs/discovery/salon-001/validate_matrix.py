@@ -156,8 +156,8 @@ def main():
             rots = []
         if any(r not in (0, 90, 180, 270) for r in rots) or not rots:
             errors.append(f"{key}: bad rotations {rots}")
-        if e.get("confidence") not in ("verified", "derived"):
-            errors.append(f"{key}: confidence must be verified|derived")
+        if e.get("confidence") not in ("verified", "derived", "verified-camera"):
+            errors.append(f"{key}: confidence must be verified|derived|verified-camera")
 
     # ---- 2. footprint fit (>=1 cell on the 6x4 grid, overhang allowed) ----
     for key, e in matrix.items():
@@ -213,13 +213,14 @@ def main():
             errors.append(f"coverage: {kind}@{slot} in CSVs but not in matrix")
     for key in matrix:
         kind, _, slot = key.partition("@")
-        if (kind, slot) not in pairs:
+        e = matrix.get(key) or {}
+        if (kind, slot) not in pairs and e.get("confidence") != "verified-camera":
             errors.append(f"coverage: matrix key {key} not observed in any CSV")
     for (kind, slot), rots in sorted(observed.items()):
         key = f"{kind}@{slot}"
         e = matrix.get(key)
-        if e is None:
-            continue
+        if e is None or e.get("confidence") == "verified-camera":
+            continue  # camera evidence overrides the (best-effort) sweep round
         got = e.get("rotations", [e.get("rot")])
         if sorted(got) != sorted(rots):
             errors.append(f"disagreement: {key} CSV rows give rotations {sorted(rots)}, matrix has {sorted(got)}")
