@@ -44,6 +44,12 @@ default-off, HTTP+WS auth/T7/read-only checks, the action-metadata aggregate wit
 demo plugin, and the zero-write guarantee (rev + ds-vdevctl writes unchanged).
 Use `-k preview` to run only those cases.
 
+It also registers the DS-121 preview-webapp suite (tests/conformance/preview_web/):
+the static clients/preview-web/ app served by a local static server plus the
+/preview API endpoints it consumes (/preview/api/state with /devices,
+/preview/api/action-metadata with the core verbs, /preview/ws snapshot, bearer +
+T7 checks). Use `-k preview_web` to run only those cases.
+
 It also registers the DS-081 security conformance mapping
 (tests/conformance/security/): one test per threat row T1-T12 of docs/20-security.md
 §2, each executing or referencing the concrete case that proves the row (the rows
@@ -803,6 +809,20 @@ def _preview_suite():
     return preview_suite()
 
 
+def _preview_web_suite():
+    """The DS-121 static preview-webapp suite (tests/conformance/preview_web/),
+    registered into this run so `python tests/conformance/run.py` also machine-checks
+    that clients/preview-web/ is servable as static files and that the /preview
+    endpoints it consumes (api/state with devices, api/action-metadata with the core
+    verbs, the /preview/ws snapshot, bearer + T7) answer 200 with the expected
+    shapes on ds-vdev + ds-daemon --preview. `-k preview_web` runs only these."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from preview_web.run import preview_web_suite
+    return preview_web_suite()
+
+
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
     per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
@@ -855,6 +875,7 @@ def main():
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
         suite.addTests(_preview_suite())
+        suite.addTests(_preview_web_suite())
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):

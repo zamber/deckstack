@@ -1,0 +1,120 @@
+:root {
+  --bg: #101418;
+  --panel: #171d24;
+  --panel2: #1d242d;
+  --line: #2a333f;
+  --text: #d7dee6;
+  --dim: #8a97a5;
+  --accent: #3cc86e;
+  --accent2: #4aa3ff;
+  --warn: #e0a13c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.conn { font-size: 12px; padding: 2px 10px; border-radius: 10px; }
+.conn-up { background: #1e3a2a; color: var(--accent); }
+.conn-down { background: #3a2a1e; color: var(--warn); }
+.rev { margin-left: auto; color: var(--dim); font-size: 12px; font-family: ui-monospace, monospace; }
+
+.connect-panel {
+  margin: 12px 16px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.connect-panel label { margin-right: 12px; }
+.connect-panel input {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+#cfg-token { width: 340px; }
+.connect-panel button {
+  background: var(--accent);
+  border: 0;
+  color: #08130c;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+.hidden { display: none; }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(340px, 1.2fr) minmax(300px, 1fr);
+  gap: 12px;
+  padding: 12px 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+section, aside {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); margin: 4px 0 10px; }
+.hint { color: var(--dim); font-size: 12px; }
+.badge {
+  font-size: 11px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1px 8px;
+  color: var(--accent2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+svg { width: 100%; height: auto; display: block; }
+text { fill: var(--text); font-family: ui-monospace, monospace; }
+
+.cell rect { fill: var(--panel2); stroke: var(--line); }
+.cell.occupied rect { fill: #21303f; stroke: var(--accent2); }
+.cell.disconnected rect { fill: var(--panel2); stroke: var(--line); stroke-dasharray: 3 2; }
+.cell.disconnected text { fill: var(--dim); }
+.cell .kind { font-size: 10px; fill: var(--accent); }
+.cell .serial { font-size: 9px; fill: var(--dim); }
+.cell .pos { font-size: 8px; fill: var(--dim); }
+
+.ctl { cursor: pointer; }
+.ctl rect, .ctl circle { fill: var(--panel2); stroke: var(--line); transition: stroke 0.1s; }
+.ctl:hover rect, .ctl:hover circle, .ctl.selected rect, .ctl.selected circle { stroke: var(--accent); }
+.ctl text { font-size: 9px; fill: var(--dim); pointer-events: none; }
+.ctl .label { font-size: 10px; fill: var(--text); }
+
+.inspector pre {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  font-size: 11px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.binding { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.binding .bid { color: var(--accent2); font-family: ui-monospace, monospace; font-size: 11px; }
+.binding .topic { color: var(--dim); font-family: ui-monospace, monospace; font-size: 11px; }
+.step { margin: 4px 0 0 10px; font-size: 12px; }
+.step .do { color: var(--accent); font-family: ui-monospace, monospace; }
+.step .meta { color: var(--dim); font-size: 11px; }
+.step pre { margin: 4px 0 0; }
+.none { color: var(--dim); font-size: 12px; }

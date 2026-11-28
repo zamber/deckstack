@@ -96,6 +96,7 @@ deckstack/                    this repo (one workspace: contracts + crates + bin
 │                             ds-daemon, ds-vdev, ds-plugin-sdk, ds-bench. Bins: ds, ds-focus, ds-mcp
 ├── plugins-py/               Python plugin SDK (PyPI: ds-plugin-py)
 ├── clients/ds-py/            stdlib-only Python client helper
+├── clients/preview-web/      static preview webapp (DS-121): deck map + plugin action mappings over /preview
 ├── examples/                 micro-apps, agent configs, plugin demo
 ├── tests/                    fixtures/ (schema gate), conformance/, e2e/, golden/, hw/, …
 ├── tools/                    check.sh (local gate), verify/ (camera check)
