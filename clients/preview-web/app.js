@@ -163,6 +163,13 @@
   var SQUARE_KINDS = { knobs: true, dial: true };
   var FLAT_COLS = 6, FLAT_ROWS = 4;
 
+  // led state is an object {mode,color,brightness}; use its color for fills
+  function ledColor(c) {
+    if (!c) { return null; }
+    if (typeof c === "string") { return c; }
+    return c.color || null;
+  }
+
   function rotSize(fp, rot) {
     return (rot % 180 === 90) ? [fp[1], fp[0]] : [fp[0], fp[1]];
   }
@@ -323,7 +330,7 @@
         var kv = typeof kc.value === "number" ? kc.value : 0;
         var ka = -120 + (kv / 100) * 240;
         var kg = svgEl("g", { transform: "translate(" + (w0 * kpos[k][0]) + "," + (h0 * kpos[k][1]) + ")" }, inner);
-        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.2, "class": "knob", fill: kc.led || kc.color || "#4a5468" }, kg);
+        svgEl("circle", { cx: 0, cy: 0, r: Math.min(w0, h0) * 0.2, "class": "knob", fill: ledColor(kc.led) || kc.color || "#4a5468" }, kg);
         var kt = svgEl("g", { transform: "rotate(" + ka + ")" }, kg);
         svgEl("rect", { x: -2, y: -Math.min(w0, h0) * 0.2, width: 4, height: Math.min(w0, h0) * 0.1, rx: 2, "class": "dial-tick" }, kt);
       }
@@ -345,7 +352,7 @@
         var rc = ro[String(r2)] || {};
         var rx = r2 === 0 ? w0 * 0.06 : w0 * 0.52;
         var rw = w0 * 0.42, ry = h0 * 0.24, rh = h0 * 0.52;
-        svgEl("rect", { x: rx, y: ry, width: rw, height: rh, rx: rh / 2, "class": "roller", fill: rc.led || rc.color || "#4a5468" }, inner);
+        svgEl("rect", { x: rx, y: ry, width: rw, height: rh, rx: rh / 2, "class": "roller", fill: ledColor(rc.led) || rc.color || "#4a5468" }, inner);
         for (var rib = 1; rib < 6; rib++)
           svgEl("line", { x1: rx + rib * rw / 6, y1: ry + 4, x2: rx + rib * rw / 6, y2: ry + rh - 4, "class": "rib" }, inner);
       }
