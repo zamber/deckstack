@@ -277,6 +277,32 @@ pub(crate) fn cache_key(action: &DeviceAction) -> String {
     }
 }
 
+/// DS-112: whether an enumerated hid module set differs from the open one. Compared as
+/// (serial, slot) pairs, not serials alone — a reseat moves a module to a different
+/// connector (new port path) under the SAME serial, which a serial-only comparison cannot
+/// see; without the slot the replug never triggers a reconnect and the module stays
+/// "disconnected" forever. `known` are the connect-time identity keys (modules with a
+/// slot), `extra_ids` the open/unhealthy modules without one.
+fn deck_set_changed(
+    list: &[ds_device::hid::HidModuleInfo],
+    known: &[(ModuleId, DeviceKey)],
+    extra_ids: &[ModuleId],
+) -> bool {
+    let mut now: HashSet<(ModuleId, Option<ds_device::slot::Slot>)> =
+        list.iter().map(|m| (m.module_id.clone(), m.slot.clone())).collect();
+    let mut current: HashSet<(ModuleId, Option<ds_device::slot::Slot>)> = known
+        .iter()
+        .map(|(id, key)| (id.clone(), Some(key.slot.clone())))
+        .collect();
+    for id in extra_ids {
+        if !current.iter().any(|(cid, _)| cid == id) {
+            current.insert((id.clone(), None));
+        }
+    }
+    now.retain(|pair| current.contains(pair));
+    now.len() != current.len() || list.len() != current.len()
+}
+
 /// The module kind an action writes to.
 fn action_kind(action: &DeviceAction) -> ModuleKind {
     match action {
@@ -854,21 +880,19 @@ impl Task {
         }
         match ds_device::hid::enumerate() {
             Ok(list) => {
-                let mut now: HashSet<ModuleId> = list.iter().map(|m| m.module_id.clone()).collect();
-                let current: HashSet<ModuleId> = self
+                let extra: Vec<ModuleId> = self
                     .modules
                     .iter()
                     .map(|m| m.id.clone())
                     .chain(self.unhealthy.iter().cloned())
                     .collect();
-                now.retain(|id| current.contains(id));
-                if now.len() != current.len() || list.len() != current.len() {
+                if deck_set_changed(&list, &self.keys, &extra) {
                     self.log(
                         "warn",
                         &format!(
                             "rescan: deck changed ({} enumerated vs {} open); reconnecting",
                             list.len(),
-                            current.len()
+                            extra.len()
                         ),
                     );
                     self.on_gone("rescan detected a changed module set");
@@ -1692,5 +1716,48 @@ mod tests {
         assert_eq!(drop_excluded_images(&mut latest, &led), 0);
         assert_eq!(drop_excluded_images(&mut latest, &dial), 0);
         assert!(latest.contains_key("image:Key(7)"));
+    }
+
+    // ------------------------------------------------------------- deck_set_changed
+
+    fn hid_info(kind: ds_protocol::ModuleKind, serial: &str, slot: Option<&str>) -> ds_device::hid::HidModuleInfo {
+        ds_device::hid::HidModuleInfo {
+            info: module_info(kind),
+            path: std::ffi::CString::new("/dev/bus/usb/003/035").unwrap(),
+            serial: Some(serial.to_string()),
+            product_string: None,
+            slot: slot.and_then(|s| ds_device::slot::Slot::parse(s)),
+            module_id: ModuleId { kind, serial: serial.to_string() },
+        }
+    }
+
+    #[test]
+    fn deck_set_changed_sees_a_reseat_to_another_connector() {
+        // SALON-003 regression: the knobs module reseated from slot 1-4-3 to 3-4 keeps its
+        // USB serial, so a serial-only comparison reports "no change" and the daemon never
+        // reconnects — the module stays "disconnected" although it glows on the deck.
+        let knobs = ds_protocol::ModuleKind::Knobs;
+        let serial = "MHKB03AA221252301767";
+        let known = vec![(
+            ModuleId { kind: knobs, serial: serial.into() },
+            DeviceKey::new(ds_device::slot::Slot::parse("1-4-3").unwrap(), ds_protocol::Orientation::Horizontal),
+        )];
+        // same module, same serial, still at the old slot -> no change
+        let same = vec![hid_info(knobs, serial, Some("1-4-3"))];
+        assert!(!deck_set_changed(&same, &known, &[]));
+        // reseated to another connector (new port path -> new slot, same serial) -> change
+        let moved = vec![hid_info(knobs, serial, Some("3-4"))];
+        assert!(deck_set_changed(&moved, &known, &[]));
+        // unplugged entirely -> change
+        assert!(deck_set_changed(&[], &known, &[]));
+        // a new module plugged in -> change
+        let added = vec![
+            hid_info(knobs, serial, Some("1-4-3")),
+            hid_info(ds_protocol::ModuleKind::Faders, "MHF000", Some("2-1")),
+        ];
+        assert!(deck_set_changed(&added, &known, &[]));
+        // module without a slot (fallback identity) tracked via extra_ids -> no change
+        let noslot = vec![hid_info(knobs, serial, None)];
+        assert!(!deck_set_changed(&noslot, &[], &[ModuleId { kind: knobs, serial: serial.into() }]));
     }
 }
