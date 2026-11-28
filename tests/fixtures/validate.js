@@ -157,7 +157,7 @@ check("proper response still valid (DS-093)", {"id": 5, "ok": true, "rev": 42}, 
 const STATE = "https://deckstack.dev/schemas/state.json/v1";
 const doc = {
   meta: { version: 1, rev: 42, protocol: 1 },
-  devices: { ABC123: { kind: "keys", model: "M4315", pid: 510, slot: "1-4-3", connection: "connected", last_seen_rev: 40 } },
+  devices: { ABC123: { kind: "keys", model: "M4315", pid: 510, slot: "1-4-3", position: 78, orientation: "horizontal", connection: "connected", last_seen_rev: 40 } },
   controls: {
     keys: { "0": { image: { kind: "color", value: "#3cc86e" }, label: "Salon", brightness: 80 } },
     dial: { image: { kind: "frame", target: "dial", seq: 7, sha256: "a".repeat(64) } },
@@ -218,6 +218,30 @@ const SF = "https://deckstack.dev/schemas/stream-frame.json/v1";
 check("DSF1 meta example", { target: "keys", seq: 7, ts_ms: 1732000000000, format: "png", w: 480, h: 272, frames: 1, crc32: 123456, max_payload_bytes: 16777216 }, SF, true);
 check("DSF1 target 'panel' rejected (S6)", { target: "panel", seq: 1, ts_ms: 1, format: "png", crc32: 1, max_payload_bytes: 16777216 }, SF, false);
 check("DSF1 301 frames rejected", { target: "keys", seq: 1, ts_ms: 1, format: "gif", frames: 301, crc32: 1, max_payload_bytes: 16777216 }, SF, false);
+
+// ---- 5. DS-113: action-metadata aggregate + /preview route/WS shapes ----
+const AM = "https://deckstack.dev/schemas/action-metadata.json/v1";
+const PV = "https://deckstack.dev/schemas/preview.json/v1";
+const pvExamples = JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures/preview-examples.json"), "utf8"));
+check("action-metadata aggregate example", pvExamples.action_metadata, AM, true);
+for (const [label, bad] of Object.entries(pvExamples.action_metadata_negative)) check(`action-metadata rejects ${label}`, bad, AM, false);
+// validate an instance against a $defs node of a schema (root = that schema, so refs resolve)
+const pv = registry.get(PV);
+function checkDef(label, inst, node, wantValid) {
+  const mark = errors.length;
+  validate(inst, node, pv, label);
+  const got = errors.length === mark;
+  if (got === wantValid) console.log(`ok  ${label} (${wantValid ? "valid" : "rejected"} as expected)`);
+  else { failures++; console.log(`FAIL ${label}: expected ${wantValid ? "valid" : "invalid"}, got ${got ? "valid" : "invalid"}`); }
+  errors.length = mark;
+}
+pvExamples.ws_client.forEach((m, i) => checkDef(`preview ws client[${i}] op=${m.op}`, m, pv.$defs.wsClientMessage, true));
+for (const [label, bad] of Object.entries(pvExamples.ws_client_negative)) checkDef(`preview ws client rejects ${label}`, bad, pv.$defs.wsClientMessage, false);
+pvExamples.ws_server.forEach((m, i) => checkDef(`preview ws server[${i}] op=${m.op}`, m, pv.$defs.wsServerMessage, true));
+for (const [label, bad] of Object.entries(pvExamples.ws_server_negative)) checkDef(`preview ws server rejects ${label}`, bad, pv.$defs.wsServerMessage, false);
+checkDef("preview route entry GET /preview", { method: "GET", path: "/preview", content_type: "text/html; charset=utf-8", responses: [200, 401, 421, 404, 405] }, pv.properties.routes.items, true);
+checkDef("preview route entry rejects POST", { method: "POST", path: "/preview", responses: [405] }, pv.properties.routes.items, false);
+checkDef("preview route entry rejects non-preview path", { method: "GET", path: "/api/get", responses: [404] }, pv.properties.routes.items, false);
 
 if (failures + (errors.length > 0 ? 1 : 0) === 0 && errors.length === 0) console.log("ALL CHECKS PASSED");
 else { console.log(`${failures} hard failures, ${errors.length} validation errors`); errors.slice(0, 20).forEach((e) => console.log("  err: " + e)); process.exit(1); }

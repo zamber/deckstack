@@ -28,6 +28,10 @@ impl Target {
     }
 
     /// Parse the `ds-vdevctl frames` spelling: `panel`, `key:N` (N < 15), `dial`.
+    /// `panel` is the ds-vdevctl-local spelling of the contract-S6 target `keys`
+    /// (a vdev-only alias — see docs/contracts/streaming.md §1 and
+    /// docs/components/virtual-device.md), so `parse("keys")` returning `None` is
+    /// intentional: the two surfaces never exchange target strings.
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "panel" => Some(Target::Panel),

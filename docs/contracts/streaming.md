@@ -12,7 +12,10 @@ Fixes S1/S6/S14/S16.
 | `dial` | M131E | 240×240 | output `02 45` | q85 |
 
 `panel`/`screen` are not targets; `ds stream push keys …` means the panel. Per-key
-uploads remain as `key:N`.
+uploads remain as `key:N`. The single exception is the ds-vdevctl test tooling, which
+spells the same target `panel` — a vdev-only alias of the S6 `keys` target (see
+`docs/components/virtual-device.md`); the `ds` CLI and all state paths keep the S6
+vocabulary only.
 
 ## 2. Frame formats
 

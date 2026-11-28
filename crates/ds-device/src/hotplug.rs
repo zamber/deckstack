@@ -23,11 +23,12 @@
 
 use std::time::{Duration, Instant};
 
-use ds_protocol::{ModuleKind, Query};
+use ds_protocol::{ModuleKind, Orientation, Query};
 use mh_device::ModuleId;
 
 use crate::error::{Error, Result};
 use crate::handshake::{self, HandshakeConfig, ModuleState};
+use crate::slot::DeviceKey;
 use crate::transport::{DeviceEvent, Transport};
 use crate::uri::DeviceUri;
 use crate::vtransport::virtual_module_id;
@@ -293,6 +294,37 @@ pub fn module_ids_for(uri: &DeviceUri) -> Result<Vec<ModuleId>> {
 /// One rescan attempt: open the device the URI addresses.
 pub fn open_device(uri: &DeviceUri) -> Result<Box<dyn Transport>> {
     crate::open(uri)
+}
+
+/// The DS-112 identity keys of every module on `t`: each handshaken module paired with its
+/// `(slot, orientation)` key. Modules whose transport reports no slot (a test double, or a
+/// hid enumeration without a port path) fall back to serial-only identity and get no key —
+/// the serial comparison still covers them.
+pub fn identity_keys(t: &dyn Transport, orientation: Orientation) -> Vec<(ModuleId, DeviceKey)> {
+    ModuleKind::ALL
+        .iter()
+        .filter_map(|kind| {
+            let id = t.module_id(*kind)?;
+            let slot = t.module_slot(*kind)?;
+            Some((id.clone(), DeviceKey::new(slot, orientation)))
+        })
+        .collect()
+}
+
+/// Whether the identity key set of `t` still matches `known` — the rescan comparison of
+/// DS-112: keyed by `(slot, orientation)` in addition to the serial, so a reseated or
+/// rotated module is recognized by its position, not by appearing as a new device.
+/// Returns the keys that changed (empty = the placement is unchanged).
+pub fn placement_changes(
+    t: &dyn Transport,
+    orientation: Orientation,
+    known: &[(ModuleId, DeviceKey)],
+) -> Vec<(ModuleId, DeviceKey)> {
+    let current = identity_keys(t, orientation);
+    current
+        .into_iter()
+        .filter(|(id, key)| !known.iter().any(|(kid, kkey)| kid == id && kkey == key))
+        .collect()
 }
 
 /// Run the DS-022 handshake of one module, bounded by `cfg` (attempts × timeouts). An

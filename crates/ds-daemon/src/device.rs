@@ -43,12 +43,13 @@ use crate::lifecycle::{self, Shutdown};
 use crate::router::{self, Bus};
 use ds_device::module::module_info;
 use ds_device::rate::{RateLimiter, DEFAULT_LED_RATE_PER_S};
+use ds_device::slot::{orientation_name, Slot};
 use ds_device::transport::{module_id_for_send, DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
-use ds_device::vtransport::virtual_module_id;
-use ds_protocol::{LedMode, LedTarget, ModuleKind};
+use ds_protocol::{LedMode, LedTarget, ModuleKind, Orientation};
 use mh_device::ModuleId;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -56,7 +57,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Capacity of the device-push channel (bounded; overflow drops and is counted, never
 /// blocks the state task — S16 spirit).
@@ -639,6 +640,420 @@ pub fn spawn(
     (handle, thread, status)
 }
 
+/// Rescan tick while connected (device-driver invariant 8: ≤ 1 s busy) — the DS-112
+/// placement rescan compares (slot, orientation) identity keys, so a moved or rotated
+/// module is re-linked to its logical position instead of appearing as a new device.
+const RESCAN_BUSY: Duration = Duration::from_secs(1);
+
+/// Wait before re-opening after the device went away (the replug budget is ≤ 5 s end to end).
+const RESCAN_DOWN: Duration = Duration::from_millis(500);
+
+/// The DS-112 schema spelling of a module kind in `/devices/<serial>` (`m0-base` for the
+/// base MCU; the `$defs.device` kind enum).
+pub fn device_kind_name(kind: ModuleKind) -> &'static str {
+    match kind {
+        ModuleKind::Base => "m0-base",
+        other => other.name(),
+    }
+}
+
+/// Sleep `d`, returning early (true) when shutdown was requested.
+fn sleep_or_shutdown(shutdown: &Shutdown, d: Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < d {
+        if shutdown.get() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    shutdown.get()
+}
+
+/// Cache one push as the current value of its control path (latest-frame-wins). DS-111:
+/// a panel image and key images are mutually exclusive in the re-push cache, so a
+/// reconnect never replays stale key tiles over a newer bulk panel (or vice versa).
+fn cache_push(latest: &mut HashMap<String, DevicePush>, push: &DevicePush) {
+    let DevicePush::State { path, .. } = push;
+    if path == "/controls/panel/image" {
+        latest.retain(|k, _| !k.starts_with("/controls/keys/"));
+    } else if path.starts_with("/controls/keys/") && path.ends_with("/image") {
+        latest.remove("/controls/panel/image");
+    }
+    latest.insert(path.clone(), push.clone());
+}
+
+/// Full re-push of the cached frames/LEDs after a (re)connect or a placement change —
+/// keyed by position, idempotent (the cache holds only the newest value per target).
+fn repush_cache(
+    transport: &Arc<dyn Transport>,
+    latest: &HashMap<String, DevicePush>,
+    limits: &RateLimits,
+    led: &crate::led::LedLane,
+) {
+    if latest.is_empty() {
+        return;
+    }
+    let mut keys: Vec<&String> = latest.keys().collect();
+    keys.sort();
+    lifecycle::log(
+        "info",
+        "ds-daemon::device",
+        &format!(
+            "re-pushing {} cached target(s) after (re)connect",
+            keys.len()
+        ),
+    );
+    for k in keys {
+        handle_push(Some(&**transport), &latest[k], limits, led);
+    }
+}
+
+/// The payload of a `deck/device/<serial>/(connected|moved)` event: the module's DS-112
+/// identity — slot, connector position, base orientation — plus kind/pid.
+fn placement_payload(
+    uri: &DeviceUri,
+    kind: ModuleKind,
+    slot: Option<&Slot>,
+    orientation: Orientation,
+) -> Value {
+    serde_json::json!({
+        "device": uri.to_string(),
+        "kind": device_kind_name(kind),
+        "pid": module_info(kind).pid,
+        "slot": slot.map(|s| s.as_str().to_string()),
+        "position": slot.map(|s| s.position()),
+        "orientation": orientation_name(orientation),
+    })
+}
+
+/// Handshake every module in parallel (each module's handshake is bounded by `cfg`, so the
+/// total is the slowest module, not the sum — the ≥ 600 ms settle + double command of
+/// DS-022 is per module and never shortened).
+fn handshake_all_parallel(
+    transport: &Arc<dyn Transport>,
+    ids: &[ModuleId],
+    cfg: ds_device::HandshakeConfig,
+) -> ds_device::hotplug::HandshakeReport {
+    let handles: Vec<JoinHandle<(ModuleId, ds_device::Result<ds_device::ModuleState>)>> = ids
+        .iter()
+        .map(|id| {
+            let t = Arc::clone(transport);
+            let id = id.clone();
+            std::thread::Builder::new()
+                .name(format!("ds-hs-{}", id.kind.name()))
+                .spawn(move || {
+                    let r = ds_device::hotplug::handshake_module(&*t, &id, cfg);
+                    (id, r)
+                })
+                .expect("spawn handshake thread")
+        })
+        .collect();
+    let mut ok = Vec::new();
+    let mut unresponsive = Vec::new();
+    for h in handles {
+        let (id, r) = h.join().expect("handshake thread panicked");
+        match r {
+            Ok(state) => ok.push(state),
+            Err(e) => unresponsive.push((id, ds_device::hotplug::classify(&e))),
+        }
+    }
+    ds_device::hotplug::HandshakeReport { ok, unresponsive }
+}
+
+/// Everything `connect_once` needs from the run loop (kept in one struct so the call site
+/// stays readable).
+struct ConnectEnv<'a> {
+    bus: &'a Bus,
+    status: &'a DeviceStatus,
+    led: &'a crate::led::LedLane,
+    frames: &'a Option<crate::frames::service::FrameService>,
+    latest: &'a HashMap<String, DevicePush>,
+    limits: &'a RateLimits,
+    orientation: Orientation,
+}
+
+/// One live connection: the open transport, the handshaken module ids, and the DS-112
+/// placement (slot per kind) recorded at connect.
+struct LiveConnection {
+    transport: Arc<dyn Transport>,
+    ids: Vec<ModuleId>,
+    slots: HashMap<ModuleKind, Slot>,
+}
+
+/// Open the device, run the full DS-022 handshake (≥ 600 ms settle, double command before
+/// the first read) of every module, publish one `connected` event per module with its
+/// (slot, position, orientation) identity, attach the transport to the LED lane and the
+/// frame service, and re-push the cached targets. Returns the live connection.
+fn connect_once(uri: &DeviceUri, env: &ConnectEnv) -> Option<LiveConnection> {
+    let transport: Arc<dyn Transport> = match ds_device::open(uri) {
+        Ok(t) => Arc::from(t),
+        Err(e) => {
+            *env.status.lock().unwrap() = Some(format!("error: {e}"));
+            lifecycle::log(
+                "error",
+                "ds-daemon::device",
+                &format!("cannot open device {uri}: {e} (retrying)"),
+            );
+            return None;
+        }
+    };
+    // The transport owns module identity: handshake exactly the modules it has open.
+    let ids: Vec<ModuleId> = ModuleKind::ALL
+        .iter()
+        .filter_map(|k| transport.module_id(*k))
+        .collect();
+    let report = handshake_all_parallel(&transport, &ids, ds_device::HandshakeConfig::default());
+    let mut handshaken: Vec<ModuleId> = report.ok.iter().map(|s| s.id.clone()).collect();
+    handshaken.sort();
+    for (id, fault) in &report.unresponsive {
+        lifecycle::log(
+            "error",
+            "ds-daemon::device",
+            &format!(
+                "software-mode handshake failed for {} ({}): {:?}",
+                id.kind.name(),
+                id.serial,
+                fault
+            ),
+        );
+    }
+    let fw: Vec<String> = report
+        .ok
+        .iter()
+        .map(|s| {
+            format!(
+                "{} fw={}",
+                s.id.kind.name(),
+                s.firmware.as_deref().unwrap_or("?")
+            )
+        })
+        .collect();
+    lifecycle::log(
+        "info",
+        "ds-daemon::device",
+        &format!(
+            "connected to {uri}: {} module(s) handshaken [{}], {} unhealthy",
+            handshaken.len(),
+            fw.join(", "),
+            report.unresponsive.len()
+        ),
+    );
+    env.led.set_transport(Some(transport.clone()));
+    if let Some(frames) = env.frames {
+        frames.set_transport(Some(transport.clone()));
+    }
+    *env.status.lock().unwrap() = Some(format!("connected {uri}"));
+    // DS-112: record the placement and publish one connected event per module.
+    let mut slots: HashMap<ModuleKind, Slot> = HashMap::new();
+    for kind in ModuleKind::ALL {
+        let Some(id) = transport.module_id(kind) else {
+            continue;
+        };
+        let slot = transport.module_slot(kind);
+        if let Some(s) = &slot {
+            slots.insert(kind, s.clone());
+        }
+        env.bus.publish(router::device_event(
+            &id.serial,
+            "connected",
+            placement_payload(uri, kind, slot.as_ref(), env.orientation),
+        ));
+    }
+    // Full re-push of the cached frames/LEDs after the (re)connect (DS-112 req 3).
+    repush_cache(&transport, env.latest, env.limits, env.led);
+    Some(LiveConnection {
+        transport,
+        ids,
+        slots,
+    })
+}
+
+/// The mutable run-loop state the connected loop drives.
+struct LoopState<'a> {
+    rx: &'a Receiver<DevicePush>,
+    shutdown: &'a Shutdown,
+    bus: &'a Bus,
+    decoder: &'a mut router::InputDecoder,
+    latest: &'a mut HashMap<String, DevicePush>,
+    orientation: &'a mut Orientation,
+    slots: &'a mut HashMap<ModuleKind, Slot>,
+    limits: &'a RateLimits,
+    led: &'a crate::led::LedLane,
+}
+
+/// The connected loop: pushes (hot path), device events, and the DS-112 placement rescan.
+/// Returns true when the device went away (the caller reconnects); false on shutdown.
+fn service_connected(transport: &Arc<dyn Transport>, ids: &[ModuleId], st: &mut LoopState) -> bool {
+    let rx = st.rx;
+    let shutdown = st.shutdown;
+    let bus = st.bus;
+    let limits = st.limits;
+    let led = st.led;
+    let mut next_rescan = Instant::now() + RESCAN_BUSY;
+    loop {
+        if shutdown.get() {
+            return false;
+        }
+        // Pushes are the hot path: block on the channel, then drain whatever else is queued.
+        match rx.recv_timeout(POLL) {
+            Ok(push) => {
+                cache_push(st.latest, &push);
+                handle_push(Some(&**transport), &push, limits, led);
+                while let Ok(push) = rx.try_recv() {
+                    cache_push(st.latest, &push);
+                    handle_push(Some(&**transport), &push, limits, led);
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return false,
+        }
+        // Drain every queued input event in this iteration.
+        loop {
+            match transport.recv(TRANSPORT_POLL) {
+                Ok(DeviceEvent::Input { module, input }) => {
+                    let events = st.decoder.decode(&module, &input);
+                    let n = events.len();
+                    for ev in events {
+                        bus.publish(ev);
+                    }
+                    // DS-112: the base orientation is part of the identity key
+                    // (slot, orientation); a rotation re-keys every module's position.
+                    if let ds_protocol::Input::Orientation(o) = input {
+                        if o != *st.orientation {
+                            *st.orientation = o;
+                            lifecycle::log(
+                                "info",
+                                "ds-daemon::device",
+                                &format!("base orientation -> {}", orientation_name(o)),
+                            );
+                        }
+                    }
+                    lifecycle::log(
+                        "info",
+                        "ds-daemon::device",
+                        &format!(
+                            "input from {:?} ({}): {:?} -> {n} bus event(s)",
+                            module.kind, module.serial, input
+                        ),
+                    );
+                }
+                Ok(DeviceEvent::Disconnected) => {
+                    lifecycle::log("warn", "ds-daemon::device", "device disconnected");
+                    return true;
+                }
+                Err(ds_device::Error::Timeout(_)) => break,
+                Err(e) => {
+                    lifecycle::log("warn", "ds-daemon::device", &format!("device error: {e}"));
+                    return true;
+                }
+            }
+        }
+        // DS-112 placement rescan: a module moved to another connector (slot change) is
+        // re-linked to its logical position — re-handshake + full re-push, idempotent.
+        let now = Instant::now();
+        if now >= next_rescan {
+            next_rescan = now + RESCAN_BUSY;
+            // DS-112: re-read the base orientation (feature 0x35). The tilt switch
+            // heartbeats ~2 reports/s on hardware; polling also recovers a broadcast lost
+            // in a reconnect window, and a rotation re-keys every module's position.
+            if let Some(base) = transport.module_id(ModuleKind::Base) {
+                if let Ok(ans) = transport.query(&base, 0x35, Duration::from_millis(500)) {
+                    if let Some(o) = ans.get(1..).and_then(ds_protocol::parse_orientation) {
+                        if o != *st.orientation {
+                            *st.orientation = o;
+                            lifecycle::log(
+                                "info",
+                                "ds-daemon::device",
+                                &format!("base orientation -> {}", orientation_name(o)),
+                            );
+                            bus.publish(router::device_event(
+                                &base.serial,
+                                "orientation",
+                                serde_json::json!({"orientation": orientation_name(o)}),
+                            ));
+                        }
+                    }
+                }
+            }
+            let mut moved: Vec<(ModuleKind, Option<Slot>)> = Vec::new();
+            for kind in ModuleKind::ALL {
+                if transport.module_id(kind).is_none() {
+                    continue;
+                }
+                let slot = transport.module_slot(kind);
+                if slot != st.slots.get(&kind).cloned() {
+                    moved.push((kind, slot.clone()));
+                    match &slot {
+                        Some(s) => {
+                            st.slots.insert(kind, s.clone());
+                        }
+                        None => {
+                            st.slots.remove(&kind);
+                        }
+                    }
+                }
+            }
+            if !moved.is_empty() {
+                let changes: Vec<String> = moved
+                    .iter()
+                    .map(|(k, s)| {
+                        format!(
+                            "{} -> {}",
+                            k.name(),
+                            s.as_ref().map(|s| s.as_str()).unwrap_or("?")
+                        )
+                    })
+                    .collect();
+                lifecycle::log(
+                    "warn",
+                    "ds-daemon::device",
+                    &format!(
+                        "placement changed ({}); re-handshake + re-push",
+                        changes.join(", ")
+                    ),
+                );
+                let report =
+                    handshake_all_parallel(transport, ids, ds_device::HandshakeConfig::default());
+                lifecycle::log(
+                    "info",
+                    "ds-daemon::device",
+                    &format!(
+                        "re-handshake after placement change: {} ok, {} unresponsive",
+                        report.ok.len(),
+                        report.unresponsive.len()
+                    ),
+                );
+                for (kind, slot) in moved {
+                    let Some(id) = transport.module_id(kind) else {
+                        continue;
+                    };
+                    bus.publish(router::device_event(
+                        &id.serial,
+                        "moved",
+                        placement_payload_from(kind, slot.as_ref(), *st.orientation),
+                    ));
+                }
+                repush_cache(transport, st.latest, limits, led);
+            }
+        }
+    }
+}
+
+/// The `moved` event payload (no device URI at hand on the rescan path).
+fn placement_payload_from(
+    kind: ModuleKind,
+    slot: Option<&Slot>,
+    orientation: Orientation,
+) -> Value {
+    serde_json::json!({
+        "kind": device_kind_name(kind),
+        "pid": module_info(kind).pid,
+        "slot": slot.map(|s| s.as_str().to_string()),
+        "position": slot.map(|s| s.position()),
+        "orientation": orientation_name(orientation),
+    })
+}
+
 fn run_loop(
     device: Option<DeviceUri>,
     rx: Receiver<DevicePush>,
@@ -650,175 +1065,250 @@ fn run_loop(
 ) {
     let limits = RateLimits::new();
     let mut decoder = router::InputDecoder::new();
-    let transport: Option<Arc<dyn Transport>> = match &device {
-        None => {
-            *status.lock().unwrap() = Some("none".to_string());
-            lifecycle::log("info", "ds-daemon::device", "no device (--device none)");
-            None
+    // DS-112: latest push per control path — the re-push source after a (re)connect or a
+    // placement change (latest-frame-wins; panel and key images stay mutually exclusive).
+    let mut latest: HashMap<String, DevicePush> = HashMap::new();
+    let mut orientation = Orientation::Horizontal;
+    let Some(uri) = device else {
+        *status.lock().unwrap() = Some("none".to_string());
+        lifecycle::log("info", "ds-daemon::device", "no device (--device none)");
+        while !shutdown.get() {
+            match rx.recv_timeout(POLL) {
+                Ok(_) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
         }
-        Some(uri) => match ds_device::open(uri) {
-            Ok(t) => {
-                // share the transport with the LED writer thread (Transport is Send+Sync and
-                // serializes writes internally), so LED sends never block this task
-                let t: Arc<dyn Transport> = Arc::from(t);
-                led.set_transport(Some(t.clone()));
-                *status.lock().unwrap() = Some(format!("connected {uri}"));
-                lifecycle::log(
-                    "info",
-                    "ds-daemon::device",
-                    &format!("connected to device {uri}"),
-                );
-                // Software-mode handshake before anything else on keys/dial (invariant:
-                // no reads/commands on those modules in hardware mode). The transport
-                // owns module identity: the on-report goes to the id of the connected
-                // module of that kind (hid: -> the enumerated serial, virtual: -> the
-                // virtual id); the M0 family needs no report and is ready at any time.
-                let mut handshaken: Vec<ModuleId> = Vec::new();
-                let mut failed: Vec<String> = Vec::new();
-                for kind in ModuleKind::ALL {
-                    match t.module_id(kind) {
-                        None => continue, // not connected on this transport
-                        Some(id) => {
-                            if let Some((report, _mode)) = ds_protocol::enter_software_mode(kind) {
-                                match t.send(&id, &report) {
-                                    Ok(_) => handshaken.push(id),
-                                    Err(e) => {
-                                        failed.push(format!("{} ({}): {e}", kind.name(), id.serial))
-                                    }
-                                }
-                            } else {
-                                handshaken.push(id); // M0: no software mode, ready now
-                            }
-                        }
-                    }
-                }
-                handshaken.sort();
-                let fw: Vec<String> = handshaken
-                    .iter()
-                    .map(|id| format!("{} fw=?", id.kind.name()))
-                    .collect();
-                lifecycle::log(
-                    "info",
-                    "ds-daemon::device",
-                    &format!(
-                        "connected to {uri}: {} module(s) handshaken [{}], {} unhealthy",
-                        handshaken.len(),
-                        fw.join(", "),
-                        failed.len()
-                    ),
-                );
-                for f in &failed {
-                    lifecycle::log(
-                        "error",
-                        "ds-daemon::device",
-                        &format!("software-mode handshake failed for {f}"),
-                    );
-                }
-                // The connect is a bus event: deck/device/<serial>/connected (DS-040).
-                let serial = t
-                    .module_id(ModuleKind::Keys)
-                    .map(|m| m.serial)
-                    .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
-                bus.publish(router::device_event(
-                    &serial,
-                    "connected",
-                    serde_json::json!({"device": uri.to_string()}),
-                ));
-                // The frame plane may send only after the software-mode handshake, so the
-                // stream writers get the transport here and not at service spawn.
-                if let Some(frames) = &frames {
-                    frames.set_transport(Some(t.clone()));
-                }
-                Some(t)
-            }
-            Err(e) => {
-                *status.lock().unwrap() = Some(format!("error: {e}"));
-                lifecycle::log(
-                    "error",
-                    "ds-daemon::device",
-                    &format!("cannot open device {uri}: {e} (running without hardware)"),
-                );
-                None
-            }
-        },
+        lifecycle::log(
+            "info",
+            "ds-daemon::device",
+            "device task stopped (no device)",
+        );
+        return;
     };
-
-    'outer: loop {
+    // DS-023/DS-112 reconnect loop: open + handshake + re-push, and rescan until the device
+    // comes back (replug budget ≤ 5 s end to end).
+    'reconnect: loop {
         if shutdown.get() {
             break;
         }
-        // Pushes are the hot path: block on the channel so a committed change is applied
-        // immediately (the state task enqueues the push during commit, before the set
-        // reply), then drain whatever else is queued.
-        match rx.recv_timeout(POLL) {
-            Ok(push) => {
-                handle_push(transport.as_deref(), &push, &limits, &led);
-                while let Ok(push) = rx.try_recv() {
-                    handle_push(transport.as_deref(), &push, &limits, &led);
-                }
-                // fall through: drain queued input before waiting for the next push
+        let env = ConnectEnv {
+            bus: &bus,
+            status: &status,
+            led: &led,
+            frames: &frames,
+            latest: &latest,
+            limits: &limits,
+            orientation,
+        };
+        let Some(mut conn) = connect_once(&uri, &env) else {
+            if sleep_or_shutdown(&shutdown, RESCAN_DOWN) {
+                break;
             }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-        }
-        match &transport {
-            // Drain every queued input event in this iteration: handling only one
-            // event per pass throttled roller/knob input to ~1/POLL events per
-            // second (the observed uniform 100 ms cadence on fast flicks).
-            Some(t) => loop {
-                match t.recv(TRANSPORT_POLL) {
-                    Ok(DeviceEvent::Input { module, input }) => {
-                        // Decode the input report into deck/control/* (or deck/device/*) events
-                        // and publish them on the bus (DS-040). Publish never blocks.
-                        let events = decoder.decode(&module, &input);
-                        let n = events.len();
-                        for ev in events {
-                            bus.publish(ev);
-                        }
-                        lifecycle::log(
-                            "info",
-                            "ds-daemon::device",
-                            &format!(
-                                "input from {:?} ({}): {:?} -> {n} bus event(s)",
-                                module.kind, module.serial, input
-                            ),
-                        );
-                    }
-                    Ok(DeviceEvent::Disconnected) => {
-                        lifecycle::log("warn", "ds-daemon::device", "device disconnected");
-                        *status.lock().unwrap() = Some("disconnected".to_string());
-                        let serial = transport
-                            .as_ref()
-                            .and_then(|t| t.module_id(ModuleKind::Keys))
-                            .map(|m| m.serial)
-                            .unwrap_or_else(|| virtual_module_id(ModuleKind::Keys).serial);
-                        bus.publish(router::device_event(
-                            &serial,
-                            "disconnected",
-                            serde_json::json!({}),
-                        ));
-                        break 'outer;
-                    }
-                    Err(ds_device::Error::Timeout(_)) => break,
-                    Err(e) => {
-                        lifecycle::log("warn", "ds-daemon::device", &format!("device error: {e}"));
-                        break 'outer;
-                    }
+            continue 'reconnect;
+        };
+        let transport = conn.transport.clone();
+        let ids = conn.ids.clone();
+        let mut st = LoopState {
+            rx: &rx,
+            shutdown: &shutdown,
+            bus: &bus,
+            decoder: &mut decoder,
+            latest: &mut latest,
+            orientation: &mut orientation,
+            slots: &mut conn.slots,
+            limits: &limits,
+            led: &led,
+        };
+        let gone = service_connected(&transport, &ids, &mut st);
+        // The device went away (or shutdown): publish disconnected per module, detach the
+        // transport, close, and rescan (fast first — the replug budget is ≤ 5 s).
+        if !shutdown.get() {
+            *status.lock().unwrap() = Some("disconnected".to_string());
+            for kind in ModuleKind::ALL {
+                if let Some(id) = transport.module_id(kind) {
+                    bus.publish(router::device_event(
+                        &id.serial,
+                        "disconnected",
+                        serde_json::json!({}),
+                    ));
                 }
-            },
-            None => std::thread::sleep(POLL),
+            }
         }
-    }
-    led.set_transport(None);
-    if let Some(frames) = &frames {
-        frames.set_transport(None);
-    }
-    if let Some(t) = &transport {
-        let _ = t.close();
+        led.set_transport(None);
+        if let Some(frames) = &frames {
+            frames.set_transport(None);
+        }
+        let _ = transport.close();
+        if !gone || sleep_or_shutdown(&shutdown, RESCAN_DOWN) {
+            break 'reconnect;
+        }
     }
     lifecycle::log("info", "ds-daemon::device", "device task stopped");
 }
 
+/// DS-112: the `/devices/<serial>` registry. Subscribes to `deck/device/<serial>/<event>` on
+/// the bus and upserts `/devices/<serial>` through the state task (the single writer), so
+/// `position` + `orientation` + `connection` land in the state document with normal rev
+/// semantics — schema `$defs.device` + docs/contracts/state.md.
+pub fn spawn_registrar(
+    bus: Bus,
+    state: crate::state::StateHandle,
+    shutdown: Shutdown,
+) -> (JoinHandle<()>, Arc<RegistryState>) {
+    let shared = Arc::new(RegistryState {
+        entries: Mutex::new(HashMap::new()),
+        dirty: Mutex::new(std::collections::HashSet::new()),
+        cv: std::sync::Condvar::new(),
+        ever_committed: AtomicU64::new(0),
+    });
+    let shared2 = Arc::clone(&shared);
+    let shared3 = Arc::clone(&shared);
+    let state2 = state.clone();
+    let sink = router::FnSink(Arc::new(move |msg: &Value| {
+        let Some(topic) = msg.get("topic").and_then(Value::as_str) else {
+            return;
+        };
+        let Some(rest) = topic.strip_prefix("deck/device/") else {
+            return;
+        };
+        let mut segs = rest.split('/');
+        let (Some(serial), Some(event)) = (segs.next(), segs.next()) else {
+            return;
+        };
+        if segs.next().is_some() || serial.is_empty() {
+            return;
+        }
+        let payload = msg.get("payload").cloned().unwrap_or(Value::Null);
+        let mut map = shared2.entries.lock().unwrap();
+        // The base orientation is deck-wide: a rotation re-keys every module's
+        // (slot, orientation) identity, so an orientation event flips every entry.
+        let deck_wide = event == "orientation";
+        if deck_wide {
+            if let Some(v) = payload.get("orientation") {
+                for e in map.values_mut() {
+                    e["orientation"] = v.clone();
+                }
+            }
+        }
+        let entry = map
+            .entry(serial.to_string())
+            .or_insert_with(|| serde_json::json!({}));
+        match event {
+            "connected" | "moved" => {
+                for f in ["kind", "pid", "slot", "position", "orientation"] {
+                    if let Some(v) = payload.get(f) {
+                        entry[f] = v.clone();
+                    }
+                }
+                entry["connection"] = serde_json::json!("connected");
+            }
+            "orientation" => {
+                if let Some(v) = payload.get("orientation") {
+                    entry["orientation"] = v.clone();
+                }
+                entry["connection"] = serde_json::json!("connected");
+            }
+            "disconnected" => {
+                entry["connection"] = serde_json::json!("disconnected");
+            }
+            _ => {}
+        }
+        // mark dirty (an orientation event re-keys the whole deck)
+        let mut dirty = shared2.dirty.lock().unwrap();
+        if deck_wide {
+            for s in map.keys() {
+                dirty.insert(s.clone());
+            }
+        } else {
+            dirty.insert(serial.to_string());
+        }
+        drop(dirty);
+        drop(map);
+        shared2.cv.notify_one();
+    }));
+    bus.subscribe(
+        router::Pattern::Topic(
+            router::TopicPattern::parse("deck/device/*").expect("valid pattern"),
+        ),
+        None,
+        "deck/device/*".to_string(),
+        Arc::new(sink),
+    );
+    let thread = std::thread::Builder::new()
+        .name("ds-device-registry".into())
+        .spawn(move || {
+            // Coalescing committer: all dirty entries go into ONE transaction (one rev
+            // bump per batch), so a burst of boot-time connected events costs a single
+            // revision and clients never see rev move while idle.
+            loop {
+                let dirty: Vec<String> = {
+                    let mut g = shared3.dirty.lock().unwrap();
+                    loop {
+                        if !g.is_empty() || shutdown.get() {
+                            break;
+                        }
+                        let (ng, _) = shared3
+                            .cv
+                            .wait_timeout(g, Duration::from_millis(100))
+                            .unwrap();
+                        g = ng;
+                    }
+                    let d = g.drain().collect::<Vec<_>>();
+                    d
+                };
+                if dirty.is_empty() {
+                    if shutdown.get() {
+                        break;
+                    }
+                    continue;
+                }
+                let entries = shared3.entries.lock().unwrap();
+                let rev = state2.rev().ok().unwrap_or(0);
+                let mut ops = Vec::new();
+                for serial in &dirty {
+                    if let Some(e) = entries.get(serial) {
+                        let mut e = e.clone();
+                        e["last_seen_rev"] = serde_json::json!(rev);
+                        ops.push(ds_state::Op::set(format!("/devices/{serial}"), e));
+                    }
+                }
+                drop(entries);
+                if !ops.is_empty() {
+                    let tx = ds_state::Transaction::new(ops);
+                    match state2.set(tx) {
+                        Ok(_) => {
+                            shared3.ever_committed.store(1, Ordering::SeqCst);
+                        }
+                        Err(e) => lifecycle::log(
+                            "warn",
+                            "ds-daemon::device",
+                            &format!("devices registry: commit failed: {e}"),
+                        ),
+                    }
+                }
+            }
+        })
+        .expect("spawn ds-device-registry thread");
+    (thread, shared)
+}
+
+/// Shared state of the /devices registry, so the daemon can wait (bounded) for the initial
+/// registration to complete before it starts accepting clients.
+pub struct RegistryState {
+    entries: Mutex<HashMap<String, Value>>,
+    dirty: Mutex<std::collections::HashSet<String>>,
+    cv: std::sync::Condvar,
+    ever_committed: AtomicU64,
+}
+
+impl RegistryState {
+    /// True once at least one batch was committed and nothing is pending — i.e. /devices is
+    /// settled and rev will not move on its own.
+    pub fn idle(&self) -> bool {
+        self.ever_committed.load(Ordering::SeqCst) > 0 && self.dirty.lock().unwrap().is_empty()
+    }
+}
 fn handle_push(
     transport: Option<&dyn Transport>,
     push: &DevicePush,
@@ -872,6 +1362,7 @@ fn handle_push(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ds_device::vtransport::virtual_module_id;
     use ds_protocol::Report;
     use mh_device::ModuleId;
     use serde_json::json;

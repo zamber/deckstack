@@ -38,6 +38,10 @@ pub struct RunOptions {
     pub device: Option<String>,
     /// Explicit data dir (`--data-dir`).
     pub data_dir: Option<PathBuf>,
+    /// `--preview`: start the opt-in read-only localhost `/preview` debug surface
+    /// (DS-113, docs/contracts/preview.md). Default-off; `/policy/preview=false`
+    /// disables it live.
+    pub preview: bool,
 }
 
 /// The parsed top-level command.
@@ -79,6 +83,7 @@ pub fn parse_args(args: &[String]) -> Result<Cli, String> {
     let mut opts = RunOptions {
         device: None,
         data_dir: None,
+        preview: false,
     };
     while let Some(arg) = args.next() {
         let (flag, inline) = match arg.split_once('=') {
@@ -97,6 +102,7 @@ pub fn parse_args(args: &[String]) -> Result<Cli, String> {
         match flag.as_str() {
             "--device" => opts.device = Some(value("--device")?),
             "--data-dir" => opts.data_dir = Some(PathBuf::from(value("--data-dir")?)),
+            "--preview" => opts.preview = true,
             other => return Err(format!("unknown argument '{other}' (try --help)")),
         }
     }
@@ -109,7 +115,10 @@ pub fn usage() -> String {
         "{name} {ver} — the deckstack daemon (docs/components/daemon.md)\n\
          \n\
          Usage:\n\
-         \x20 ds-daemon [run] [--device <uri|none>] [--data-dir <dir>]   run the daemon (default)\n\
+         \x20 ds-daemon [run] [--device <uri|none>] [--data-dir <dir>] [--preview]\n\
+         \x20                                         run the daemon (default)\n\
+         \x20   --preview starts the opt-in read-only 127.0.0.1 /preview debug surface\n\
+         \x20   (DS-113, docs/contracts/preview.md; default-off, also via /policy/preview)\n\
          \x20 ds-daemon --guard        guard/handback supervisor (stub; lands with DS-024)\n\
          \x20 ds-daemon --version      print the version and exit\n\
          \x20 ds-daemon --help         print this text and exit\n\
@@ -206,6 +215,33 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
         device::spawn(device, shutdown.clone(), bus.clone(), Some(frames.clone()));
     let (state, state_thread) =
         StateTask::spawn_shared(Arc::clone(&store), Some(device_handle.clone()), bus.clone());
+    // DS-112: the /devices/<serial> registry — turns deck/device/<serial>/{connected,moved,
+    // orientation,disconnected} events into /devices/<serial> entries (position, orientation,
+    // connection) through the state task, the single writer. Commits are coalesced into one
+    // transaction per batch, so a boot burst costs a single rev.
+    let (_registry_thread, registry_state) =
+        device::spawn_registrar(bus.clone(), state.clone(), shutdown.clone());
+    // Bounded wait for the INITIAL registration before accepting clients: once the IPC
+    // socket is up, /devices is settled and rev does not move on its own (conflict-contract
+    // clients rely on that). With no device, or a device that fails to open, this returns
+    // immediately; with a connected device it waits for the registry to go idle (≤ 5 s).
+    if opts.device.is_some() {
+        // cap 3 s: the DS-022 handshake alone needs ~800 ms (600 ms settle + 200 ms
+        // re-settle, per screen module in parallel), registration ~100 ms; beyond that
+        // we accept the (rare) async registration instead of delaying boot further
+        let boot_wait = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while std::time::Instant::now() < boot_wait {
+            let s = device_status.lock().unwrap().clone().unwrap_or_default();
+            if s.starts_with("connected") {
+                if registry_state.idle() {
+                    break;
+                }
+            } else if s.starts_with("error") || s == "none" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {
@@ -237,6 +273,44 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
             crate::server_name()
         ),
     );
+    // DS-113: the opt-in /preview debug surface (default-off). Started when the
+    // --preview flag was given OR /policy/preview was already true at boot; either
+    // way /policy/preview=false disables it live (checked per request inside the
+    // server). The port is published in <dir>/http.port (0600, ipc.md §1.1).
+    let preview_enabled = opts.preview
+        || matches!(state.get("/policy/preview", None), Ok(r) if r.value == json!(true));
+    let preview_server = if preview_enabled {
+        match crate::preview::PreviewServer::start(
+            state.clone(),
+            bus.clone(),
+            &data_dir,
+            shutdown.clone(),
+            true,
+        ) {
+            Ok(srv) => {
+                lifecycle::log(
+                    "info",
+                    "ds-daemon",
+                    &format!(
+                        "preview debug surface on http://127.0.0.1:{}/preview (read-only, token required; port in http.port)",
+                        srv.port()
+                    ),
+                );
+                Some(srv)
+            }
+            Err(e) => {
+                lifecycle::log(
+                    "error",
+                    "ds-daemon",
+                    &format!("cannot start the /preview surface on 127.0.0.1: {e}"),
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     bus.publish(RouterEvent::topic(
         "daemon/start",
         json!({
@@ -266,6 +340,9 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
     // The IPC accept loop cannot be unblocked from outside yet; process exit ends it.
     // The frame stream socket is bound by the service, not by RunPaths.
     let _ = std::fs::remove_file(&stream_sock);
+    if let Some(p) = &preview_server {
+        p.cleanup();
+    }
     lifecycle::cleanup(&paths);
     lifecycle::log("info", "ds-daemon", "stopped cleanly (exit 0)");
     Ok(0)
@@ -285,14 +362,16 @@ mod tests {
             parse_args(&args(&[])).unwrap(),
             Cli::Run(RunOptions {
                 device: None,
-                data_dir: None
+                data_dir: None,
+                preview: false
             })
         );
         assert_eq!(
             parse_args(&args(&["run"])).unwrap(),
             Cli::Run(RunOptions {
                 device: None,
-                data_dir: None
+                data_dir: None,
+                preview: false
             })
         );
     }
@@ -312,6 +391,7 @@ mod tests {
             Cli::Run(RunOptions {
                 device: Some("virtual:/tmp/vdev.sock".into()),
                 data_dir: Some(PathBuf::from("/tmp/ds-data")),
+                preview: false,
             })
         );
         // --flag=value form
@@ -321,6 +401,7 @@ mod tests {
             Cli::Run(RunOptions {
                 device: Some("none".into()),
                 data_dir: Some(PathBuf::from("/tmp/x")),
+                preview: false,
             })
         );
         // flags
@@ -329,6 +410,16 @@ mod tests {
         assert_eq!(parse_args(&args(&["--guard"])).unwrap(), Cli::Guard);
         assert_eq!(parse_args(&args(&["--help"])).unwrap(), Cli::Help);
         // errors
+        // --preview flag
+        let c = parse_args(&args(&["--preview"])).unwrap();
+        assert_eq!(
+            c,
+            Cli::Run(RunOptions {
+                device: None,
+                data_dir: None,
+                preview: true
+            })
+        );
         assert!(parse_args(&args(&["--bogus"])).is_err());
         assert!(parse_args(&args(&["run", "--device"])).is_err());
     }
@@ -352,5 +443,6 @@ mod tests {
         assert!(u.contains("--version"));
         assert!(u.contains("--device"));
         assert!(u.contains("--data-dir"));
+        assert!(u.contains("--preview"));
     }
 }

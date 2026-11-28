@@ -50,6 +50,7 @@ pub mod hotplug;
 pub mod module;
 pub mod rate;
 pub mod report;
+pub mod slot;
 pub mod transport;
 pub mod uri;
 pub mod vtransport;
@@ -60,6 +61,7 @@ pub use handshake::{
     pending, Handshake, HandshakeConfig, InitModule, InitTransport, ModuleState, PendingModule,
     Phase,
 };
+pub use slot::{orientation_name, DeviceKey, Slot, BASE_MCU_SLOT, SLOT_FEATURE_ID};
 pub use transport::{DeviceEvent, Transport};
 pub use uri::DeviceUri;
 pub use vtransport::VirtualTransport;

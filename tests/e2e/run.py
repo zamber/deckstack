@@ -304,7 +304,7 @@ class Stack:
 
 
 def step_boot(stack):
-    """Step 1: vdev up + daemon started on tmp paths; fresh start is empty at rev 0."""
+    """Step 1: vdev up + daemon started on tmp paths; fresh start has empty /controls."""
     assert stack.vdev_sock.exists(), "vdev socket missing: %s" % stack.vdev_sock
     assert stack.sock.exists(), "daemon socket missing: %s" % stack.sock
     p = stack.ds("daemon", "status", "--json")
@@ -312,11 +312,18 @@ def step_boot(stack):
     st = json.loads(p.stdout)
     assert st["running"] is True, "daemon not running: %s" % st
     assert str(st["device"]).startswith("virtual:"), st
-    # phase-1 empty-state invariant on the fresh data dir
+    # phase-1 empty-state invariant on the fresh data dir; since DS-112 the
+    # boot-time registrar commits device registration, so a fresh boot is
+    # already past rev 0 — pin content emptiness and rev consistency instead
     p = stack.ds("get", "/controls", "--json")
     assert p.returncode == 0, "get /controls rc=%d stderr=%s" % (p.returncode, p.stderr)
     c = json.loads(p.stdout)
-    assert c["value"] == {} and c["rev"] == 0, "fresh start must be empty at rev 0: %s" % c
+    p = stack.ds("get", "/meta", "--json")
+    assert p.returncode == 0, "get /meta rc=%d stderr=%s" % (p.returncode, p.stderr)
+    meta_rev = json.loads(p.stdout)["value"]["rev"]
+    assert c["value"] == {} and c["rev"] == meta_rev and c["rev"] >= 1, (
+        "fresh start must be empty and consistent with /meta: %s (meta rev %d)" % (c, meta_rev)
+    )
     return {"device": st["device"], "pid": st["pid"]}
 
 

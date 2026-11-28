@@ -105,10 +105,20 @@ fn ds_cli_end_to_end_against_in_process_daemon_on_vdev() {
         ds_daemon::daemon::run(ds_daemon::daemon::RunOptions {
             device: Some(dev),
             data_dir: Some(dd),
+            preview: false,
         })
     });
     let socket = data_dir.join("daemon.sock");
     wait_for_daemon(&socket, Duration::from_secs(10));
+
+    // DS-112: boot with a device attached also commits the /devices registration (one
+    // coalesced transaction) before the socket binds, so read the boot rev first and
+    // assert the exact increment on the first user set instead of a hardcoded 1
+    let boot_rev = {
+        let out = run(&socket, &["get", "/meta", "--json"]);
+        assert_eq!(code(&out), 0, "{}", stderr(&out));
+        stdout_json(&out)["rev"].as_u64().unwrap()
+    };
 
     // 1. set a color visual on /controls/keys/0/image (inline value + --json flag)
     let out = run(
@@ -124,9 +134,9 @@ fn ds_cli_end_to_end_against_in_process_daemon_on_vdev() {
     let v = stdout_json(&out);
     assert_eq!(v["ok"], json!(true));
     assert_eq!(
-        v["rev"],
-        json!(1),
-        "first set on empty state bumps rev to 1: {v}"
+        v["rev"].as_u64().unwrap(),
+        boot_rev + 1,
+        "first set on empty state bumps rev by exactly one above the boot rev: {v}"
     );
     // human output of the same write is one fact line
     let out = run(&socket, &["set", "/controls/keys/0/brightness", "55"]);

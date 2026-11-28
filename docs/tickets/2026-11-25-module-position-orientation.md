@@ -4,6 +4,15 @@ Date: 2026-11-25. Type: feature ticket (docs-only at filing; implementation late
 Scope guard: documentation-only ticket — no daemon code, schemas, contracts, or tests
 change with this file.
 
+**Status: IMPLEMENTED** on branch `vibe/impl-ds-112-position-orientation` (ADR-021,
+decision-log D42). Identity key `(slot, orientation)` + serial; `/devices/<serial>` carries
+`position` + `orientation`; rescan re-handshakes (≥ 600 ms settle, double command) and
+re-pushes cached frames/LEDs keyed by position; ds-vdev/ds-vdevctl gained
+`slots`/`move`/`orientation`/`replug` + the permutation harness
+(`crates/ds-vdev/tests/ds112_permutations.rs`); conformance suite
+`tests/conformance/position/run.py`. Hardware replug/reseat case for `tests/hw/smoke.py`
+remains open (no hardware in this phase).
+
 ## Symptom
 
 Reseating the knob module (or rotating the base between flat and upright) makes it
@@ -14,6 +23,13 @@ Observed on the predecessor stack: the Salon app hung until the daemon restarted
 because the device task wedged waiting on the half-reconnected module. The base
 orientation switch is a one-direction tilt sensor (flat = `01`, upright = `00`), so
 rotating the base changes the logical layout (4×6 vs 6×4 grid) without any USB event.
+
+> Note (DS-120, fixed on `vibe/impl-ds-120-no-restart-on-hotplug`): the 0.1.0 alpha also
+> fully restarted the daemon on any module unplug (salon pids 824920 → 1356741 →
+> 1415680 → 1487691; `docs/discovery/salon-001/README.md` §4) — a known defect of the
+> current alpha, not of this design. With DS-120 the reconnect path re-handshakes and
+> re-pushes within the ≤ 5 s budget without any process restart (ADR-021), so the
+> procedure below can assume the daemon survives a reseat/rotation.
 
 ## Root cause (from the pinned upstream facts)
 

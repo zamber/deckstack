@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deckstack.dev/schemas/preview.json/v1",
+  "title": "deckstack /preview debug surface (DS-113)",
+  "description": "Wire shapes of the opt-in, read-only, localhost-only /preview debug endpoint on the loopback WS/HTTP adapter (docs/contracts/preview.md; transport contract docs/contracts/ipc.md §1.1). The surface is a debug endpoint, not a UI deliverable (ADR-014): bind 127.0.0.1, bearer token + loopback Host check (T7) on every request including the WS upgrade, GET-only (writes get 404/405), never issues set/emit/plugin/exec and never sends HID writes. Default-off; enabled by the ds-daemon --preview flag or /policy/preview=true at boot, disableable at any time with /policy/preview=false.",
+  "type": "object",
+  "required": ["routes", "ws"],
+  "additionalProperties": false,
+  "properties": {
+    "routes": {
+      "type": "array",
+      "description": "Static route table of the HTTP side (the surface serves exactly these; anything else is 404, non-GET 405).",
+      "items": {
+        "type": "object",
+        "required": ["method", "path", "responses"],
+        "additionalProperties": false,
+        "properties": {
+          "method": {"const": "GET"},
+          "path": {"type": "string", "pattern": "^/preview(/.*)?$"},
+          "content_type": {"type": "string"},
+          "responses": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 100, "maximum": 599},
+            "description": "Possible status codes: 200 served; 401 bad/missing bearer; 421 non-loopback Host; 404 surface disabled or unknown path; 405 non-GET."
+          }
+        }
+      }
+    },
+    "ws": {
+      "type": "object",
+      "required": ["path", "clientMessages", "serverMessages"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"const": "/preview/ws"},
+        "clientMessages": {"$ref": "#/$defs/wsClientMessage"},
+        "serverMessages": {"$ref": "#/$defs/wsServerMessage"}
+      }
+    }
+  },
+  "$defs": {
+    "wsClientMessage": {
+      "description": "One JSON text frame from the preview WS client. Read-only ops only: subscribe/unsubscribe/get/ping. Any mutating op (set/emit/bind/unbind/plugin/stream-*/daemon/token/…) is answered with an E_SCOPE error frame and is NEVER executed.",
+      "oneOf": [
+        {"$ref": "#/$defs/wsPing"},
+        {"$ref": "#/$defs/wsGet"},
+        {"$ref": "#/$defs/wsSubscribe"},
+        {"$ref": "#/$defs/wsUnsubscribe"}
+      ]
+    },
+    "wsPing": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "ping"},
+        "id": {"type": "integer"}
+      }
+    },
+    "wsGet": {
+      "type": "object",
+      "required": ["op", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "get"},
+        "id": {"type": "integer"},
+        "path": {"type": "string", "pattern": "^/", "maxLength": 300}
+      }
+    },
+    "wsSubscribe": {
+      "type": "object",
+      "required": ["op", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "subscribe"},
+        "id": {"type": "integer"},
+        "path": {"type": "string", "pattern": "^/", "maxLength": 300}
+      }
+    },
+    "wsUnsubscribe": {
+      "type": "object",
+      "required": ["op", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "unsubscribe"},
+        "id": {"type": "integer"},
+        "path": {"type": "string", "pattern": "^/", "maxLength": 300}
+      }
+    },
+    "wsServerMessage": {
+      "description": "One JSON text frame from the preview WS server.",
+      "oneOf": [
+        {"$ref": "#/$defs/wsHello"},
+        {"$ref": "#/$defs/wsSnapshot"},
+        {"$ref": "#/$defs/wsEvent"},
+        {"$ref": "#/$defs/wsResult"},
+        {"$ref": "#/$defs/wsError"}
+      ]
+    },
+    "wsHello": {
+      "type": "object",
+      "required": ["op", "protocol", "rev", "read_only"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "preview.hello"},
+        "protocol": {"const": 1},
+        "rev": {"type": "integer", "minimum": 0},
+        "server": {"type": "string"},
+        "read_only": {"const": true},
+        "note": {"type": "string"}
+      }
+    },
+    "wsSnapshot": {
+      "type": "object",
+      "required": ["op", "rev", "state", "actions"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "preview.snapshot"},
+        "rev": {"type": "integer", "minimum": 0},
+        "state": {"$ref": "#/$defs/stateSnapshot"},
+        "actions": {
+          "type": "object",
+          "description": "The action-metadata aggregate (schemas/action-metadata.json/v1) at snapshot time."
+        }
+      }
+    },
+    "stateSnapshot": {
+      "type": "object",
+      "required": ["rev", "controls", "bindings", "plugins", "devices"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"type": "integer", "minimum": 0},
+        "controls": {"type": "object"},
+        "bindings": {"type": "array"},
+        "plugins": {"type": "object"},
+        "devices": {"type": "object"}
+      }
+    },
+    "wsEvent": {
+      "description": "A live bus event forwarded to a preview WS subscription — the historical event shape (docs/contracts/ipc.md §2): state events carry path+rev+value, topic events carry topic+path+payload.",
+      "type": "object",
+      "required": ["op", "path"],
+      "additionalProperties": true,
+      "properties": {
+        "op": {"const": "event"},
+        "path": {"type": "string"},
+        "topic": {"type": "string"},
+        "rev": {"description": "Committed revision on state events; null on topic events.", "minimum": 0},
+        "value": {},
+        "payload": {},
+        "ts_ms": {"type": "integer"}
+      }
+    },
+    "wsResult": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "preview.result"},
+        "id": {"type": "integer"},
+        "rev": {"type": "integer", "minimum": 0},
+        "value": {},
+        "subscribed": {"type": "string"},
+        "sub": {"type": "integer", "minimum": 1},
+        "unsubscribed": {"type": "string"},
+        "removed": {"type": "boolean"},
+        "pong": {"const": true}
+      }
+    },
+    "wsError": {
+      "type": "object",
+      "required": ["op", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"const": "error"},
+        "id": {"type": "integer"},
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {"enum": ["E_AUTH", "E_SCOPE", "E_PATH", "E_SCHEMA", "E_LIMIT", "E_INTERNAL"]},
+            "message": {"type": "string", "maxLength": 500}
+          }
+        }
+      }
+    }
+  }
+}

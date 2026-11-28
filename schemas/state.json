@@ -25,7 +25,7 @@
           "$ref": "#/$defs/device"
         }
       },
-      "description": "Keyed by USB serial (read at connect, upstream/crates/mh-device/src/hub.rs:241-245)."
+      "description": "Keyed by USB serial (read at connect, upstream/crates/mh-device/src/hub.rs:241-245). DS-112: the module identity key is (slot, orientation) in addition to the serial, so a reseated/rotated module remaps to the same logical position; `slot`/`position`/`orientation` carry the placement."
     },
     "controls": {
       "type": "object",
@@ -110,7 +110,10 @@
         }
       }
     },
-    "settings": {"type": "object"},
+    "settings": {
+      "type": "object",
+      "description": "Intentionally free-form (DS-119): /settings accepts consumer- and app-defined keys with no schema restriction. The keys documented in docs/contracts/state.md (sender backends, log level; exec_path removed — see /policy/exec) are the currently documented subset, not an exhaustive schema; arbitrary additional keys are permitted and ignored by the daemon."
+    },
     "policy": {
       "type": "object",
       "description": "Policy is data (D18, S13): every enforcement point has a schema field here, none exists only in prose. Writable only with admin scope; enforced at the daemon's single device-write/request choke points.",
@@ -138,16 +141,17 @@
             "deny": {"type": "array", "items": {"type": "string", "pattern": "^/"}, "description": "Absolute paths always refused even if also in allow — shells, interpreters and wrappers belong here by default: /bin/sh, /bin/bash, /bin/dash, /bin/zsh, /usr/bin/env, etc. (S3: 'no shell' is enforced, not asserted)."}
           }
         },
-        "led_rate_per_s": {"type": "integer", "minimum": 1, "maximum": 30, "default": 30, "description": "Interim LED write cap pending soak test OPEN O2 (upstream/PROTOCOL.md:118-121)."}
+        "led_rate_per_s": {"type": "integer", "minimum": 1, "maximum": 30, "default": 30, "description": "Interim LED write cap pending soak test OPEN O2 (upstream/PROTOCOL.md:118-121)."},
+        "preview": {"type": "boolean", "default": false, "description": "DS-113: when true at boot (and no --preview flag was needed), the daemon starts the opt-in read-only localhost /preview debug surface (docs/contracts/preview.md; the ds-daemon --preview flag also enables it). Default false (off in production profiles). Setting this to false disables a running surface immediately: every /preview request then answers 404. Admin-writable like the rest of /policy."}
       }
     },
     "focus": {
       "type": "object",
-      "description": "Ephemeral mirror of the last app/focus/changed event payload. Written by the router in the SAME transaction that dispatches bindings to it (S7), so 'when' conditions on /focus see the new value atomically.",
+      "description": "Ephemeral mirror of the last app/focus/changed event payload. Written by the router in the SAME transaction that dispatches bindings to it (S7), so 'when' conditions on /focus see the new value atomically. 'pid' is optional (DS-114): it is present only when the emitting backend knows the focused process id.",
       "properties": {
         "app": {"type": "string"},
         "title": {"type": "string"},
-        "pid": {"type": "integer"},
+        "pid": {"type": "integer", "description": "Optional (DS-114): absent when the app/focus/changed event carried no pid (absent or null); a present non-integer pid is rejected at ingest with E_SCHEMA."},
         "at_rev": {"type": "integer", "minimum": 0}
       }
     }
@@ -208,7 +212,9 @@
         "kind": {"enum": ["keys", "dial", "m0-base", "faders", "knobs", "rollers"]},
         "model": {"type": "string"},
         "pid": {"type": "integer"},
-        "slot": {"type": "string", "description": "USB port path, e.g. 1-4-3 (upstream/PROTOCOL.md:107)."},
+        "slot": {"type": "string", "description": "USB port path relative to the base's top hub, e.g. 1-4-3 (abs 3-2-1-4-3; upstream/PROTOCOL.md:107, SALON-001). Base MCU is 1-4-4."},
+        "position": {"type": "integer", "minimum": 0, "maximum": 127, "description": "DS-112: connector index derived from the slot's port path (base-4 decode tagged by path length; SALON-001 connector grid)."},
+        "orientation": {"enum": ["horizontal", "vertical"], "description": "DS-112: base orientation at seating — mirrors the deck/device/<serial>/orientation event payload (flat=0x01 horizontal, upright=0x00 vertical)."},
         "connection": {"enum": ["connected", "disconnected"]},
         "last_seen_rev": {"type": "integer", "minimum": 0}
       }

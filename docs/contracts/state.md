@@ -25,7 +25,7 @@ top-level paths:
 
 ```
 /meta            {version: 1, rev, daemon_pid, started_at, protocol: 1}
-/devices/<serial>            {kind, model, pid, slot, connection, last_seen_rev}
+/devices/<serial>            {kind, model, pid, slot, position, orientation, connection, last_seen_rev}
 /controls/keys/<0-14>        {image, label, brightness}
 /controls/dial               {image, label, brightness}
 /controls/panel              {image, label, brightness}  (image also accepts the panel-only `colors` visual, DS-111)
@@ -37,13 +37,16 @@ top-level paths:
 /plugins/<id>                {manifest, status, state, stats}
 /streams/<target>            durable per-target CONFIG only: {queue_depth: 1|2}
 /telemetry/streams/<target> {sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, ...}  (non-durable, ≤1 Hz)
-/settings/...                {sender backends, log level, exec_path removed — see /policy/exec, ...}
-/policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s  (S13 — no policy exists only in prose)
-/focus                       {app, title, pid, at_rev}  (mirrored atomically from app/focus/changed, S7)
+/settings/...                free-form by design (DS-119): {sender backends, log level, exec_path removed — see /policy/exec, ...} are the documented subset only, not an exhaustive schema; arbitrary additional keys are permitted and ignored by the daemon
+/policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s, preview (DS-113 debug surface; default false)  (S13 — no policy exists only in prose)
+/focus                       {app, title, pid?, at_rev}  (mirrored atomically from app/focus/changed, S7; pid only when the backend knows it — DS-114)
+
 ```
 
 Targets everywhere are the unified vocabulary `keys | key:<0-14> | dial` (S6) — no
-`panel`/`screen` synonyms.
+`panel`/`screen` synonyms. The one exception is the ds-vdevctl test tooling, where
+`panel` is a vdev-only alias of `keys` (see `docs/contracts/streaming.md` §1 and
+`docs/components/virtual-device.md`).
 
 **Index ranges (S8, enforced at object level).** The deck layout fixes the control
 indices, and `schemas/state.json` closes every indexed map with
@@ -54,12 +57,21 @@ schema itself, not only by the write path: `/controls/keys` accepts exactly `"0"
 `/controls/dial` is a single control, not a map. `/streams` and `/telemetry/streams`
 accept only the target vocabulary `keys | dial | key:<0-14>`.
 
-**Identity across hot-plug:** `/devices/<serial>` — serial read at connect
-(`upstream/crates/mh-device/src/hub.rs:241-245`). Control paths hang off the *kind slot*
-(`keys`, `dial`, `knobs.0`), not the serial; when a module with a known serial
-reconnects, the daemon re-links its slot and re-pushes the last state. Two same-kind
-modules: `keys` mirrors; a second knob/fader/roller set addresses by serial suffix
-(`upstream/PROTOCOL.md:130-139`).
+**Identity across hot-plug (DS-112):** `/devices/<serial>` — serial read at connect
+(`upstream/crates/mh-device/src/hub.rs:241-245`), but the module **identity key is
+`(slot, orientation)` in addition to the serial**: `slot` is the USB port path relative to
+the base's top hub (abs `3-2-1-4-3` → `1-4-3`; base MCU `1-4-4`; SALON-001), `position` is
+the connector index derived from that port path within the connector grid, and
+`orientation` mirrors the `deck/device/<serial>/orientation` payload
+(`horizontal` = flat `0x01`, `vertical` = upright `0x00`). Every physical connector
+exposes a different slot per module rotation, so a reseated or rotated module remaps to
+the same logical position instead of appearing as a new device. Control paths hang off
+the *kind slot* (`keys`, `dial`, `knobs.0`), not the serial, so any module in any of the
+26 connectors stays logically addressed (`/controls/knobs/<i>` etc.); when a module with
+a known `(slot, orientation)` key hot-plugs, the daemon re-handshakes (≥ 600 ms settle,
+double command) and re-pushes the cached frames/LEDs keyed by position, idempotently.
+Two same-kind modules: `keys` mirrors; a second knob/fader/roller set addresses by
+serial suffix (`upstream/PROTOCOL.md:130-139`).
 
 ## 2. Bindings representation (S2)
 
@@ -135,7 +147,9 @@ The state lock is an `RwLock` never held across I/O; the frame plane shares no l
 - Event ingest is transactional (S7): when the router receives `app/focus/changed`, it
   mirrors the payload into `/focus` **and** dispatches bindings in one transaction, so
   `when` on `/focus/app` sees the new value; `when` may also read the event payload
-  directly (`{"payload":"app","op":"eq","value":"code"}`).
+  directly (`{"payload":"app","op":"eq","value":"code"}`). The payload is
+  `{app, title, pid?}` — `pid` is optional (DS-114): absent or null is accepted and
+  omitted from the mirror; a present non-integer `pid` is rejected with `E_SCHEMA`.
 
 ## 8. Worked examples
 

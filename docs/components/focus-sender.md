@@ -23,7 +23,9 @@ watcher (D17).
 - **Payload:** one event per settled focus change on the bus topic `app/focus/changed`
   (`docs/contracts/actions.md` §1), emitted with the IPC `emit` op (mutate scope):
   `{"app":"<wm-class>","title":"<title>"}` plus `"pid":<n>` when the backend knows it
-  (KWin does, wlr does not) — the shape `schemas/state.json` `/focus` mirrors. The exact
+  (KWin does, wlr does not) — the shape `schemas/state.json` `/focus` mirrors. The daemon
+  accepts the event with `pid` absent or null and rejects only a present non-integer
+  `pid` (DS-114). The exact
   request is `{"op":"emit","topic":"app/focus/changed","payload":{…}}`, schema-validated
   client-side against `schemas/ipc-message.json` (unit-tested in `focus.rs`).
   ds-focus **never writes `/focus` directly**; the daemon's router mirrors the payload
@@ -42,7 +44,7 @@ watcher (D17).
   backends available on the session (`backend.rs::SelectError::message`); daemon
   unreachable → reconnect with backoff (100 ms doubling to 2 s) for **60 s**, then
   **exit 6** (E_UNREACHABLE) with the `ds daemon start` hint; auth/scope errors keep
-  their IPC exit code (4). SIGTERM/SIGINT exit 0 cleanly (signal-hook, like ds-daemon).
+  their IPC exit code (4). SIGTERM/SIGINT exit 0 cleanly (signal-hook, like ds-daemon); a shutdown watchdog thread additionally exits the process once the shutdown flag is set, so the sender also exits when the main thread is blocked inside a D-Bus call (DS-115).
 - **CLI:** `ds-focus [--backend auto|kwin|wlr|x11] [--interval 250ms] [--settle 300ms]
   [--once] [--inject <json|file.ndjson>] [--socket PATH] [--token-file PATH]
   [--data-dir DIR] [--quiet] [-h|--help] [-V|--version]`. `--once` emits the current

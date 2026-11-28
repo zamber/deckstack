@@ -153,6 +153,11 @@ fn device_connection(mut stream: UnixStream, hub: Arc<Hub>) {
     };
     let (client_id, rx) = hub.register_client();
     loop {
+        // a replug request (ds-vdevctl replug) closes this connection: the host sees the
+        // stream end (Disconnected) and its rescan reconnects to the same hub
+        if hub.replug_requested() {
+            break;
+        }
         // injected input first, so a host sees it even while idle
         while let Ok(f) = rx.try_recv() {
             if write_frame(&mut writer, &f).is_err() {

@@ -105,7 +105,15 @@ pub enum Command {
 pub struct UsageError(pub String);
 
 /// The schema names `ds schema <name>` accepts (`schemas/`).
-pub const SCHEMA_NAMES: [&str; 5] = ["state", "ipc", "stream-frame", "plugin-manifest", "binding"];
+pub const SCHEMA_NAMES: [&str; 7] = [
+    "state",
+    "ipc",
+    "stream-frame",
+    "plugin-manifest",
+    "binding",
+    "action-metadata",
+    "preview",
+];
 
 /// Verbs (top-level words).
 pub const VERBS: [&str; 11] = [
@@ -387,7 +395,7 @@ pub fn parse(args: &[String]) -> Result<(Command, Global), UsageError> {
             reject_ndjson(&g, "schema")?;
             let name = rest.first().ok_or_else(|| {
                 UsageError(
-                    "schema needs a name (state | ipc | stream-frame | plugin-manifest | binding)"
+                    "schema needs a name (state | ipc | stream-frame | plugin-manifest | binding | action-metadata | preview)"
                         .to_string(),
                 )
             })?;

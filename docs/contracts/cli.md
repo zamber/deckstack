@@ -8,7 +8,7 @@ real binary. Design: ADR-002.
 ```
 ds [--socket PATH] [--token-file PATH] <group> <verb> [args] [flags]
 ds --help | ds <group> --help | ds <group> <verb> --help
-ds schema <state|ipc|stream-frame|plugin-manifest|binding>
+ds schema <state|ipc|stream-frame|plugin-manifest|binding|action-metadata|preview>
 ds describe <path>
 ```
 
@@ -19,16 +19,23 @@ ds describe <path>
 | `colors` | `ds colors '<json-array of 15 "#rrggbb">' [--if-rev N]` — bulk key colours: one `set /controls/panel/image` with the panel-only `{"kind":"colors","value":[…]}` visual; the daemon composes the 480x272 panel and sends one `02 35` push (DS-111). Wrong JSON/arity/hex exits 1 before the daemon is contacted |
 | `bind` | `ds bind <topic> --do '<step>' [--do …] [--when '<cond>']` → prints the new binding id (`bNNNN`) |
 | `unbind` | `ds unbind <id> | --topic <topic>` |
-| `emit` | `ds emit <topic> [json-payload]` |
+| `emit` | `ds emit <topic> [json-payload]` — **recognized but refused in alpha, exit 1** (`not implemented in phase 1`) until its phase ticket lands |
 | `watch` | `ds watch <path-or-topic> [--ndjson] [--from-rev N] [--max-events N]` — persistent |
-| `events` | `ds events [--ndjson]` |
+| `events` | `ds events [--ndjson]` — **recognized but refused in alpha, exit 1** (`not implemented in phase 1`) until its phase ticket lands |
 | `stream` | `ds stream push <target> --file f [--dir d --fps N] [--loop]` · `ds stream stats <target>` · `ds stream stop <target>` — target ∈ `keys\|key:N\|dial` (S6) |
-| `plugin` | `ds plugin list\|invoke <id.action> [args]\|install <dir>\|remove <id>\|logs <id>` |
-| `daemon` | `ds daemon start [--device virtual:PATH\|auto] [--foreground]\|stop\|status\|restart` (m9) |
-| `token` | `ds token list\|issue --scope read\|mutate\|admin\|revoke <id>` |
+| `plugin` | `ds plugin list\|invoke <id.action> [args]\|install <dir>\|remove <id>\|logs <id>` — **recognized but refused in alpha, exit 1** (`not implemented in phase 1`) until its phase ticket lands |
+| `daemon` | `ds daemon start [--device virtual:PATH\|auto] [--foreground]\|stop\|status` (m9) — `restart` is **recognized but refused in alpha, exit 1** (`unknown daemon subcommand`); only `start|stop|status` are implemented |
+| `token` | `ds token list\|issue --scope read\|mutate\|admin\|revoke <id>` — **recognized but refused in alpha, exit 1** (`not implemented in phase 1`) until its phase ticket lands |
 
 There is deliberately **no `migrate` verb** (scope delta 2): `ds migrate …` exits 1.
 Porting of old-app behaviour is manual and ticket-driven (`docs/70-porting-notes.md`).
+
+Later-phase verbs: `emit`, `events`, `plugin`, and `token` are parsed and then refused
+with exit 1 (`not implemented in phase 1`); `ds daemon restart` is refused with exit 1
+(`unknown daemon subcommand`). When a verb's ticket lands, its row marker moves from
+"refused" to the real grammar, and the docs-marker tripwire
+(`tests/conformance/docs_markers/run.py`, registered in `tests/conformance/run.py`)
+fails until the marker is moved.
 
 `ds-vdevctl` (part of the ds-vdev binary, test/CI tool) replaces the old test-only verb:
 `ds-vdevctl --socket /tmp/vdev.sock frames <target>` → sha256 + bytes;

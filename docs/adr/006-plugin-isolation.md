@@ -17,7 +17,7 @@ permissions are declared and displayed only — "does not sandbox plugins"
 One OS process per plugin; newline-JSON over stdio; manifest with JSON-Schema params
 (`schemas/plugin-manifest.json`); per-plugin capability token (`state.read|write,
 device.write, exec, net:<glob>, fs:<root>, emit`); rlimits (nproc/nofile/AS/CPU) +
-Landlock fs policy on Linux ≥ 6.7 where available (OPEN O6), else host-enforced `fs_roots`
+Landlock fs policy on Linux ≥ 6.7 (RESOLVED DS-116: ABI 11 measured on the target kernel family), else host-enforced `fs_roots`
 prefix checks; watchdog respawn ≤ 3/10 min; kill-on-exit (job object on Windows). Effects
 are schema-validated before touching state; invoke timeout 2 s → degraded → restart.
 Python compatibility via the `ds-plugin-py` wrapper (D09): it guarantees process

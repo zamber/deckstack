@@ -7,10 +7,15 @@
 //! ds-vdevctl --socket /tmp/vdev.sock clock            # hub clock + wall clock (test time base)
 //! ds-vdevctl --socket /tmp/vdev.sock inject FILE.ndjson
 //! ds-vdevctl --socket /tmp/vdev.sock throttle <kbps|off> [drop-after|off]
+//! ds-vdevctl --socket /tmp/vdev.sock slots             # DS-112: slot + position of every module
+//! ds-vdevctl --socket /tmp/vdev.sock move <module> <slot>        # reseat a module in another connector
+//! ds-vdevctl --socket /tmp/vdev.sock orientation <horizontal|vertical>  # rotate the base
+//! ds-vdevctl --socket /tmp/vdev.sock replug           # hot-unplug every host connection
 //! ds-vdevctl --socket /tmp/vdev.sock ping
 //! ```
 //!
-//! Targets for `frames`: `panel`, `key:N` (N < 15), `dial`.
+//! Targets for `frames`: `panel`, `key:N` (N < 15), `dial`. Modules for `move`:
+//! `base`, `keys`, `faders`, `knobs`, `rollers`, `dial`; slots are port paths (`1-4-3`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -25,11 +30,15 @@ USAGE:
 
 COMMANDS:
     frames [target]              sha256 + bytes of each reassembled frame (target: panel|key:N|dial)
-    reports                      module reports of the deck layout
+    reports                      module reports of the deck layout (incl. slot + position)
     writes [n] [full]            last n accepted/refused reports (default 50; full adds the payload of short reports)
     clock                        hub clock (at_ms) + wall clock (epoch_ms)
     inject <file.ndjson>         replay scripted input events to connected hosts
     throttle <kbps|off> [drop]   set the device write cap / hot-unplug knob (drop: n|off)
+    slots                        DS-112: USB slot + connector position of every module
+    move <module> <slot>         DS-112: reseat a module in another connector (slot = port path)
+    orientation <horiz|vert>     DS-112: rotate the base (flat=horizontal, upright=vertical)
+    replug                       DS-112: hot-unplug every host connection (they reconnect)
     ping                         check the control socket is alive
     -h, --help                   show this help
     --version                    show the version
@@ -79,6 +88,22 @@ fn main() -> ExitCode {
             }
         }
         "clock" => "clock".to_string(),
+        "slots" => "slots".to_string(),
+        "move" => {
+            if rest.len() < 2 {
+                eprintln!("ds-vdevctl: move needs <module> <slot> (e.g. move knobs 1-4-3)");
+                return ExitCode::from(2);
+            }
+            format!("move {}", rest.join(" "))
+        }
+        "orientation" => {
+            if rest.is_empty() {
+                eprintln!("ds-vdevctl: orientation needs <horizontal|vertical>");
+                return ExitCode::from(2);
+            }
+            format!("orientation {}", rest.join(" "))
+        }
+        "replug" => "replug".to_string(),
         "throttle" => {
             if rest.is_empty() {
                 eprintln!("ds-vdevctl: throttle needs <kbps|off> [drop-after|off]");

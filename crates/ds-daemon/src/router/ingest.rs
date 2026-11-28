@@ -26,10 +26,11 @@
 //!   paths against the current committed state; `payload` conditions against the event
 //!   payload. So both the `path`-based and the `payload`-based variant fire in the same
 //!   dispatch (actions.md §6 chain B).
-//! - **Schema-validated before touching state.** The event payload must be exactly
-//!   `{"app": string, "title": string, "pid": integer}` (the producer contract,
-//!   focus-sender.md). Anything else — non-object, missing/mistyped field, unknown
-//!   field — is rejected with `E_SCHEMA` **before any state change**: rev unchanged,
+//! - **Schema-validated before touching state.** The event payload must be
+//!   `{"app": string, "title": string, "pid"?: integer}` (the producer contract,
+//!   focus-sender.md; `pid` is optional since DS-114 — absent or null is accepted,
+//!   a non-integer `pid` is rejected). Anything else — non-object, missing/mistyped
+//!   field, unknown field — is rejected with `E_SCHEMA` **before any state change**: rev unchanged,
 //!   `/focus` untouched, and a clear error event is published on
 //!   `deck/system/binding-error` (`{"stage":"ingest","topic",…,"error":{code,message}}`)
 //!   plus a `warn` log line.
@@ -99,19 +100,21 @@ pub fn mirror_path(topic: &str) -> Option<&'static str> {
 }
 
 /// Validate an `app/focus/changed` payload against the producer contract
-/// (focus-sender.md): exactly `{"app": string, "title": string, "pid": integer}`.
-/// Returns the clean mirror base (without `at_rev`).
+/// (focus-sender.md): `{"app": string, "title": string, "pid"?: integer}` — `pid` is
+/// optional (DS-114): absent or null is accepted and omitted from the mirror, a
+/// present non-integer `pid` is rejected. Returns the clean mirror base (without
+/// `at_rev`).
 pub fn validate_mirror_payload(payload: &Value) -> Result<Value, IpcError> {
     let schema_err = |msg: String| IpcError::new(ErrorCode::ESchema, msg);
     let Some(obj) = payload.as_object() else {
         return Err(schema_err(format!(
-            "{FOCUS_TOPIC} payload must be a JSON object {{app,title,pid}}, got {payload}"
+            "{FOCUS_TOPIC} payload must be a JSON object {{app,title,pid?}}, got {payload}"
         )));
     };
     for key in obj.keys() {
         if !matches!(key.as_str(), "app" | "title" | "pid") {
             return Err(schema_err(format!(
-                "{FOCUS_TOPIC} payload has unknown field {key:?} (the mirror is exactly {{app,title,pid,at_rev}})"
+                "{FOCUS_TOPIC} payload has unknown field {key:?} (the mirror is exactly {{app,title,pid?,at_rev}})"
             )));
         }
     }
@@ -125,12 +128,22 @@ pub fn validate_mirror_payload(payload: &Value) -> Result<Value, IpcError> {
             "{FOCUS_TOPIC} payload needs a string 'title', got {payload}"
         ))
     })?;
-    let pid = obj.get("pid").and_then(Value::as_i64).ok_or_else(|| {
-        schema_err(format!(
-            "{FOCUS_TOPIC} payload needs an integer 'pid', got {payload}"
-        ))
-    })?;
-    Ok(json!({"app": app, "title": title, "pid": pid}))
+    let mut base = json!({"app": app, "title": title});
+    match obj.get("pid") {
+        // DS-114: pid is optional — absent or null means the backend did not know it
+        None | Some(Value::Null) => {}
+        Some(v) => match v.as_i64() {
+            Some(pid) => {
+                base["pid"] = json!(pid);
+            }
+            None => {
+                return Err(schema_err(format!(
+                    "{FOCUS_TOPIC} payload 'pid' must be an integer when present, got {payload}"
+                )));
+            }
+        },
+    }
+    Ok(base)
 }
 
 /// One action collected during the ingest, run after the transaction commits.
@@ -1058,7 +1071,6 @@ mod tests {
         );
         let rev0 = state.rev().unwrap();
         for bad in [
-            json!({"app": "code", "title": "W"}), // missing pid
             json!({"app": "code", "title": "W", "pid": "4242"}), // pid not an integer
             json!({"app": "code", "title": "W", "pid": 1, "extra": 1}), // unknown field
             json!("not an object"),
@@ -1081,7 +1093,7 @@ mod tests {
             .collect();
         assert_eq!(
             errs.len(),
-            5,
+            4,
             "one clear error event per rejected payload: {msgs:?}"
         );
         for e in &errs {
@@ -1322,20 +1334,90 @@ mod tests {
     }
 
     #[test]
-    fn validate_mirror_payload_accepts_exactly_the_producer_shape() {
+    fn validate_mirror_payload_accepts_the_producer_shape_with_optional_pid() {
+        // DS-114: pid absent or null is accepted (and omitted from the mirror base)
+        assert_eq!(
+            validate_mirror_payload(&json!({"app": "a", "title": "t"})).unwrap(),
+            json!({"app": "a", "title": "t"})
+        );
+        assert_eq!(
+            validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": null})).unwrap(),
+            json!({"app": "a", "title": "t"})
+        );
         assert_eq!(
             validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": 1})).unwrap(),
             json!({"app": "a", "title": "t", "pid": 1})
         );
-        assert!(validate_mirror_payload(&json!({"app": "a", "title": "t"})).is_err());
         assert!(validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": -1})).is_ok()); // integer
+                                                                                                 // a present non-integer pid is still rejected
+        assert!(validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": "1"})).is_err());
         assert!(validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": 1.5})).is_err());
+        assert!(validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": true})).is_err());
         assert!(validate_mirror_payload(&json!({"app": 1, "title": "t", "pid": 1})).is_err());
         assert!(
             validate_mirror_payload(&json!({"app": "a", "title": "t", "pid": 1, "x": 0})).is_err()
         );
         assert!(validate_mirror_payload(&json!(null)).is_err());
         assert!(validate_mirror_payload(&json!("x")).is_err());
+    }
+
+    #[test]
+    fn focus_event_without_pid_is_accepted_and_mirrors() {
+        // DS-114: {"app":"steam","title":"Steam"} (no pid) must be accepted and update
+        // /focus; {"pid":"x"} must still be rejected with no state change.
+        let (engine, state, t, _bus) = test_stack();
+        let rev0 = state.rev().unwrap();
+        engine.dispatch(FOCUS_TOPIC, &json!({"app": "steam", "title": "Steam"}), 0);
+        let rev1 = state.rev().unwrap();
+        assert_eq!(
+            rev1,
+            rev0 + 1,
+            "pid-less focus event = exactly one rev bump"
+        );
+        assert_eq!(
+            get(&state, FOCUS_PATH),
+            json!({"app": "steam", "title": "Steam", "at_rev": rev1}),
+            "the /focus mirror carries no pid when the event had none"
+        );
+        assert!(get(&state, "/focus").get("pid").is_none());
+        // an explicit null pid is equally accepted
+        engine.dispatch(
+            FOCUS_TOPIC,
+            &json!({"app": "steam", "title": "Steam", "pid": null}),
+            0,
+        );
+        let rev2 = state.rev().unwrap();
+        assert_eq!(rev2, rev1 + 1);
+        assert_eq!(
+            get(&state, FOCUS_PATH),
+            json!({"app": "steam", "title": "Steam", "at_rev": rev2})
+        );
+        // a non-integer pid is still rejected, with no state change
+        let r = engine.try_ingest(
+            FOCUS_TOPIC,
+            &json!({"app": "steam", "title": "Steam", "pid": "x"}),
+            0,
+        );
+        assert!(r.is_err());
+        assert_eq!(r.unwrap_err().code, ErrorCode::ESchema);
+        assert_eq!(
+            state.rev().unwrap(),
+            rev2,
+            "no state change for a non-integer pid"
+        );
+        assert_eq!(get(&state, "/focus/at_rev"), json!(rev2));
+        // a payload with an integer pid still mirrors it
+        engine.dispatch(
+            FOCUS_TOPIC,
+            &json!({"app": "code", "title": "Editor", "pid": 4242}),
+            0,
+        );
+        assert_eq!(
+            get(&state, FOCUS_PATH),
+            json!({"app": "code", "title": "Editor", "pid": 4242, "at_rev": rev2 + 1})
+        );
+        state.stop();
+        t.join().unwrap();
     }
 
     #[test]

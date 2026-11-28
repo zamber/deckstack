@@ -409,10 +409,15 @@ fn daemon_end_to_end_on_virtual_device() {
     let welcome =
         conn.round(json!({"id": 0, "op": "hello", "protocol": 1, "client": "ds-daemon-itest/1"}));
     assert_eq!(welcome["ok"], json!(true));
-    assert_eq!(
-        welcome["result"]["rev"],
-        json!(0),
-        "empty state at start: rev 0 in welcome"
+    // DS-112: with a device attached, boot also commits the /devices registration before
+    // the socket binds, so the welcome rev is that boot rev (never 0 with hardware); the
+    // state CONTENT is still empty — no presets, no sample decks (ADR-013).
+    let start_rev = welcome["result"]["rev"]
+        .as_u64()
+        .expect("welcome carries rev");
+    assert!(
+        start_rev >= 1,
+        "with a device attached the boot rev is >= 1: {start_rev}"
     );
     // bad token is refused
     let r = conn.round(json!({"id": 1, "op": "auth", "token": "0".repeat(64)}));
@@ -428,7 +433,8 @@ fn daemon_end_to_end_on_virtual_device() {
     // state doc starts empty
     let r = conn.round(json!({"id": 4, "op": "get", "path": "/"}));
     assert_eq!(r["ok"], json!(true));
-    assert_eq!(r["rev"], json!(0));
+    assert_eq!(r["rev"], json!(start_rev));
+    // empty state at start (ADR-013): no presets, no sample decks
     assert_eq!(r["result"]["value"]["controls"], json!({}));
     assert_eq!(r["result"]["value"]["bindings"], json!([]));
     assert_eq!(r["result"]["value"]["plugins"], json!({}));
@@ -439,11 +445,16 @@ fn daemon_end_to_end_on_virtual_device() {
                  "value": {"kind": "color", "value": "#3cc86e"}}]
     }));
     assert_eq!(r["ok"], json!(true), "set: {r}");
-    assert_eq!(r["rev"], json!(1));
+    let set_rev = r["rev"].as_u64().expect("set carries the new rev");
+    assert_eq!(
+        set_rev,
+        start_rev + 1,
+        "the set commits exactly one rev above the boot rev"
+    );
     // get it back
     let r = conn.round(json!({"id": 6, "op": "get", "path": "/controls/keys/0/image"}));
     assert_eq!(r["ok"], json!(true));
-    assert_eq!(r["rev"], json!(1));
+    assert_eq!(r["rev"], json!(set_rev));
     assert_eq!(
         r["result"]["value"],
         json!({"kind": "color", "value": "#3cc86e"})
@@ -455,12 +466,12 @@ fn daemon_end_to_end_on_virtual_device() {
     }));
     assert_eq!(r["ok"], json!(false));
     assert_eq!(r["error"]["code"], json!("E_CONFLICT"));
-    assert_eq!(r["error"]["current_rev"], json!(1));
+    assert_eq!(r["error"]["current_rev"], json!(set_rev));
     // daemon status (read-only)
     let r = conn.round(json!({"id": 8, "op": "daemon", "action": "status"}));
     assert_eq!(r["ok"], json!(true));
     assert_eq!(r["result"]["running"], json!(true));
-    assert_eq!(r["result"]["rev"], json!(1));
+    assert_eq!(r["result"]["rev"], json!(set_rev));
     assert!(r["result"]["device_status"]
         .as_str()
         .unwrap()

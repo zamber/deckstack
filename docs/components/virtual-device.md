@@ -26,13 +26,26 @@ so the real `ds-device` code path (chunking, framing, safety) runs unchanged.
   log (bytes, chunk index, timestamps, per-write return counts); `ds-vdevctl … inject
   events.ndjson` → scripted input with timestamps; `ds-vdevctl … reports` → the module
   reports of the deck layout; `ds-vdevctl … throttle <kbps|off> [drop-after|off]` →
-  runtime throttle knobs. Targets for `frames`: `panel`, `key:N` (N < 15), `dial`.
+  runtime throttle knobs. Targets for `frames`: `panel`, `key:N` (N < 15), `dial` —
+  here `panel` is the ds-vdevctl-local spelling of the contract-S6 target `keys` (the
+  15-key M4315 panel, wire `02 35` idx 0), i.e. a vdev-only alias:
+  `ds-vdevctl frames panel` ≡ `ds stream push keys`.
 - **Failure modes / knobs:** `--throttle-kbps` simulates the ~2.1 MB/s device cap
   (`upstream/PROTOCOL.md:265`) to prove backpressure; `--drop-after` simulates
   hot-unplug; `--inject` replays input events with timestamps. All knobs are also settable
   at runtime on the control socket (`throttle …`, see below) and from the Rust API
   (`Hub::set_throttle` / `Hub::set_credits`). Exact semantics under
   §"Throttle and backpressure knobs (DS-035)".
+- **DS-112 placement model:** every virtual module has a **slot** (USB port path relative
+  to the base's top hub, e.g. `1-4-3`) seeded from the SALON-001 per-module rot0 anchors
+  (`reference_slot`: knobs `1-2-3`, keys `1-3-4`, faders `1-1-3`, rollers `1-3-4`, dial
+  `1-1-3`, base MCU `1-4-4`) plus a base **orientation** (flat = `0x01` horizontal,
+  upright = `0x00` vertical). The slot is answered by feature read `0x39` (ASCII, a
+  vdev-only read — real HID takes the slot from the sysfs port path) and the orientation by
+  the base's `0x35` read; both change at runtime via the control socket, and `reports`
+  shows `slot=… position=…` per module. This is the virtual model for testing
+  configuration permutations (module kind × connector × base orientation) — see
+  `crates/ds-vdev/tests/ds112_permutations.rs`.
 - **Dependencies:** ds-protocol (mh-protocol) for report building/parsing.
 - **Test command:** `cargo test -p ds-vdev`; the conformance suite
   (`python tests/conformance/run.py`) starts ds-vdev itself.
@@ -78,12 +91,21 @@ Requests (first word = command):
 
 ```
 ping
-frames [target]            # target: panel | key:N | dial; body: "<target> <sha256> <bytes>B seq=<n>"
-reports                    # one line per served module (pid, report lengths, tags, state)
+frames [target]            # target: panel | key:N | dial (panel = vdev-only alias of the S6 `keys` target); body: "<target> <sha256> <bytes>B seq=<n>"
+reports                    # one line per served module (pid, report lengths, tags, state, slot, position)
 writes [n]                 # last n report log entries (seq, pid, kind, len, refused, at_ms)
 throttle <kbps|off> [drop-after|off] [credits=<burst>/<refill>/<period_ms>[@<seed>]|off]
 inject <event-json>        # one ndjson event (see below), broadcast as an 0x81 INPUT frame
+slots                      # DS-112: one line per module: "<kind> pid=<hex> slot=<path> position=<n>"
+move <module> <slot>       # DS-112: reseat a module in another connector (same pid/serial)
+orientation <horiz|vert>   # DS-112: rotate the base; broadcasts the tilt INPUT frame to hosts
+replug                     # DS-112: close every host connection (they reconnect to the same hub)
 ```
+
+`move` replies `moved <kind> pid=<hex> slot=<path> position=<n>`; `orientation` replies
+`orientation <name> (0x<byte>) broadcast to hosts`; `replug` replies
+`replug requested; <n> connection(s) will close`. None of them touches host→device HID
+bytes — they steer the virtual deck's placement state only.
 
 `throttle` replies `throttle kbps=<n|off> drop_after=<n|off> credits=<b>/<r>/<ms>[@<seed>] remaining=<n>|off`
 (the `remaining` field is the credit bucket's current fill; it is only present while a
@@ -132,10 +154,18 @@ socket) and from the Rust API (`Throttle`, `HubConfig::throttle`, `Hub::set_thro
   device connection**: the write that pushes a connection past `N` accepted writes gets no
   ack and the connection is closed (the host sees `Error::Closed`/`Error::Timeout` on the
   in-flight send and one `DeviceEvent::Disconnected` from `recv` — the signal the daemon's
-  device task uses to mark the module unhealthy). The already-accepted writes keep their
+  device loop uses to mark the device unhealthy). The already-accepted writes keep their
   acks, and the unplugging write is not entered in the write log. **A new connection (a
   reconnect) starts with a fresh budget of N** — the replugged device accepts again, which
   is what lets a reconnect re-push the latest frame.
+  - **Daemon behaviour on unplug (DS-120, ADR-021):** the disconnect does **not** restart
+    the daemon — the device loop publishes `deck/device/<serial>/disconnected`, marks the
+    device unhealthy (`device_status` = `disconnected (<reason>)`), reconnects within the
+    ≤ 5 s budget, re-handshakes and re-pushes the cached latest frame, then publishes
+    `deck/device/<serial>/connected`. The daemon pid is unchanged
+    (`tools/observe-orientation.sh rehearse` asserts exactly this). Known defect of the
+    0.1.0 alpha: every unplug took the whole daemon down (pid changed, all connections
+    dropped — `docs/discovery/salon-001/README.md` §4); fixed by DS-120.
 - **`credits=<burst>/<refill>/<period_ms>[@<seed>]`** — credit-exhaustion mode (armed at
   runtime via the control socket or `Hub::set_credits`; `credits=off` disarms). The device
   keeps a token bucket of write credits: it starts full (`burst`), every accepted **output**
