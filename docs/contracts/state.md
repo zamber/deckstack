@@ -37,7 +37,7 @@ top-level paths:
 /plugins/<id>                {manifest, status, state, stats}
 /streams/<target>            durable per-target CONFIG only: {queue_depth: 1|2}
 /telemetry/streams/<target> {sent, dropped, fps, bytes, queue, in_flight, last_sha256, last_seq, ...}  (non-durable, ≤1 Hz)
-/settings/...                {sender backends, log level, exec_path removed — see /policy/exec, ...}
+/settings/...                free-form by design (DS-119): {sender backends, log level, exec_path removed — see /policy/exec, ...} are the documented subset only, not an exhaustive schema; arbitrary additional keys are permitted and ignored by the daemon
 /policy/...                  net.allow_hosts, fs.roots, exec.allow, exec.deny, led_rate_per_s, preview (DS-113 debug surface; default false)  (S13 — no policy exists only in prose)
 /focus                       {app, title, pid?, at_rev}  (mirrored atomically from app/focus/changed, S7; pid only when the backend knows it — DS-114)
 
