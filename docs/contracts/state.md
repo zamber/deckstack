@@ -44,7 +44,9 @@ top-level paths:
 ```
 
 Targets everywhere are the unified vocabulary `keys | key:<0-14> | dial` (S6) — no
-`panel`/`screen` synonyms.
+`panel`/`screen` synonyms. The one exception is the ds-vdevctl test tooling, where
+`panel` is a vdev-only alias of `keys` (see `docs/contracts/streaming.md` §1 and
+`docs/components/virtual-device.md`).
 
 **Index ranges (S8, enforced at object level).** The deck layout fixes the control
 indices, and `schemas/state.json` closes every indexed map with
