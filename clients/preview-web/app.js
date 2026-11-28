@@ -150,19 +150,44 @@
   }
 
   // ---- deck map --------------------------------------------------------------
-  // The base is a 4x6 portrait cell grid; a flat (horizontal) base is the whole
-  // board rotated -90 degrees. (kind, slot) -> {col,row,rotation} comes from the
-  // upstream hubdeck slot table (slots.json, generated from the official app's
-  // board layout; the SALON-001 hardware sweeps verified the reference entries).
-  // Modules may hang over the base edge but keep their cells on the grid.
-  var SLOTS = {};
-  // module footprint in portrait-grid cells [w,h] at rotation 0
-  var FOOTPRINT = { keys: [4,3], faders: [4,2], knobs: [2,2], rollers: [4,1], dial: [2,2] };
-  var KIND_ORDER = ["keys", "faders", "dial", "knobs", "rollers"];
-  var GRID_COLS = 4, GRID_ROWS = 6;
+  // Placement is DEDUCED, never read from the hardware's (unreliable) rotation
+  // readout: the DS-122 matrix (placement-matrix.json, derived from the recorded
+  // SALON-001 sweeps) maps each (kind, slot) to its connector cell + absolute
+  // rotation on the flat 6x4 grid, and the DS-123 solver fits the connected
+  // modules onto the grid. Cross-position rule: the connector cell is the module
+  // corner nearest the deck center (the corner indicator sits diagonally across
+  // from the connector). Modules may overhang the edge but keep >= 1 cell on base.
+  var MATRIX = {};
+  // module footprint in flat-grid cells [w,h] at rotation 0 (owner-measured)
+  var FOOTPRINT = { keys: [4,3], faders: [2,4], knobs: [2,2], rollers: [1,4], dial: [2,2] };
+  var SQUARE_KINDS = { knobs: true, dial: true };
+  var FLAT_COLS = 6, FLAT_ROWS = 4;
 
-  function rotatedSize(fp, rot) {
-    return (rot === 90 || rot === 270) ? [fp[1], fp[0]] : [fp[0], fp[1]];
+  function rotSize(fp, rot) {
+    return (rot % 180 === 90) ? [fp[1], fp[0]] : [fp[0], fp[1]];
+  }
+
+  // Top-left cell of a module whose connector cell is (cc,cr) at rotation rot.
+  // The connector cell is the module's OUTWARD corner (the deck-edge corner);
+  // the module extends inward onto the grid. Edge-middle connectors (top/bottom/
+  // left/right middle) are ambiguous between two corners — the cross-position
+  // rule picks: the corner indicator at rot 0 is TL for keys, TR for the others,
+  // the connector sits diagonally opposite, turned by rot (CCW positive).
+  function topLeftOf(kind, fp, cc, cr, rot, cols, rows) {
+    var rs = rotSize(fp, rot);
+    var cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+    var dx = cc < cx ? -1 : cc > cx ? 1 : 0;
+    var dy = cr < cy ? -1 : cr > cy ? 1 : 0;
+    var corners = [[0, 0], [rs[0] - 1, 0], [rs[0] - 1, rs[1] - 1], [0, rs[1] - 1]]; // TL,TR,BR,BL
+    var idx;
+    if (dx !== 0 && dy !== 0) { idx = dx < 0 ? (dy < 0 ? 0 : 3) : (dy < 0 ? 1 : 2); }
+    else {
+      var cands = dy < 0 ? [0, 1] : dy > 0 ? [2, 3] : dx < 0 ? [0, 3] : [1, 2];
+      var kindIdx0 = kind === "keys" ? 0 : 1;
+      var want = (kindIdx0 + 3 * ((rot / 90) % 4) + 2) % 4;
+      idx = cands.indexOf(want) >= 0 ? want : cands[0];
+    }
+    return { col: cc - corners[idx][0], row: cr - corners[idx][1], w: rs[0], h: rs[1] };
   }
 
   function baseOrientation() {
@@ -171,72 +196,97 @@
     return "horizontal";
   }
 
-  function cellFree(used, col, row, w, h) {
+  function cellsOverlap(used, col, row, w, h) {
     for (var r = row; r < row + h; r++)
       for (var c = col; c < col + w; c++)
-        if (used[r + "," + c]) { return false; }
-    return true;
+        if (used[r + "," + c]) { return true; }
+    return false;
   }
-  function cellMark(used, col, row, w, h) {
+  function markCells(used, col, row, w, h) {
     for (var r = row; r < row + h; r++)
       for (var c = col; c < col + w; c++) { used[r + "," + c] = true; }
   }
-  function firstFree(used, fp) {
-    for (var row = 0; row <= GRID_ROWS - fp[1]; row++)
-      for (var col = 0; col <= GRID_COLS - fp[0]; col++)
-        if (cellFree(used, col, row, fp[0], fp[1])) { return { col: col, row: row, rotation: 0 }; }
-    return null;
+  function onBaseCells(col, row, w, h, cols, rows) {
+    var n = 0;
+    for (var r = row; r < row + h; r++)
+      for (var c = col; c < col + w; c++)
+        if (c >= 0 && c < cols && r >= 0 && r < rows) { n++; }
+    return n;
+  }
+
+  // DS-123 solver: deduce {col,row,w,h,rot} per connected module, or unplaced.
+  // Largest footprint first (keys shrinks the solution space most); candidates
+  // from the matrix entry (all rotations for square 2x2 modules, which may rotate
+  // in place); vertical base transposes the grid (col,row)->(row,col); survivors
+  // ranked by orientation bias, then connector-nearest-center, then (col,row,rot).
+  function solvePlacement(devs, orientation) {
+    var vertical = orientation === "vertical";
+    var cols = vertical ? FLAT_ROWS : FLAT_COLS, rows = vertical ? FLAT_COLS : FLAT_ROWS;
+    var cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+    var mods = Object.keys(devs).map(function (s) { return { serial: s, d: devs[s] || {} }; })
+      .filter(function (m) { return !/base$/.test(m.d.kind || ""); });
+    mods.sort(function (a, b) {
+      var fa = FOOTPRINT[a.d.kind] || [2, 1], fb = FOOTPRINT[b.d.kind] || [2, 1];
+      return (fb[0] * fb[1] - fa[0] * fa[1]) || ((a.d.kind + "@" + a.d.slot) < (b.d.kind + "@" + b.d.slot) ? -1 : 1);
+    });
+    var used = {}, out = [];
+    mods.forEach(function (m) {
+      var d = m.d;
+      if (d.connection === "disconnected") { out.push({ serial: m.serial, d: d, unplaced: "disconnected" }); return; }
+      var fp = FOOTPRINT[d.kind] || [2, 1];
+      var entry = MATRIX[d.kind + "@" + (d.slot || "")];
+      if (!entry) { out.push({ serial: m.serial, d: d, unplaced: "no matrix entry" }); return; }
+      var rots = SQUARE_KINDS[d.kind] ? [0, 90, 180, 270] : (entry.rotations || [entry.rot || 0]);
+      var cands = [];
+      rots.forEach(function (rot) {
+        var cc = vertical ? entry.row : entry.col, cr = vertical ? entry.col : entry.row;
+        var tl = topLeftOf(d.kind, fp, cc, cr, rot, cols, rows);
+        if (onBaseCells(tl.col, tl.row, tl.w, tl.h, cols, rows) < 1) { return; }
+        if (cellsOverlap(used, tl.col, tl.row, tl.w, tl.h)) { return; }
+        var bias = vertical ? (rot % 180 === 90 ? 0 : 1) : (rot % 180 === 0 ? 0 : 1);
+        var dcx = Math.abs(cc - cx), dcy = Math.abs(cr - cy);
+        cands.push({ col: tl.col, row: tl.row, w: tl.w, h: tl.h, rot: rot, bias: bias, cd: dcx + dcy });
+      });
+      if (!cands.length) { out.push({ serial: m.serial, d: d, unplaced: "connector taken / no fit" }); return; }
+      cands.sort(function (a, b) {
+        return (a.bias - b.bias) || (a.cd - b.cd) || (a.col - b.col) || (a.row - b.row) || (a.rot - b.rot);
+      });
+      var p = cands[0];
+      markCells(used, p.col, p.row, p.w, p.h);
+      out.push({ serial: m.serial, d: d, col: p.col, row: p.row, w: p.w, h: p.h, rot: p.rot });
+    });
+    return out;
   }
 
   function renderDeck() {
     var svg = document.getElementById("deck");
     while (svg.firstChild) { svg.removeChild(svg.firstChild); }
-    var vertical = baseOrientation() === "vertical";
+    var orientation = baseOrientation();
+    var vertical = orientation === "vertical";
     document.getElementById("orientation").textContent =
       "orientation: " + (vertical ? "vertical (4×6)" : "flat (6×4)");
     var CELL = 96, GAP = 8, U = CELL + GAP;
+    var cols = vertical ? FLAT_ROWS : FLAT_COLS, rows = vertical ? FLAT_COLS : FLAT_ROWS;
     var M = 4; // margin cells around the slab for overhanging modules
-    var PW = (GRID_COLS + 2 * M) * U + GAP, PH = (GRID_ROWS + 2 * M) * U + GAP; // padded portrait canvas
-    var W = vertical ? PW : PH, H = vertical ? PH : PW;
+    var W = (cols + 2 * M) * U + GAP, H = (rows + 2 * M) * U + GAP;
     svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-    // flat base = the whole portrait board rotated -90 degrees
-    var board = svgEl("g", vertical ? {} : { transform: "rotate(-90 " + (PW / 2) + " " + (PH / 2) + ")" }, svg);
     var OX = M * U + GAP, OY = M * U + GAP;
 
-    var slab = svgEl("g", { "class": "base" }, board);
-    svgEl("rect", { x: OX, y: OY, width: GRID_COLS * U - GAP, height: GRID_ROWS * U - GAP, rx: 18, "class": "slab" }, slab);
-    for (var gy = 0; gy < GRID_ROWS; gy++) for (var gx = 0; gx < GRID_COLS; gx++)
+    var slab = svgEl("g", { "class": "base" }, svg);
+    svgEl("rect", { x: OX, y: OY, width: cols * U - GAP, height: rows * U - GAP, rx: 18, "class": "slab" }, slab);
+    for (var gy = 0; gy < rows; gy++) for (var gx = 0; gx < cols; gx++)
       svgEl("rect", { x: OX + gx * U, y: OY + gy * U, width: CELL, height: CELL, "class": "gridcell" }, slab);
-    svgText(slab, OX + 12, OY + 20, "MasterHub base 4×6", "slab-label");
+    svgText(slab, OX + 12, OY + 20, "MasterHub base " + cols + "×" + rows, "slab-label");
 
-    var devs = state.devices || {};
-    var used = {};
-    var detached = [];
-    var mods = Object.keys(devs).map(function (s) { return { serial: s, d: devs[s] || {} }; })
-      .filter(function (m) { return !/base$/.test(m.d.kind || ""); });
-    mods.sort(function (a, b) { return KIND_ORDER.indexOf(a.d.kind) - KIND_ORDER.indexOf(b.d.kind); });
-    mods.forEach(function (m) {
-      var d = m.d;
-      if (d.connection === "disconnected") { detached.push(m); return; }
-      var fp = FOOTPRINT[d.kind] || [2, 1];
-      var entry = SLOTS[d.kind + "@" + (d.slot || "")];
-      var spot = entry ? { col: entry.col, row: entry.row, rotation: entry.rotation } : null;
-      var size = rotatedSize(fp, spot ? spot.rotation : 0);
-      if (!spot || !cellFree(used, spot.col, spot.row, size[0], size[1])) {
-        // the mapped connector is taken by another module (not everything fits on
-        // the deck at once): fall back to the first free grid spot, or leave the
-        // module off the deck entirely if the grid is full
-        spot = firstFree(used, fp);
-        if (!spot) { detached.push(m); return; }
-      }
-      var rs = rotatedSize(fp, spot.rotation);
-      cellMark(used, spot.col, spot.row, rs[0], rs[1]);
-      drawModule(board, d, m.serial, spot, fp, OX, OY, CELL, GAP);
+    var placed = solvePlacement(state.devices || {}, orientation);
+    var offDeck = [];
+    placed.forEach(function (p) {
+      if (p.unplaced) { offDeck.push(p); return; }
+      drawModule(svg, p.d, p.serial, p, FOOTPRINT[p.d.kind] || [2, 1], OX, OY, CELL, GAP);
     });
-    // modules that are not plugged in right now are not on the deck
-    if (detached.length) {
-      svgText(svg, 12, H - 14, "not on deck: " + detached.map(function (m) {
-        return m.d.kind + " · slot " + (m.d.slot || "?");
+    if (offDeck.length) {
+      svgText(svg, 12, H - 14, "not on deck: " + offDeck.map(function (p) {
+        return p.d.kind + " · slot " + (p.d.slot || "?") + " (" + p.unplaced + ")";
       }).join("   "), "slab-label");
     }
   }
@@ -244,16 +294,15 @@
   // Draws one module at its grid spot. The body is placed in board space; the
   // content is drawn in the module's own (unrotated) frame inside a rotated group,
   // so e.g. fader caps always travel along the module's long axis.
-  function drawModule(board, d, serial, spot, fp, OX, OY, CELL, GAP) {
+  function drawModule(svg, d, serial, p, fp, OX, OY, CELL, GAP) {
     var U = CELL + GAP;
-    var rs = rotatedSize(fp, spot.rotation);
-    var x = OX + spot.col * U, y = OY + spot.row * U;
-    var w = rs[0] * CELL + (rs[0] - 1) * GAP, h = rs[1] * CELL + (rs[1] - 1) * GAP;
+    var x = OX + p.col * U, y = OY + p.row * U;
+    var w = p.w * CELL + (p.w - 1) * GAP, h = p.h * CELL + (p.h - 1) * GAP;
     var w0 = fp[0] * CELL + (fp[0] - 1) * GAP, h0 = fp[1] * CELL + (fp[1] - 1) * GAP;
-    var g = svgEl("g", { "class": "module m-" + d.kind, transform: "translate(" + x + "," + y + ")" }, board);
+    var g = svgEl("g", { "class": "module m-" + d.kind, transform: "translate(" + x + "," + y + ")" }, svg);
     svgEl("rect", { x: 0, y: 0, width: w, height: h, rx: 14, "class": "body" }, g);
-    svgText(g, 8, 15, d.kind + " · slot " + (d.slot || "?") + " · " + spot.rotation + "°", "mod-label");
-    var inner = svgEl("g", { transform: "translate(" + (w / 2) + "," + (h / 2) + ") rotate(" + spot.rotation + ") translate(" + (-(w0 / 2)) + "," + (-(h0 / 2)) + ")" }, g);
+    svgText(g, 8, 15, d.kind + " · slot " + (d.slot || "?") + " · " + p.rot + "°", "mod-label");
+    var inner = svgEl("g", { transform: "translate(" + (w / 2) + "," + (h / 2) + ") rotate(" + (-p.rot) + ") translate(" + (-(w0 / 2)) + "," + (-(h0 / 2)) + ")" }, g);
     var c = state.controls || {};
     if (d.kind === "keys" || d.kind === "dial") {
       svgEl("rect", { x: 8, y: 8, width: w0 - 16, height: h0 - 16, rx: 8, "class": "screen" }, inner);
@@ -505,11 +554,11 @@
     connect();
   });
 
-  // slot table: same-origin static file served next to this app
-  fetch("slots.json").then(function (r) { return r.json(); }).then(function (j) {
-    SLOTS = j || {};
+  // DS-122 placement matrix: same-origin static file served next to this app
+  fetch("placement-matrix.json").then(function (r) { return r.json(); }).then(function (j) {
+    MATRIX = j || {};
     renderSoon();
-  }).catch(function () { /* deck still renders with first-free fallback */ });
+  }).catch(function () { /* deck renders with every module unplaced */ });
 
   if (port && token) {
     if (!q.get("port")) { document.getElementById("cfg-port").value = port; }
