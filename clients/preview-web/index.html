@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deckstack preview — deck map &amp; plugin action mappings (DS-121)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>deckstack preview</h1>
+  <div id="conn" class="conn conn-down">not connected</div>
+  <div id="rev" class="rev"></div>
+</header>
+
+<section id="connect-panel" class="connect-panel hidden">
+  <p>
+    Connect to the daemon&rsquo;s loopback <code>/preview</code> surface
+    (start it with <code>ds-daemon run --preview</code>; the port is in
+    <code>&lt;data-dir&gt;/http.port</code>, the token in <code>&lt;data-dir&gt;/token</code>).
+    Or pass them in the URL: <code>?token=…&amp;port=…</code>
+  </p>
+  <label>port <input id="cfg-port" type="number" min="1" max="65535" placeholder="e.g. 37841"></label>
+  <label>token <input id="cfg-token" type="password" placeholder="install token" autocomplete="off"></label>
+  <button id="cfg-connect">connect</button>
+</section>
+
+<main>
+  <section class="deck-wrap">
+    <h2>deck <span id="orientation" class="badge">orientation: unknown</span></h2>
+    <svg id="deck" role="img" aria-label="base connector grid with modules"></svg>
+    <p class="hint">base connector grid — flat 6&times;4 vs vertical 4&times;6 (DS-112);
+    module cells come from <code>/devices/&lt;serial&gt;.position</code> when present,
+    serial-ordered fallback otherwise.</p>
+  </section>
+
+  <section class="controls-wrap">
+    <h2>controls</h2>
+    <svg id="controls" role="img" aria-label="control surface"></svg>
+    <p class="hint">hover or click a control to see its bound actions.</p>
+  </section>
+
+  <aside id="inspector" class="inspector">
+    <h2>inspector</h2>
+    <div id="inspector-body"><p class="hint">nothing selected</p></div>
+  </aside>
+</main>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
