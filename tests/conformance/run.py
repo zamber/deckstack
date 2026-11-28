@@ -803,6 +803,19 @@ def _preview_suite():
     return preview_suite()
 
 
+def _docs_markers_suite():
+    """The DS-116..119 doc-marker suite (tests/conformance/docs_markers/): one shared
+    home for the doc-wording assertions of the doc tickets (DS-118 asserts the
+    vdev-only `panel` alias of the S6 `keys` target is documented in
+    virtual-device.md / streaming.md / state.md; DS-116/117/119 add theirs here).
+    `-k docs_markers` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from docs_markers.run import docs_markers_suite
+    return docs_markers_suite()
+
+
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
     per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
@@ -855,6 +868,8 @@ def main():
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
         suite.addTests(_preview_suite())
+        # DS-116..119 doc-marker assertions (shared location: tests/conformance/docs_markers/)
+        suite.addTests(_docs_markers_suite())
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):

@@ -26,7 +26,10 @@ so the real `ds-device` code path (chunking, framing, safety) runs unchanged.
   log (bytes, chunk index, timestamps, per-write return counts); `ds-vdevctl … inject
   events.ndjson` → scripted input with timestamps; `ds-vdevctl … reports` → the module
   reports of the deck layout; `ds-vdevctl … throttle <kbps|off> [drop-after|off]` →
-  runtime throttle knobs. Targets for `frames`: `panel`, `key:N` (N < 15), `dial`.
+  runtime throttle knobs. Targets for `frames`: `panel`, `key:N` (N < 15), `dial` —
+  here `panel` is the ds-vdevctl-local spelling of the contract-S6 target `keys` (the
+  15-key M4315 panel, wire `02 35` idx 0), i.e. a vdev-only alias:
+  `ds-vdevctl frames panel` ≡ `ds stream push keys`.
 - **Failure modes / knobs:** `--throttle-kbps` simulates the ~2.1 MB/s device cap
   (`upstream/PROTOCOL.md:265`) to prove backpressure; `--drop-after` simulates
   hot-unplug; `--inject` replays input events with timestamps. All knobs are also settable
@@ -78,7 +81,7 @@ Requests (first word = command):
 
 ```
 ping
-frames [target]            # target: panel | key:N | dial; body: "<target> <sha256> <bytes>B seq=<n>"
+frames [target]            # target: panel | key:N | dial (panel = vdev-only alias of the S6 `keys` target); body: "<target> <sha256> <bytes>B seq=<n>"
 reports                    # one line per served module (pid, report lengths, tags, state)
 writes [n]                 # last n report log entries (seq, pid, kind, len, refused, at_ms)
 throttle <kbps|off> [drop-after|off] [credits=<burst>/<refill>/<period_ms>[@<seed>]|off]
