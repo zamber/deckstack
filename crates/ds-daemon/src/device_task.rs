@@ -247,8 +247,8 @@ pub fn spawn_with(
 /// a cached Panel, so a reconnect can never replay stale key tiles over a newer bulk
 /// panel (or a stale panel over a newer key). The dial is a separate screen and is not
 /// affected. Returns how many cached actions were dropped.
-fn drop_excluded_images(
-    latest: &mut HashMap<String, DeviceAction>,
+pub(crate) fn drop_excluded_images<V>(
+    latest: &mut HashMap<String, V>,
     action: &DeviceAction,
 ) -> usize {
     let DeviceAction::Image { target, .. } = action else {
@@ -265,7 +265,7 @@ fn drop_excluded_images(
 }
 
 /// The per-target re-push cache key of an action (latest-frame-wins per target).
-fn cache_key(action: &DeviceAction) -> String {
+pub(crate) fn cache_key(action: &DeviceAction) -> String {
     match action {
         DeviceAction::Image { target, .. } => format!("image:{target:?}"),
         DeviceAction::LedColor { kind, .. } => format!("led:{kind:?}"),

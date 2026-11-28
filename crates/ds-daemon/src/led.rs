@@ -73,6 +73,10 @@ struct Inner {
     deduped: AtomicU64,
     /// Sends that failed (logged and dropped, counted — never retried blindly).
     send_errors: AtomicU64,
+    /// Bumped on every (re)connect ([`LedLane::invalidate`]): the writer clears its dedup
+    /// cache when it changes, so a fresh connection receives the current LED values again
+    /// even when they are unchanged since the last send (DS-120 re-push).
+    generation: AtomicU64,
 }
 
 /// The latest-wins LED lane between the state task and the device.
@@ -94,6 +98,7 @@ impl LedLane {
                 sent: AtomicU64::new(0),
                 deduped: AtomicU64::new(0),
                 send_errors: AtomicU64::new(0),
+                generation: AtomicU64::new(0),
             }),
         }
     }
@@ -113,6 +118,12 @@ impl LedLane {
     pub fn set_transport(&self, t: Option<Arc<dyn Transport>>) {
         *self.inner.transport.lock().expect("led lane poisoned") = t;
         self.inner.cv.notify_one();
+    }
+
+    /// Invalidate the writer's report-dedup cache: call on every (re)connect so the new
+    /// connection is re-sent the current LED values even if unchanged (DS-120 re-push).
+    pub fn invalidate(&self) {
+        self.inner.generation.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Spawn the dedicated LED writer thread. It owns the per-module LED token buckets and is
@@ -166,9 +177,17 @@ fn run_writer(inner: Arc<Inner>) {
         .map(|k| (k, limiter_for(k)))
         .collect();
     let mut last: HashMap<ModuleKind, LastSent> = HashMap::new();
+    let mut last_gen = inner.generation.load(Ordering::Relaxed);
     loop {
         if inner.shutdown.get() {
             return;
+        }
+        // a new transport generation means a fresh connection: forget the dedup cache so
+        // the current values are re-sent (DS-120 re-push after a hot-plug reconnect)
+        let gen = inner.generation.load(Ordering::Relaxed);
+        if gen != last_gen {
+            last.clear();
+            last_gen = gen;
         }
         // Wait until there is something pending AND a transport to send it through. The
         // pending map is drained wholesale: each key holds only the newest value, so a burst

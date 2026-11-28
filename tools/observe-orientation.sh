@@ -36,9 +36,10 @@
 #                                 feature 0x35 path) with ds-vdevctl inject.
 #   replug   [--dir D]            simulate unplug+replug of a module: arm
 #                                 ds-vdevctl drop-after, force a write past the
-#                                 budget (disconnected event), restart the daemon
-#                                 on the same vdev (fresh connection + fresh
-#                                 write budget), verify the frame re-push sha256.
+#                                 budget (disconnected event), then let the daemon
+#                                 reconnect on its own (DS-120: NO daemon restart,
+#                                 pid must be unchanged) with a fresh write budget,
+#                                 verify the frame re-push sha256.
 #   move     [--dir D]            closest available analogue of a module move
 #                                 today: base rotation (orient flip) + replug,
 #                                 plus a /devices snapshot. NOTE: the vdev has no
@@ -237,22 +238,42 @@ frame_sha() { vdevctl frames "$1" 2>/dev/null | awk '{print $2}'; }
 
 cmd_replug() {
     daemon_alive || { echo "$SCRIPT: daemon not running at $DSOCK (start first)" >&2; return 6; }
-    echo "$(ts) replug: baseline frame sha (key:0) = $(frame_sha key:0)"
+    SHA1=$(frame_sha key:0)
+    PID0=$(cat "$DATA/daemon.pid" 2>/dev/null)
+    echo "$(ts) replug: baseline frame sha (key:0) = $SHA1; daemon pid=$PID0"
     echo "$(ts) replug: arming drop-after=1, then forcing a write past the budget"
     vdevctl throttle off 1
     ds set /controls/keys/1/image '{"kind":"color","value":"#aa0000"}' --json >/dev/null 2>&1
+    # wait for the drop to actually land (the push is async on the device task) before
+    # clearing the budget, else the replug reconnect could race the armed drop
+    i=0; GONE=""
+    while [ $i -lt 50 ]; do
+        grep -q "device gone" "$DATA/daemon.log" 2>/dev/null && { GONE=1; break; }
+        sleep 0.1; i=$((i + 1))
+    done
+    [ -n "$GONE" ] || { echo "$SCRIPT: replug: the armed drop never landed" >&2; return 1; }
+    vdevctl throttle off off >/dev/null   # replug: the daemon's reconnect gets a fresh write budget
     sleep 2
-    echo "$(ts) replug: simulating replug — restarting daemon on the same vdev (fresh connection, fresh write budget)"
-    DS_DAEMON_BIN=$DS_DAEMON "$DS" --socket "$DSOCK" --data-dir "$DATA" daemon stop >/dev/null 2>&1
-    rm -f "$DSOCK"
-    DS_DAEMON_BIN=$DS_DAEMON setsid "$DS" daemon start \
-        --device "virtual:$SOCK" --data-dir "$DATA" >>"$DIR/daemon-start.log" 2>&1
-    wait_file "$DSOCK" 10 "daemon control socket after replug" || return 1
-    i=0; while ! daemon_alive; do i=$((i+1)); [ $i -gt 100 ] && { echo "$SCRIPT: daemon did not reconnect" >&2; return 1; }; sleep 0.1; done
-    vdevctl throttle off off >/dev/null   # replug done: fresh budget stays armed-off
-    sleep 2
+    # DS-120: the daemon must survive the hot-unplug with the SAME pid (no restart)
+    daemon_alive || { echo "$SCRIPT: replug: daemon died on hot-unplug (DS-120 regression)" >&2; return 1; }
+    PID1=$(cat "$DATA/daemon.pid" 2>/dev/null)
+    if [ "$PID0" != "$PID1" ]; then
+        echo "$SCRIPT: replug: daemon pid changed $PID0 -> $PID1 (DS-120 regression)" >&2
+        return 1
+    fi
+    echo "$(ts) replug: daemon survived the unplug, pid unchanged=$PID1"
+    # the daemon reconnects on its own within the <= 5 s budget: wait for the re-push
+    RE=0; i=0
+    while [ $i -lt 50 ]; do
+        tail -n 20 "$DATA/daemon.log" 2>/dev/null | grep -q "re-pushing" && { RE=1; break; }
+        sleep 0.1; i=$((i + 1))
+    done
+    [ "$RE" = "1" ] || { echo "$SCRIPT: replug: no re-push logged within 5 s of the replug" >&2; return 1; }
+    echo "$(ts) replug: reconnected + re-pushed cached targets (within 5 s budget)"
     sha2=$(frame_sha key:0)
     echo "$(ts) replug: frame sha after reconnect (key:0) = $sha2"
+    [ "$sha2" = "$SHA1" ] || { echo "$SCRIPT: replug: frame sha changed $SHA1 -> $sha2" >&2; return 1; }
+    echo "$(ts) replug: frame sha256 intact across the hot-unplug"
     cmd_snapshot
     return 0
 }
@@ -312,40 +333,43 @@ cmd_rehearse() {
     SHA1=$(frame_sha key:0)
     [ -n "$SHA1" ] && ok "frame key:0 pushed, sha256=$SHA1" || bad "frame key:0 pushed"
 
-    echo "--- step 4: simulate module replug (drop + reconnect)"
+    echo "--- step 4: simulate module hot-unplug + replug (DS-120: no daemon restart)"
+    PID_BEFORE=$(cat "$DATA/daemon.pid" 2>/dev/null)
+    LOG_BEFORE=$(wc -l < "$DATA/daemon.log" 2>/dev/null || echo 0)
     vdevctl throttle off 1 >/dev/null
     ds set /controls/keys/1/image '{"kind":"color","value":"#aa0000"}' --json >/dev/null 2>&1
+    # wait for the drop to actually land (the push is async on the device task) before
+    # clearing the budget, else the reconnect could race the still-armed drop
+    DISC=0; i=0
+    while [ $i -lt 50 ]; do
+        grep -q '/disconnected' "$EVENTS" && { DISC=1; break; }
+        sleep 0.1; i=$((i + 1))
+    done
+    [ "$DISC" = "1" ] && ok "disconnected event logged" || bad "disconnected event"
+    vdevctl throttle off off >/dev/null   # replug: the daemon's reconnect gets a fresh budget
     sleep 2
-    grep -q '/disconnected' "$EVENTS" && ok "disconnected event logged" || bad "disconnected event"
-    DS_DAEMON_BIN=$DS_DAEMON "$DS" --socket "$DSOCK" --data-dir "$DATA" daemon stop >/dev/null 2>&1
-    vdevctl throttle off off >/dev/null   # replug: fresh connection starts with a fresh budget
-    LOG_LINES_BEFORE=$(wc -l < "$DATA/daemon.log" 2>/dev/null || echo 0)
-    rm -f "$DSOCK"
-    DS_DAEMON_BIN=$DS_DAEMON setsid "$DS" daemon start \
-        --device "virtual:$SOCK" --data-dir "$DATA" >>"$DIR/daemon-start.log" 2>&1
-    if wait_file "$DSOCK" 10 "daemon socket after replug" && daemon_alive; then
-        ok "daemon reconnected after replug"
-    else
-        bad "daemon reconnect after replug"
-    fi
-    # the first watcher died with the old daemon connection; attach a fresh one
-    # to capture the connected events of the replugged stack
-    sh "$REPO/tools/watch-deck-events.sh" --socket "$DSOCK" --data-dir "$DATA" \
-        --log "$EVENTS" --seconds 5 --pattern "/deck/*" &
-    WPID2=$!
-    sleep 6
+    # DS-120 no-restart assertion: same daemon pid, still alive
+    PID_AFTER=$(cat "$DATA/daemon.pid" 2>/dev/null)
+    check "daemon pid unchanged across hot-unplug" "$PID_AFTER" "$PID_BEFORE"
+    daemon_alive && ok "daemon still alive after unplug (no restart)" || bad "daemon alive after unplug"
+    # the daemon reconnects + re-handshakes + re-pushes on its own (<= 5 s budget)
+    RE=0; i=0
+    while [ $i -lt 50 ]; do
+        tail -n +$((LOG_BEFORE + 1)) "$DATA/daemon.log" 2>/dev/null | grep -q "re-pushing" && { RE=1; break; }
+        sleep 0.1; i=$((i + 1))
+    done
+    [ "$RE" = "1" ] && ok "re-handshake + re-push after replug within 5s (same pid)" \
+        || bad "re-handshake + re-push after replug within 5s"
+    sleep 1
     NC=$(grep -c '/connected' "$EVENTS" 2>/dev/null); NC=${NC:-0}
-    HS=$(tail -n +$((LOG_LINES_BEFORE + 1)) "$DATA/daemon.log" 2>/dev/null | grep -c "handshaken")
-    if { [ "$NC" -ge 1 ] 2>/dev/null || [ "${HS:-0}" -ge 1 ] 2>/dev/null; }; then
-        ok "re-handshake after replug (connected events=$NC, handshaken log lines=$HS)"
-    else
-        bad "re-handshake after replug (connected events=$NC, handshaken log lines=$HS)"
-    fi
+    # the boot-time connected event predates the watcher; >=1 here means the replug one
+    [ "$NC" -ge 1 ] 2>/dev/null && ok "connected event after replug (connected events=$NC)" \
+        || bad "connected event after replug (connected events=$NC)"
     SHA2=$(frame_sha key:0)
-    check "frame re-push sha256 intact across replug" "$SHA2" "$SHA1"
+    check "frame re-push sha256 intact across hot-unplug (same daemon pid)" "$SHA2" "$SHA1"
 
     cmd_snapshot >/dev/null
-    wait $WPID 2>/dev/null; wait ${WPID2:-0} 2>/dev/null
+    wait $WPID 2>/dev/null
 
     echo
     echo "=== captured events ($EVENTS) ==="
