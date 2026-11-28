@@ -132,10 +132,18 @@ socket) and from the Rust API (`Throttle`, `HubConfig::throttle`, `Hub::set_thro
   device connection**: the write that pushes a connection past `N` accepted writes gets no
   ack and the connection is closed (the host sees `Error::Closed`/`Error::Timeout` on the
   in-flight send and one `DeviceEvent::Disconnected` from `recv` — the signal the daemon's
-  device task uses to mark the module unhealthy). The already-accepted writes keep their
+  device loop uses to mark the device unhealthy). The already-accepted writes keep their
   acks, and the unplugging write is not entered in the write log. **A new connection (a
   reconnect) starts with a fresh budget of N** — the replugged device accepts again, which
   is what lets a reconnect re-push the latest frame.
+  - **Daemon behaviour on unplug (DS-120, ADR-021):** the disconnect does **not** restart
+    the daemon — the device loop publishes `deck/device/<serial>/disconnected`, marks the
+    device unhealthy (`device_status` = `disconnected (<reason>)`), reconnects within the
+    ≤ 5 s budget, re-handshakes and re-pushes the cached latest frame, then publishes
+    `deck/device/<serial>/connected`. The daemon pid is unchanged
+    (`tools/observe-orientation.sh rehearse` asserts exactly this). Known defect of the
+    0.1.0 alpha: every unplug took the whole daemon down (pid changed, all connections
+    dropped — `docs/discovery/salon-001/README.md` §4); fixed by DS-120.
 - **`credits=<burst>/<refill>/<period_ms>[@<seed>]`** — credit-exhaustion mode (armed at
   runtime via the control socket or `Hub::set_credits`; `credits=off` disarms). The device
   keeps a token bucket of write credits: it starts full (`burst`), every accepted **output**

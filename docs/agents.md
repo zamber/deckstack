@@ -261,6 +261,13 @@ exit 7 when the udev rule is missing (nodes are `root:root 0600`) or the vendor 
 USB interfaces (hidraw nodes absent). Check `ls -l /dev/hidraw*`, `udevadm info`, reinstall
 the rule (§1), stop the vendor app, replug, retry.
 
+Hot-unplug (DS-120, ADR-021): unplugging a module does **not** restart the daemon. The daemon
+publishes `deck/device/<serial>/disconnected`, marks the device unhealthy
+(`ds daemon status --json` → `device_status`), reconnects within ≤ 5 s of the replug,
+re-handshakes and re-pushes the current visuals, then publishes
+`deck/device/<serial>/connected`. The daemon pid (`<data-dir>/daemon.pid`) is unchanged —
+if it changed, that was a full crash, not a hot-unplug (check `<data-dir>/daemon.log`).
+
 Daemon unreachable from an agent: every MCP tool answers `E_UNREACHABLE … ds daemon start
 [exit 6]`; from `ds` the same exit 6 with the hint. Check `ds daemon status`, the socket file,
 and `<data-dir>/daemon.log`.
