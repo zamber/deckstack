@@ -110,7 +110,10 @@
         }
       }
     },
-    "settings": {"type": "object"},
+    "settings": {
+      "type": "object",
+      "description": "Intentionally free-form (DS-119): /settings accepts consumer- and app-defined keys with no schema restriction. The keys documented in docs/contracts/state.md (sender backends, log level; exec_path removed — see /policy/exec) are the currently documented subset, not an exhaustive schema; arbitrary additional keys are permitted and ignored by the daemon."
+    },
     "policy": {
       "type": "object",
       "description": "Policy is data (D18, S13): every enforcement point has a schema field here, none exists only in prose. Writable only with admin scope; enforced at the daemon's single device-write/request choke points.",

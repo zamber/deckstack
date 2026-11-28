@@ -44,6 +44,11 @@ default-off, HTTP+WS auth/T7/read-only checks, the action-metadata aggregate wit
 demo plugin, and the zero-write guarantee (rev + ds-vdevctl writes unchanged).
 Use `-k preview` to run only those cases.
 
+It also registers the DS-119 docs-marker suite (tests/conformance/docs_markers/):
+local assertions that the /settings free-form intent is declared in
+schemas/state.json and docs/contracts/state.md and that the two agree.
+Use `-k docs_markers` to run only those cases.
+
 It also registers the DS-081 security conformance mapping
 (tests/conformance/security/): one test per threat row T1-T12 of docs/20-security.md
 §2, each executing or referencing the concrete case that proves the row (the rows
@@ -803,6 +808,18 @@ def _preview_suite():
     return preview_suite()
 
 
+def _docs_markers_suite():
+    """The DS-119 docs-marker suite (tests/conformance/docs_markers/): local
+    assertions that the /settings free-form intent is declared in
+    schemas/state.json and docs/contracts/state.md and that the two agree.
+    No daemon, no hardware. `-k docs_markers` runs only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from docs_markers.run import docs_markers_suite
+    return docs_markers_suite()
+
+
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
     per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
@@ -855,6 +872,7 @@ def main():
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
         suite.addTests(_preview_suite())
+        suite.addTests(_docs_markers_suite())
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):
