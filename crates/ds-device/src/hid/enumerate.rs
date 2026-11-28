@@ -13,6 +13,7 @@ use mh_device::ModuleId;
 
 use crate::error::{Error, Result};
 use crate::module::{module_info_for_pid, ModuleInfo, VENDOR_ID};
+use crate::slot::Slot;
 
 /// One attached MasterHub module, as enumeration sees it.
 #[derive(Debug, Clone)]
@@ -26,6 +27,9 @@ pub struct HidModuleInfo {
     pub serial: Option<String>,
     /// USB product string, when available.
     pub product_string: Option<String>,
+    /// The DS-112 placement: the USB slot (port path relative to the base's top hub, e.g.
+    /// `1-4-3`) derived from the OS path. `None` when the path carries no port part.
+    pub slot: Option<Slot>,
     /// The [`ModuleId`] the transport addresses this module by: the USB serial when there is
     /// one, the OS path otherwise (a wedged keys/dial module reports a garbage serial, so the
     /// path is the fallback that always identifies the physical module).
@@ -50,6 +54,14 @@ pub fn module_id_for(info: &ModuleInfo, serial: Option<&str>, path: &CStr) -> Mo
         kind: info.kind,
         serial,
     }
+}
+
+/// The DS-112 slot of an enumerated module: the port path relative to the base's top hub,
+/// derived from the hidapi path (`3-2.1.4.3:1.0` → `1-4-3`). Linux has no locationID
+/// (`upstream/crates/mh-device/src/location.rs:144-149` TODO), so the sysfs-style path is
+/// the placement signal.
+pub fn slot_for_path(path: &CStr) -> Option<Slot> {
+    Slot::from_hidapi_path(path)
 }
 
 /// Map a hidapi error onto the driver error type.
@@ -79,6 +91,7 @@ pub(crate) fn enumerate_with(api: &mut HidApi) -> Result<Vec<HidModuleInfo>> {
             path: d.path().to_owned(),
             serial: d.serial_number().map(str::to_string),
             product_string: d.product_string().map(str::to_string),
+            slot: slot_for_path(d.path()),
             module_id: module_id_for(&info, d.serial_number(), d.path()),
         });
     }
@@ -132,5 +145,20 @@ mod tests {
         assert_eq!(without.serial, "/dev/bus/usb/003/016");
         let empty = module_id_for(&info, Some(""), &path);
         assert_eq!(empty.serial, "/dev/bus/usb/003/016");
+    }
+
+    #[test]
+    fn slot_is_derived_from_the_sysfs_style_path() {
+        // SALON-001: abs 3-2-1-4-3 -> slot 1-4-3 (knobs at top-right rot90)
+        let knobs = CString::new("3-2.1.4.3:1.0").unwrap();
+        assert_eq!(slot_for_path(&knobs).unwrap().as_str(), "1-4-3");
+        // base MCU: abs 3-2-1-4-4 -> 1-4-4
+        let base = CString::new("3-2.1.4.4:1.0").unwrap();
+        let slot = slot_for_path(&base).unwrap();
+        assert_eq!(slot.as_str(), crate::slot::BASE_MCU_SLOT);
+        assert_eq!(slot.position(), 79);
+        // a non-port path has no slot
+        let dev = CString::new("/dev/bus/usb/003/016").unwrap();
+        assert!(slot_for_path(&dev).is_none());
     }
 }

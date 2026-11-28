@@ -215,6 +215,33 @@ pub fn run(opts: RunOptions) -> io::Result<i32> {
         device::spawn(device, shutdown.clone(), bus.clone(), Some(frames.clone()));
     let (state, state_thread) =
         StateTask::spawn_shared(Arc::clone(&store), Some(device_handle.clone()), bus.clone());
+    // DS-112: the /devices/<serial> registry — turns deck/device/<serial>/{connected,moved,
+    // orientation,disconnected} events into /devices/<serial> entries (position, orientation,
+    // connection) through the state task, the single writer. Commits are coalesced into one
+    // transaction per batch, so a boot burst costs a single rev.
+    let (_registry_thread, registry_state) =
+        device::spawn_registrar(bus.clone(), state.clone(), shutdown.clone());
+    // Bounded wait for the INITIAL registration before accepting clients: once the IPC
+    // socket is up, /devices is settled and rev does not move on its own (conflict-contract
+    // clients rely on that). With no device, or a device that fails to open, this returns
+    // immediately; with a connected device it waits for the registry to go idle (≤ 5 s).
+    if opts.device.is_some() {
+        // cap 3 s: the DS-022 handshake alone needs ~800 ms (600 ms settle + 200 ms
+        // re-settle, per screen module in parallel), registration ~100 ms; beyond that
+        // we accept the (rare) async registration instead of delaying boot further
+        let boot_wait = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while std::time::Instant::now() < boot_wait {
+            let s = device_status.lock().unwrap().clone().unwrap_or_default();
+            if s.starts_with("connected") {
+                if registry_state.idle() {
+                    break;
+                }
+            } else if s.starts_with("error") || s == "none" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
 
     // IPC control server on <dir>/daemon.sock (0600; dir already 0700).
     let status = StatusInfo {

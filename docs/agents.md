@@ -115,7 +115,13 @@ absent, they use `<data-dir>/daemon.sock`.
 ```sh
 ds-vdev --socket /tmp/vdev.sock &                        # virtual MasterHub
 ds daemon start --device virtual:/tmp/vdev.sock          # detached; logs to <data-dir>/daemon.log
+ds-vdevctl --socket /tmp/vdev.sock slots                 # DS-112: each module's slot + position
+ds get /devices --json                                   # position + orientation per module
 ```
+Modules are identified by `(slot, orientation)` in addition to the serial (DS-112,
+ADR-021): `ds-vdevctl … move <module> <slot>` reseats a virtual module in another
+connector, `… orientation <horizontal|vertical>` rotates the base, `… replug` hot-unplugs
+the host connections; the daemon re-links the position and re-pushes without a restart.
 **Real deck:**
 ```sh
 ds daemon start --device hid:                            # every attached module

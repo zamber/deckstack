@@ -32,7 +32,10 @@ pub mod server;
 pub mod target;
 pub mod throttle;
 
-pub use hub::{sha256_hex, sha256_of, FrameEntry, Hub, HubConfig, Outcome, Throttle, WriteRecord};
+pub use hub::{
+    reference_slot, sha256_hex, sha256_of, FrameEntry, Hub, HubConfig, Outcome, Throttle,
+    WriteRecord,
+};
 pub use inject::{encode_input_report, event_frame, parse_events_ndjson, InjectEvent};
 pub use server::{control_path, VdevServer};
 pub use target::Target;

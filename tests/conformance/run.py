@@ -421,29 +421,38 @@ class Conformance(unittest.TestCase):
 
     def test_100_empty_state_on_fresh_start(self):
         # docs/00-scope.md invariant 1: fresh start => /controls, /bindings,
-        # /plugins empty and rev 0
+        # /plugins empty (no presets, no sample decks). DS-112: with a device
+        # attached, boot also commits the /devices registration before the socket
+        # binds, so rev is the boot rev (>= 1), not 0 — the emptiness invariant is
+        # about CONTENT; rev must merely be consistent across reads.
         controls = self.get_json("/controls")
         self.assertEqual(controls["value"], {})
-        self.assertEqual(controls["rev"], 0)
         self.assertEqual(self.get_json("/bindings")["value"], [])
         self.assertEqual(self.get_json("/plugins")["value"], {})
+        self.assertEqual(self.get_json("/devices")["value"] and True, True)  # registered
         meta = self.get_json("/meta")
-        self.assertEqual(meta["value"]["rev"], 0)
         self.assertEqual(meta["value"]["version"], 1)
         self.assertEqual(meta["value"]["protocol"], 1)
+        self.assertEqual(controls["rev"], meta["value"]["rev"],
+                         "rev is consistent across reads at boot")
+        self.assertGreaterEqual(meta["value"]["rev"], 1,
+                                "with a device attached the boot rev is >= 1 (DS-112)")
         # same via raw IPC
         c = self.stack.ipc()
         try:
             w = c.rpc({"id": 1, "op": "hello", "protocol": 1, "client": "conf/1"})
             self.assertEqual(w["ok"], True)
-            self.assertEqual(w["result"]["rev"], 0, "welcome.rev must be 0 on fresh state")
+            meta = self.get_json("/meta")
+            self.assertEqual(w["result"]["rev"], meta["value"]["rev"],
+                             "welcome.rev equals /meta rev (boot rev; DS-112 registers "
+                             "/devices before the socket binds)")
             c.rpc({"id": 2, "op": "auth", "token": self.stack.token})
             for i, (path, want) in enumerate((("/controls", {}), ("/bindings", []),
                                               ("/plugins", {}))):
                 r = c.rpc({"id": 3 + i, "op": "get", "path": path})
                 self.assertEqual(r["ok"], True)
                 self.assertEqual(r["result"]["value"], want, path)
-                self.assertEqual(r["rev"], 0, path)
+                self.assertEqual(r["rev"], meta["value"]["rev"], path)
         finally:
             c.close()
 
@@ -476,7 +485,10 @@ class Conformance(unittest.TestCase):
             res = r["result"]
             self.assertEqual(res["op"], "welcome")
             self.assertEqual(res["protocol"], 1)
-            self.assertEqual(res["rev"], 0)
+            # DS-112: boot registers /devices before the socket binds, so the welcome
+            # rev is the boot rev — it must equal /meta rev, not a hardcoded 0
+            meta = self.get_json("/meta")
+            self.assertEqual(res["rev"], meta["value"]["rev"])
             self.assertTrue(str(res["server"]).startswith("ds-daemon/"), res)
             # op before auth -> E_AUTH
             r = c.rpc({"id": 2, "op": "ping"})
@@ -803,6 +815,19 @@ def _preview_suite():
     return preview_suite()
 
 
+def _position_suite():
+    """The DS-112 position/orientation suite (tests/conformance/position/), registered
+    into this run so the main conformance gate also machine-checks module identity by
+    (slot, orientation): /devices position+orientation updates on move/rotation/replug,
+    frame sha256 intact after the re-push, no daemon restart. Use `-k position` to run
+    only these cases."""
+    conf_dir = str(ROOT / "tests" / "conformance")
+    if conf_dir not in sys.path:
+        sys.path.insert(0, conf_dir)
+    from position.run import position_suite
+    return position_suite()
+
+
 def _security_suite():
     """The DS-081 security conformance mapping (tests/conformance/security/): one test
     per threat row T1-T12 of docs/20-security.md §2, each executing or referencing the
@@ -855,6 +880,7 @@ def main():
         suite.addTests(_microapps_suite())
         suite.addTests(_plugins_suite())
         suite.addTests(_preview_suite())
+        suite.addTests(_position_suite())
         # DS-081 security mapping (T1-T12). Skipped in children spawned by the mapping's
         # own row checks (DS_SECURITY_CHILD=1) so they never recurse into it.
         if not os.environ.get("DS_SECURITY_CHILD"):

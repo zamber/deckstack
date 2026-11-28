@@ -21,8 +21,10 @@ use ds_device::chunks::Reassembler;
 use ds_device::frame::{kind, Frame};
 use ds_device::module::{module_info, module_info_for_pid, ModuleInfo};
 use ds_device::report::{view_report, ReportView};
-use ds_protocol::ModuleKind;
+use ds_device::slot::{Slot, BASE_MCU_SLOT, SLOT_FEATURE_ID};
+use ds_protocol::{ModuleKind, Orientation};
 use sha2::{Digest, Sha256};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::inject::{event_frame, InjectEvent};
 use crate::target::Target;
@@ -31,6 +33,23 @@ use crate::target::Target;
 pub const VIRTUAL_FIRMWARE: &str = "01.00.00.00";
 /// Default backlight percent reported before the host sets one.
 pub const DEFAULT_BACKLIGHT: u8 = 50;
+
+/// The DS-112 reference (rot0) slot anchors per module kind, base flat, corner indicator in
+/// the fixed standard position — the SALON-001 reference sweep
+/// (`docs/discovery/salon-001/README.md`, connector-map-ref-labeled.csv):
+/// knobs `1-2-3`, keys `1-3-4`, faders `1-1-3`, rollers `1-3-4`, dial `1-1-3`, base MCU
+/// `1-4-4`.
+pub fn reference_slot(kind: ModuleKind) -> Slot {
+    let s = match kind {
+        ModuleKind::Knobs => "1-2-3",
+        ModuleKind::Keys => "1-3-4",
+        ModuleKind::Faders => "1-1-3",
+        ModuleKind::Rollers => "1-3-4",
+        ModuleKind::Dial => "1-1-3",
+        ModuleKind::Base => BASE_MCU_SLOT,
+    };
+    Slot::parse(s).expect("reference slots are valid port paths")
+}
 
 // The throttle/backpressure knobs (DS-035) live in `throttle.rs`; re-exported here so the
 // `hub::Throttle` path (and `ds_vdev::Throttle`) keeps working.
@@ -124,6 +143,12 @@ struct HubState {
     writes: Vec<WriteRecord>,
     software_mode: HashMap<u16, bool>,
     backlight: HashMap<u16, u8>,
+    /// DS-112: the current USB slot (port path) of each module, by pid — the SALON-001
+    /// reference (rot0) anchors at boot, changed by `move` (a reseat in another connector).
+    slots: HashMap<u16, Slot>,
+    /// DS-112: the base's current orientation (flat = 0x01 horizontal, upright = 0x00
+    /// vertical — a one-direction tilt switch).
+    orientation: Orientation,
     throttle: Throttle,
     /// Credit-exhaustion window (DS-035), armed via `set_credits` / `throttle … credits=…`.
     credits: Option<CreditState>,
@@ -138,6 +163,10 @@ pub struct Hub {
     state: Mutex<HubState>,
     clients: Mutex<HashMap<usize, Sender<Frame>>>,
     next_client: Mutex<usize>,
+    /// Set by `replug()`: every open device connection closes on its next poll, so the host
+    /// sees a disconnect and its rescan reconnects (a hot replug). Cleared when the first
+    /// new connection registers.
+    replug_requested: AtomicBool,
 }
 
 impl Hub {
@@ -159,6 +188,12 @@ impl Hub {
                     .iter()
                     .map(|&k| (module_info(k).pid, DEFAULT_BACKLIGHT))
                     .collect(),
+                slots: config
+                    .modules
+                    .iter()
+                    .map(|&k| (module_info(k).pid, reference_slot(k)))
+                    .collect(),
+                orientation: Orientation::Horizontal,
                 throttle: config.throttle,
                 credits: None,
                 seq: 0,
@@ -167,6 +202,7 @@ impl Hub {
             }),
             clients: Mutex::new(HashMap::new()),
             next_client: Mutex::new(0),
+            replug_requested: AtomicBool::new(false),
         }
     }
 
@@ -185,7 +221,9 @@ impl Hub {
             .expect("clients poisoned")
             .insert(id, tx);
         // A new device connection is a replug: the --drop-after write budget is per
-        // connection, so a reconnect after a simulated unplug gets a fresh budget.
+        // connection, so a reconnect after a simulated unplug gets a fresh budget. It also
+        // clears a pending replug request (the fresh connection is the replugged device).
+        self.replug_requested.store(false, Ordering::SeqCst);
         self.lock().accepted = 0;
         (id, rx)
     }
@@ -193,6 +231,90 @@ impl Hub {
     /// Unregister a device connection.
     pub fn unregister_client(&self, id: usize) {
         self.clients.lock().expect("clients poisoned").remove(&id);
+    }
+
+    /// The DS-112 slot of one module (by kind), if the hub serves it.
+    pub fn slot(&self, kind: ModuleKind) -> Option<Slot> {
+        self.lock().slots.get(&module_info(kind).pid).cloned()
+    }
+
+    /// All current module slots as `(kind, slot)` pairs, sorted by kind name
+    /// (`ds-vdevctl slots`).
+    pub fn slots(&self) -> Vec<(ModuleKind, Slot)> {
+        let st = self.lock();
+        let mut out: Vec<(ModuleKind, Slot)> = st
+            .modules
+            .iter()
+            .filter_map(|info| st.slots.get(&info.pid).map(|s| (info.kind, s.clone())))
+            .collect();
+        out.sort_by_key(|(k, _)| k.name());
+        out
+    }
+
+    /// "Move" a module to another connector: change its slot in place (same serial, same
+    /// pid — a reseat). The host's next rescan sees the changed `(slot, orientation)`
+    /// identity key. Returns the new position.
+    pub fn set_slot(&self, kind: ModuleKind, slot: Slot) -> Result<u8, String> {
+        let pid = module_info(kind).pid;
+        let mut st = self.lock();
+        if !st.slots.contains_key(&pid) {
+            return Err(format!("module {} is not served by this hub", kind.name()));
+        }
+        let pos = slot.position();
+        st.slots.insert(pid, slot);
+        Ok(pos)
+    }
+
+    /// The base's current orientation.
+    pub fn orientation(&self) -> Orientation {
+        self.lock().orientation
+    }
+
+    /// Rotate the base: set the orientation and broadcast the orientation input report to
+    /// every connected host (exactly what the hardware's tilt switch does, SALON-001
+    /// finding 1 — the daemon also re-reads the orientation feature 0x35 on its rescan
+    /// tick, so a broadcast lost in a reconnect window is recovered within one tick).
+    /// Returns the new orientation.
+    pub fn set_orientation(&self, o: Orientation) -> Orientation {
+        {
+            let mut st = self.lock();
+            st.orientation = o;
+        }
+        let ev = InjectEvent {
+            module: "base".into(),
+            at_ms: 0,
+            keys: None,
+            faders: None,
+            knob: None,
+            knob_delta: None,
+            knob_press: None,
+            pressed: None,
+            roller: None,
+            roller_delta: None,
+            dial_delta: None,
+            dial_pressed: None,
+            orientation: Some(match o {
+                Orientation::Horizontal => "horizontal".to_string(),
+                Orientation::Vertical => "vertical".to_string(),
+            }),
+        };
+        let _ = self.inject(&ev);
+        o
+    }
+
+    /// Hot replug: close every open device connection (the hosts see `Disconnected` and
+    /// rescan; the socket stays bound, so the rescan lands on the same hub). Returns how
+    /// many connections were dropped.
+    pub fn replug(&self) -> usize {
+        let n = self.clients.lock().expect("clients poisoned").len();
+        self.replug_requested.store(true, Ordering::SeqCst);
+        n
+    }
+
+    /// Whether a replug was requested and no fresh connection has registered since (the
+    /// device-connection loop polls this and closes its stream).
+    pub fn replug_requested(&self) -> bool {
+        self.replug_requested.load(Ordering::SeqCst)
     }
 
     /// Broadcast one device→host frame (an injected input report) to every connected host;
@@ -428,7 +550,8 @@ impl Hub {
         })
     }
 
-    /// Module report lines (`ds-vdevctl reports`): one line per served module.
+    /// Module report lines (`ds-vdevctl reports`): one line per served module, with the
+    /// DS-112 slot + connector position appended.
     pub fn reports(&self) -> Vec<String> {
         let st = self.lock();
         st.modules
@@ -448,8 +571,12 @@ impl Hub {
                     })
                     .map(|f| f.target.name())
                     .collect();
+                let (slot, position) = match st.slots.get(&pid) {
+                    Some(s) => (s.as_str().to_string(), s.position()),
+                    None => ("?".to_string(), 0),
+                };
                 format!(
-                    "{} pid={:#06x} out_len={} feature_len={} input_tag={:#04x} software_mode={} backlight={} frames=[{}]",
+                    "{} pid={:#06x} out_len={} feature_len={} input_tag={:#04x} software_mode={} backlight={} frames=[{}] slot={} position={}",
                     info.kind.name(),
                     pid,
                     info.out_len,
@@ -457,7 +584,9 @@ impl Hub {
                     info.input_tag,
                     st.software_mode.get(&pid).copied().unwrap_or(false),
                     st.backlight.get(&pid).copied().unwrap_or(DEFAULT_BACKLIGHT),
-                    frames.join(",")
+                    frames.join(","),
+                    slot,
+                    position,
                 )
             })
             .collect()
@@ -524,6 +653,69 @@ impl Hub {
                 }
             }
             "reports" => Ok(self.reports()),
+            "slots" => Ok(self
+                .slots()
+                .iter()
+                .map(|(kind, slot)| {
+                    format!(
+                        "{} pid={:#06x} slot={} position={}",
+                        kind.name(),
+                        module_info(*kind).pid,
+                        slot.as_str(),
+                        slot.position()
+                    )
+                })
+                .collect()),
+            "move" => {
+                let mut fields = rest.split_whitespace();
+                let module = fields
+                    .next()
+                    .ok_or_else(|| "usage: move <module> <slot>".to_string())?;
+                let slot_s = fields
+                    .next()
+                    .ok_or_else(|| "usage: move <module> <slot>".to_string())?;
+                let kind = ModuleKind::from_name(module)
+                    .ok_or_else(|| format!("unknown module '{module}'"))?;
+                let slot = Slot::parse(slot_s)
+                    .ok_or_else(|| format!("bad slot '{slot_s}' (port path, e.g. 1-4-3)"))?;
+                let pos = self.set_slot(kind, slot.clone())?;
+                Ok(vec![format!(
+                    "moved {} pid={:#06x} slot={} position={}",
+                    kind.name(),
+                    module_info(kind).pid,
+                    slot.as_str(),
+                    pos
+                )])
+            }
+            "orientation" => {
+                let arg = rest
+                    .split_whitespace()
+                    .next()
+                    .ok_or_else(|| "usage: orientation <horizontal|vertical>".to_string())?;
+                let o = match arg {
+                    "horizontal" | "flat" => Orientation::Horizontal,
+                    "vertical" | "upright" => Orientation::Vertical,
+                    other => return Err(format!("unknown orientation '{other}'")),
+                };
+                let o = self.set_orientation(o);
+                let byte = match o {
+                    Orientation::Horizontal => 0x01,
+                    Orientation::Vertical => 0x00,
+                };
+                Ok(vec![format!(
+                    "orientation {} (0x{byte:02x}) broadcast to hosts",
+                    match o {
+                        Orientation::Horizontal => "horizontal",
+                        Orientation::Vertical => "vertical",
+                    }
+                )])
+            }
+            "replug" => {
+                let n = self.replug();
+                Ok(vec![format!(
+                    "replug requested; {n} connection(s) will close"
+                )])
+            }
             "writes" => {
                 let mut fields = rest.split_whitespace();
                 let limit = match fields.next() {
@@ -691,7 +883,26 @@ fn answer(info: &ModuleInfo, feature_id: u8, st: &HubState) -> Result<Vec<u8>, S
                 0x14, 0x00, 0x00, 0x00, 0xF0, 0x00, 0xF0, 0x00, 0x01, 0xF0, 0xF0,
             ]
         }
-        (ModuleKind::Base, 0x35) => vec![0x01], // orientation: horizontal
+        (ModuleKind::Base, 0x35) => {
+            // DS-112: the base's current orientation (flat = 0x01 horizontal, upright =
+            // 0x00 vertical), changed by `ds-vdevctl orientation`
+            vec![match st.orientation {
+                Orientation::Horizontal => 0x01,
+                Orientation::Vertical => 0x00,
+            }]
+        }
+        (_, SLOT_FEATURE_ID) => {
+            // DS-112: the module's current USB slot (ASCII, padded like the serial read);
+            // a vdev-only feature — on real HID the slot comes from the sysfs port path
+            let slot = st
+                .slots
+                .get(&info.pid)
+                .map(|s| s.as_str().to_string())
+                .unwrap_or_else(|| reference_slot(info.kind).as_str().to_string());
+            let mut p = slot.into_bytes();
+            p.resize(20, 0);
+            p
+        }
         // the rest of the M0-family diagnostic reads: deterministic filler payload
         (kind, 0x2D | 0x2F | 0x31 | 0x32 | 0x34 | 0x36) if kind.is_m0() => vec![0u8; 8],
         _ => {
@@ -921,6 +1132,92 @@ mod tests {
         // unknown feature id -> error
         let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, keys_pid(), vec![0x77]).unwrap());
         assert_eq!(out.replies[0].kind, kind::ERROR);
+    }
+
+    #[test]
+    fn ds112_slots_move_orientation_and_replug() {
+        let hub = Hub::new(HubConfig::default());
+        // boot: every module at its SALON-001 rot0 anchor
+        assert_eq!(hub.slot(ModuleKind::Knobs).unwrap().as_str(), "1-2-3");
+        assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "1-3-4");
+        assert_eq!(hub.slot(ModuleKind::Faders).unwrap().as_str(), "1-1-3");
+        assert_eq!(hub.slot(ModuleKind::Rollers).unwrap().as_str(), "1-3-4");
+        assert_eq!(hub.slot(ModuleKind::Dial).unwrap().as_str(), "1-1-3");
+        assert_eq!(
+            hub.slot(ModuleKind::Base).unwrap().as_str(),
+            ds_device::slot::BASE_MCU_SLOT
+        );
+        assert_eq!(hub.orientation(), Orientation::Horizontal);
+
+        // the slot feature read answers the current slot (what VirtualTransport::module_slot parses)
+        let out = hub.handle_frame(
+            &Frame::new(kind::FEATURE_GET, keys_pid(), vec![SLOT_FEATURE_ID]).unwrap(),
+        );
+        let ans = &out.replies[0].payload;
+        assert_eq!(ans[0], 0x03);
+        assert_eq!(ans[1], SLOT_FEATURE_ID);
+        assert_eq!(&ans[3..3 + 5], b"1-3-4");
+        // base orientation feature read: flat = 0x01
+        let base_pid = module_info(ModuleKind::Base).pid;
+        let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, base_pid, vec![0x35]).unwrap());
+        assert_eq!(out.replies[0].payload[3], 0x01);
+
+        // move the knobs to another connector (slot change, same pid/serial)
+        let pos = hub
+            .set_slot(ModuleKind::Knobs, Slot::parse("1-4-3").unwrap())
+            .unwrap();
+        assert_eq!(pos, 78);
+        assert_eq!(hub.slot(ModuleKind::Knobs).unwrap().as_str(), "1-4-3");
+        let out = hub.handle_frame(
+            &Frame::new(
+                kind::FEATURE_GET,
+                module_info(ModuleKind::Knobs).pid,
+                vec![SLOT_FEATURE_ID],
+            )
+            .unwrap(),
+        );
+        assert_eq!(&out.replies[0].payload[3..3 + 5], b"1-4-3");
+        assert!(Slot::parse("9-9").is_none());
+
+        // control protocol: slots / move / orientation / replug
+        let lines = hub.control("slots").unwrap();
+        assert_eq!(lines.len(), 6);
+        assert!(lines
+            .iter()
+            .any(|l| l.starts_with("knobs pid=0x0202 slot=1-4-3 position=78")));
+        let lines = hub.control("move keys 3-1").unwrap();
+        assert_eq!(lines[0], "moved keys pid=0x01fe slot=3-1 position=24");
+        assert_eq!(hub.slot(ModuleKind::Keys).unwrap().as_str(), "3-1");
+        assert!(hub.control("move keys nonsense").is_err());
+        assert!(hub.control("move nope 1-1-1").is_err());
+        let lines = hub.control("orientation vertical").unwrap();
+        assert!(lines[0].contains("vertical"));
+        assert_eq!(hub.orientation(), Orientation::Vertical);
+        let out = hub.handle_frame(&Frame::new(kind::FEATURE_GET, base_pid, vec![0x35]).unwrap());
+        assert_eq!(out.replies[0].payload[3], 0x00, "upright = 0x00");
+        // the orientation change was broadcast as an input report to connected hosts
+        let (id, rx) = hub.register_client();
+        hub.control("orientation horizontal").unwrap();
+        let f = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(f.kind, kind::INPUT);
+        assert_eq!(f.pid, base_pid);
+        assert!(matches!(
+            ds_protocol::parse_input(ModuleKind::Base, &f.payload)[0],
+            ds_protocol::Input::Orientation(Orientation::Horizontal)
+        ));
+        // replug: the flag is set, cleared by the next registration
+        assert_eq!(hub.replug(), 1);
+        assert!(hub.replug_requested());
+        let _ = hub.register_client();
+        assert!(!hub.replug_requested());
+        hub.unregister_client(id);
+
+        // reports carry slot + position
+        let reports = hub.reports();
+        assert!(
+            reports.iter().any(|r| r.contains("slot=1-4-3 position=78")),
+            "{reports:?}"
+        );
     }
 
     #[test]

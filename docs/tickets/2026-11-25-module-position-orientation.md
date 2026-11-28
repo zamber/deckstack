@@ -4,6 +4,15 @@ Date: 2026-11-25. Type: feature ticket (docs-only at filing; implementation late
 Scope guard: documentation-only ticket — no daemon code, schemas, contracts, or tests
 change with this file.
 
+**Status: IMPLEMENTED** on branch `vibe/impl-ds-112-position-orientation` (ADR-021,
+decision-log D42). Identity key `(slot, orientation)` + serial; `/devices/<serial>` carries
+`position` + `orientation`; rescan re-handshakes (≥ 600 ms settle, double command) and
+re-pushes cached frames/LEDs keyed by position; ds-vdev/ds-vdevctl gained
+`slots`/`move`/`orientation`/`replug` + the permutation harness
+(`crates/ds-vdev/tests/ds112_permutations.rs`); conformance suite
+`tests/conformance/position/run.py`. Hardware replug/reseat case for `tests/hw/smoke.py`
+remains open (no hardware in this phase).
+
 ## Symptom
 
 Reseating the knob module (or rotating the base between flat and upright) makes it

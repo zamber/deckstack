@@ -40,9 +40,10 @@ use ds_device::handshake::{HandshakeConfig, ModuleState};
 use ds_device::hotplug::{self, IoFault, Lifecycle, Phase, RescanPolicy};
 use ds_device::module::module_info;
 use ds_device::rate::RateLimiter;
+use ds_device::slot::DeviceKey;
 use ds_device::transport::{DeviceEvent, Transport};
 use ds_device::uri::DeviceUri;
-use ds_protocol::{LedTarget, ModuleKind};
+use ds_protocol::{LedTarget, ModuleKind, Orientation};
 use mh_device::ModuleId;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -224,6 +225,8 @@ pub fn spawn_with(
                 lifecycle: Lifecycle::new(max_failures),
                 transport: None,
                 modules: Vec::new(),
+                keys: Vec::new(),
+                orientation: Orientation::Horizontal,
                 unhealthy: HashSet::new(),
                 latest: HashMap::new(),
                 led: RateLimiter::new(ds_device::rate::DEFAULT_LED_RATE_PER_S),
@@ -387,6 +390,12 @@ struct Task {
     transport: Option<Box<dyn Transport>>,
     /// Handshaken modules of the live connection.
     modules: Vec<ModuleState>,
+    /// DS-112: the (slot, orientation) identity keys of the live connection, recorded at
+    /// connect — the rescan comparison is keyed by position, not by serial alone.
+    keys: Vec<(ModuleId, DeviceKey)>,
+    /// DS-112: the current base orientation (part of every module's identity key); updated
+    /// from base orientation input reports.
+    orientation: Orientation,
     /// Modules currently unhealthy (no sends to them; handshake retried on rescan).
     unhealthy: HashSet<ModuleId>,
     /// Latest push per target — the re-push source after a reconnect (latest-frame-wins).
@@ -534,6 +543,9 @@ impl Task {
                     let _ = t.close();
                     return;
                 }
+                // DS-112: record the (slot, orientation) identity keys of the live connection
+                // before the transport is stored (the rescan compares against these).
+                self.keys = hotplug::identity_keys(&*t, self.orientation);
                 self.transport = Some(t);
                 self.unhealthy = report
                     .unresponsive
@@ -678,6 +690,24 @@ impl Task {
                     for ev in events {
                         self.bus.publish(ev);
                     }
+                    // DS-112: the base orientation is part of the identity key; a rotation
+                    // re-keys every module and re-pushes the cached targets (idempotent).
+                    if let ds_protocol::Input::Orientation(o) = input {
+                        if o != self.orientation {
+                            self.orientation = o;
+                            self.log(
+                                "info",
+                                &format!(
+                                    "base orientation -> {}; re-keying by (slot, orientation)",
+                                    ds_device::orientation_name(o)
+                                ),
+                            );
+                            if let Some(t) = &self.transport {
+                                self.keys = hotplug::identity_keys(&**t, self.orientation);
+                            }
+                            self.repush();
+                        }
+                    }
                     self.last_io = Instant::now();
                     self.log(
                         "info",
@@ -758,14 +788,68 @@ impl Task {
         }
     }
 
-    /// Periodic rescan while connected: for `hid:` URIs compare the enumerated module set
-    /// with the open one — a hot-plugged (or unplugged) module triggers a reconnect, which
-    /// re-handshakes and re-pushes.
+    /// Periodic rescan while connected. DS-112: the identity key is `(slot, orientation)`
+    /// in addition to the serial, so the rescan compares the live transport's placement keys
+    /// with the keys recorded at connect — a module moved to another connector (or a base
+    /// rotation, which re-keys without any USB event) triggers a reconnect, which
+    /// re-handshakes and re-pushes keyed by position. For `hid:` URIs the enumerated module
+    /// set (serials + slots from sysfs) is compared too — a hot-plugged or unplugged module.
     fn periodic_rescan(&mut self) {
-        let Some(uri) = &self.uri else {
+        let scheme = self.uri.as_ref().map(|u| u.scheme().to_string());
+        let Some(scheme) = scheme else {
             return;
         };
-        if uri.scheme() != "hid" {
+        // DS-112: re-read the base orientation (feature 0x35) — the tilt switch heartbeats
+        // ~2 reports/s on hardware; polling also recovers a broadcast lost in a reconnect
+        // window, and a rotation re-keys every module's position.
+        let polled = self.transport.as_ref().and_then(|t| {
+            let base = t.module_id(ModuleKind::Base)?;
+            let ans = t.query(&base, 0x35, Duration::from_millis(500)).ok()?;
+            let o = ans.get(1..).and_then(ds_protocol::parse_orientation)?;
+            Some((base.serial, o))
+        });
+        if let Some((serial, o)) = polled {
+            if o != self.orientation {
+                self.orientation = o;
+                self.log(
+                    "info",
+                    &format!(
+                        "base orientation -> {}; re-keying by (slot, orientation)",
+                        ds_device::orientation_name(o)
+                    ),
+                );
+                self.bus.publish(router::device_event(
+                    &serial,
+                    "orientation",
+                    serde_json::json!({"orientation": ds_device::orientation_name(o)}),
+                ));
+                if let Some(t) = &self.transport {
+                    self.keys = hotplug::identity_keys(&**t, self.orientation);
+                }
+                self.repush();
+            }
+        }
+        let changes = self
+            .transport
+            .as_ref()
+            .map(|t| hotplug::placement_changes(&**t, self.orientation, &self.keys))
+            .unwrap_or_default();
+        if !changes.is_empty() {
+            let desc: Vec<String> = changes
+                .iter()
+                .map(|(id, key)| format!("{}:{}", id.kind.name(), key))
+                .collect();
+            self.log(
+                "warn",
+                &format!(
+                    "rescan: placement changed ({}); reconnecting keyed by position",
+                    desc.join(", ")
+                ),
+            );
+            self.on_gone("rescan detected a changed (slot, orientation) placement");
+            return;
+        }
+        if scheme != "hid" {
             return;
         }
         match ds_device::hid::enumerate() {
@@ -1385,6 +1469,119 @@ mod tests {
         shutdown.trigger();
         thread.join().unwrap();
         drop(vdev_b);
+    }
+
+    /// A slot-aware fake: the (slot, orientation) identity of each kind can be changed at
+    /// runtime, like `ds-vdevctl move` does on the virtual deck.
+    struct SlotFake {
+        inner: Arc<FakeTransport>,
+        slots: Arc<StdMutex<HashMap<ModuleKind, ds_device::slot::Slot>>>,
+    }
+
+    impl Transport for SlotFake {
+        fn send(&self, module: &ModuleId, report: &Report) -> DevResult<usize> {
+            self.inner.send(module, report)
+        }
+        fn query(&self, module: &ModuleId, fid: u8, t: Duration) -> DevResult<Vec<u8>> {
+            self.inner.query(module, fid, t)
+        }
+        fn recv(&self, t: Duration) -> DevResult<DeviceEvent> {
+            self.inner.recv(t)
+        }
+        fn close(&self) -> DevResult<()> {
+            self.inner.close()
+        }
+        fn module_id(&self, kind: ModuleKind) -> Option<ModuleId> {
+            Some(virtual_module_id(kind))
+        }
+        fn module_slot(&self, kind: ModuleKind) -> Option<ds_device::slot::Slot> {
+            self.slots.lock().unwrap().get(&kind).cloned()
+        }
+    }
+
+    #[test]
+    fn placement_change_on_rescan_triggers_reconnect_and_repush_keyed_by_position() {
+        // One slot-aware fake per "physical deck"; the opener hands out successive fakes so
+        // a reconnect lands on a fresh transport, like a replugged vdev. The slot map is
+        // SHARED with the test so a "move" on the live connection is visible to the rescan.
+        let slots1 = Arc::new(StdMutex::new(
+            [(
+                ModuleKind::Keys,
+                ds_device::slot::Slot::parse("1-3-4").unwrap(),
+            )]
+            .into_iter()
+            .collect(),
+        ));
+        let slots2 = Arc::new(StdMutex::new(
+            [(
+                ModuleKind::Keys,
+                ds_device::slot::Slot::parse("3-1").unwrap(),
+            )]
+            .into_iter()
+            .collect(),
+        ));
+        let fake1 = FakeTransport::new();
+        let fake2 = FakeTransport::new();
+        let opens = Arc::new(AtomicU64::new(0));
+        let f1 = Arc::clone(&fake1);
+        let f2 = Arc::clone(&fake2);
+        let s1 = Arc::clone(&slots1);
+        let s2 = Arc::clone(&slots2);
+        let op = Arc::clone(&opens);
+        let opener: Opener = Box::new(move || {
+            let n = op.fetch_add(1, Ordering::SeqCst);
+            Ok(match n {
+                0 => Box::new(SlotFake {
+                    inner: f1.clone(),
+                    slots: s1.clone(),
+                }),
+                _ => Box::new(SlotFake {
+                    inner: f2.clone(),
+                    slots: s2.clone(),
+                }),
+            })
+        });
+        let shutdown = Shutdown::manual();
+        let (handle, thread, status) = spawn_with(
+            Some(test_uri()),
+            shutdown.clone(),
+            Bus::new(),
+            fast_cfg(),
+            Some(opener),
+        );
+        assert!(wait_until(Duration::from_secs(5), || {
+            status
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|s| s.starts_with("connected"))
+        }));
+        // identity keys recorded at connect: keys at (1-3-4, horizontal)
+        // push a frame; it lands on fake1
+        assert!(push_color(&handle, "/controls/keys/0/image", "#3cc86e"));
+        let want = expected_key_image_reports([0x3c, 0xc8, 0x6e]);
+        assert!(wait_until(Duration::from_secs(5), || {
+            last_key_image_reports(&fake1, want.len()) == want
+        }));
+
+        // MOVE the keys module to another connector on the SAME transport: the periodic
+        // rescan compares (slot, orientation) keys, sees the change, and reconnects
+        slots1.lock().unwrap().insert(
+            ModuleKind::Keys,
+            ds_device::slot::Slot::parse("3-1").unwrap(),
+        );
+        assert!(
+            wait_until(Duration::from_secs(5), || opens.load(Ordering::SeqCst) >= 2),
+            "placement change did not trigger a reconnect"
+        );
+        // the re-push after the reconnect delivers the same frame to the new transport,
+        // keyed by position (idempotent latest-frame-wins)
+        assert!(wait_until(Duration::from_secs(5), || {
+            last_key_image_reports(&fake2, want.len()) == want
+        }));
+
+        shutdown.trigger();
+        thread.join().unwrap();
     }
 
     /// Adapter so a `Arc<FakeTransport>` can be boxed as a `Transport`.
